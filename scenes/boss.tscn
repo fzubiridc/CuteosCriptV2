@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://bs53qo8g3tt5j"]
+
+[ext_resource type="Script" uid="uid://de2xe6a7locwg" path="res://scripts/boss.gd" id="1_dlmty"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_neq0i"]
+radius = 16.0
+
+[node name="Boss" type="CharacterBody2D" unique_id=1669967106]
+collision_layer = 4
+script = ExtResource("1_dlmty")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=1516584172]
+
+[node name="Shape" type="CollisionShape2D" parent="." unique_id=1678766465]
+shape = SubResource("CircleShape2D_neq0i")
+
+[node name="Visual" type="Polygon2D" parent="." unique_id=1219499041]
+color = Color(0.9, 0.25, 0.5, 1)
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)

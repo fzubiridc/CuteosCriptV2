@@ -1,0 +1,286 @@
+[gd_scene format=3 uid="uid://0c4hpjy5i6r3"]
+
+[ext_resource type="Script" uid="uid://d2v5ubmun6nux" path="res://scripts/player.gd" id="1_o5qli"]
+[ext_resource type="Script" uid="uid://cki8ikejvyox8" path="res://scripts/main.gd" id="1_sugp2"]
+[ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
+[ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
+[ext_resource type="SpriteFrames" uid="uid://dh3lshx2e8r2" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
+[ext_resource type="AnimationLibrary" uid="uid://vg3cyf2tfx67" path="res://assets/hero/mage_anims.tres" id="5_anims"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
+size = Vector2(10, 12)
+
+[node name="Main" type="Node2D" unique_id=508555698]
+script = ExtResource("1_sugp2")
+
+[node name="Dungeon" type="TileMapLayer" parent="." unique_id=1328865758]
+script = ExtResource("2_jyhfs")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=2112145056]
+position = Vector2(160, 112)
+collision_layer = 2
+script = ExtResource("1_o5qli")
+
+[node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
+visible = false
+shape = SubResource("RectangleShape2D_tefeu")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
+zoom = Vector2(3, 3)
+
+[node name="Rig" type="Node2D" parent="Player" unique_id=979511126]
+scale = Vector2(0.4, 0.4)
+
+[node name="Body" type="AnimatedSprite2D" parent="Player/Rig" unique_id=332504085]
+position = Vector2(0, -14)
+sprite_frames = ExtResource("4_tbgi4")
+animation = &"idle_hold_north_east"
+
+[node name="Hand" type="Marker2D" parent="Player/Rig" unique_id=1895517757]
+position = Vector2(14.999998, -9.999999)
+gizmo_extents = 8.0
+
+[node name="Weapon" type="Sprite2D" parent="Player/Rig/Hand" unique_id=930137035]
+visible = false
+centered = false
+
+[node name="Tip" type="Marker2D" parent="Player/Rig/Hand/Weapon" unique_id=51219352]
+
+[node name="HandOverlay" type="Sprite2D" parent="Player/Rig/Hand" unique_id=522880698]
+visible = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Player" unique_id=1916177541]
+libraries/ = ExtResource("5_anims")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=417060991]
+visible = false
+script = ExtResource("4_jyhfs")
+
+[node name="BossUI" type="Control" parent="HUD" unique_id=1519733266]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+
+[node name="BossBar" type="ProgressBar" parent="HUD/BossUI" unique_id=418103804]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 26.0
+offset_right = 776.0
+offset_bottom = 53.0
+show_percentage = false
+
+[node name="BossName" type="Label" parent="HUD/BossUI" unique_id=1810852497]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 6.0
+offset_right = 776.0
+offset_bottom = 29.0
+horizontal_alignment = 1
+
+[node name="StatsLabel" type="Label" parent="HUD" unique_id=1569438729]
+offset_left = 8.0
+offset_top = 56.0
+offset_right = 9.0
+offset_bottom = 79.0
+theme_override_font_sizes/font_size = 14
+
+[node name="UpgradePanel" type="Control" parent="HUD" unique_id=2024596473]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+
+[node name="BG" type="ColorRect" parent="HUD/UpgradePanel" unique_id=1053606244]
+layout_mode = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Title" type="Label" parent="HUD/UpgradePanel" unique_id=852987117]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 200.0
+offset_right = 776.0
+offset_bottom = 232.0
+horizontal_alignment = 1
+
+[node name="Up1" type="Button" parent="HUD/UpgradePanel" unique_id=214595385]
+layout_mode = 0
+offset_left = 396.0
+offset_top = 260.0
+offset_right = 756.0
+offset_bottom = 316.0
+
+[node name="Up2" type="Button" parent="HUD/UpgradePanel" unique_id=717387235]
+layout_mode = 0
+offset_left = 396.0
+offset_top = 326.0
+offset_right = 756.0
+offset_bottom = 382.0
+
+[node name="Up3" type="Button" parent="HUD/UpgradePanel" unique_id=992776958]
+layout_mode = 0
+offset_left = 396.0
+offset_top = 392.0
+offset_right = 756.0
+offset_bottom = 448.0
+
+[node name="InventoryPanel" type="Control" parent="HUD" unique_id=1709391751]
+layout_mode = 3
+anchors_preset = 0
+
+[node name="BG" type="ColorRect" parent="HUD/InventoryPanel" unique_id=1981790689]
+layout_mode = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0.03, 0.03, 0.05, 0.85)
+
+[node name="Title" type="Label" parent="HUD/InventoryPanel" unique_id=2127568331]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 40.0
+offset_right = 776.0
+offset_bottom = 70.0
+text = "INVENTARIO"
+horizontal_alignment = 1
+
+[node name="EquipLabel" type="Label" parent="HUD/InventoryPanel" unique_id=1351704723]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 110.0
+offset_right = 580.0
+offset_bottom = 570.0
+
+[node name="BagTitle" type="Label" parent="HUD/InventoryPanel" unique_id=1634981177]
+layout_mode = 0
+offset_left = 620.0
+offset_top = 110.0
+offset_right = 1060.0
+offset_bottom = 138.0
+text = "Bolsa"
+
+[node name="BagList" type="VBoxContainer" parent="HUD/InventoryPanel" unique_id=998009843]
+layout_mode = 0
+offset_left = 620.0
+offset_top = 145.0
+offset_right = 1060.0
+offset_bottom = 585.0
+
+[node name="Hint" type="Label" parent="HUD/InventoryPanel" unique_id=907980296]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 600.0
+offset_right = 776.0
+offset_bottom = 624.0
+horizontal_alignment = 1
+
+[node name="HPBg" type="ColorRect" parent="HUD" unique_id=1397407077]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 228.0
+offset_bottom = 24.0
+color = Color(0.1, 0.1, 0.12, 0.85)
+
+[node name="HPFill" type="ColorRect" parent="HUD" unique_id=1487297624]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 228.0
+offset_bottom = 24.0
+color = Color(0.85, 0.25, 0.3, 1)
+
+[node name="ManaBg" type="ColorRect" parent="HUD" unique_id=744711287]
+offset_left = 8.0
+offset_top = 28.0
+offset_right = 228.0
+offset_bottom = 40.0
+color = Color(0.1, 0.1, 0.12, 0.85)
+
+[node name="ManaFill" type="ColorRect" parent="HUD" unique_id=1926372737]
+offset_left = 8.0
+offset_top = 28.0
+offset_right = 228.0
+offset_bottom = 40.0
+color = Color(0.3, 0.5, 0.95, 1)
+
+[node name="XPBg" type="ColorRect" parent="HUD" unique_id=1331780685]
+offset_left = 8.0
+offset_top = 44.0
+offset_right = 228.0
+offset_bottom = 52.0
+color = Color(0.1, 0.1, 0.12, 0.85)
+
+[node name="XPFill" type="ColorRect" parent="HUD" unique_id=482951458]
+offset_left = 8.0
+offset_top = 44.0
+offset_right = 228.0
+offset_bottom = 52.0
+color = Color(0.9, 0.8, 0.3, 1)
+
+[node name="PausePanel" type="Control" parent="HUD" unique_id=268725581]
+layout_mode = 3
+anchors_preset = 0
+
+[node name="BG" type="ColorRect" parent="HUD/PausePanel" unique_id=1212663167]
+layout_mode = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0, 0, 0, 0.7)
+
+[node name="PTitle" type="Label" parent="HUD/PausePanel" unique_id=539525726]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 220.0
+offset_right = 776.0
+offset_bottom = 260.0
+text = "PAUSA"
+horizontal_alignment = 1
+
+[node name="BtnResume" type="Button" parent="HUD/PausePanel" unique_id=422118081]
+layout_mode = 0
+offset_left = 456.0
+offset_top = 290.0
+offset_right = 696.0
+offset_bottom = 342.0
+text = "Reanudar"
+
+[node name="BtnRestartP" type="Button" parent="HUD/PausePanel" unique_id=1228925613]
+layout_mode = 0
+offset_left = 456.0
+offset_top = 356.0
+offset_right = 696.0
+offset_bottom = 408.0
+text = "Reiniciar run"
+
+[node name="DeathPanel" type="Control" parent="HUD" unique_id=654315455]
+layout_mode = 3
+anchors_preset = 0
+
+[node name="BG" type="ColorRect" parent="HUD/DeathPanel" unique_id=747819902]
+layout_mode = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0.12, 0, 0, 0.78)
+
+[node name="DTitle" type="Label" parent="HUD/DeathPanel" unique_id=2055972334]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 200.0
+offset_right = 776.0
+offset_bottom = 244.0
+text = "MORISTE"
+horizontal_alignment = 1
+
+[node name="DSub" type="Label" parent="HUD/DeathPanel" unique_id=408044762]
+layout_mode = 0
+offset_left = 376.0
+offset_top = 256.0
+offset_right = 776.0
+offset_bottom = 286.0
+horizontal_alignment = 1
+
+[node name="BtnRestartD" type="Button" parent="HUD/DeathPanel" unique_id=1522882896]
+layout_mode = 0
+offset_left = 456.0
+offset_top = 320.0
+offset_right = 696.0
+offset_bottom = 376.0
+text = "Reiniciar"
