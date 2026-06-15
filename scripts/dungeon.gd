@@ -167,10 +167,17 @@ func _make_normal(src: Image, strength: float) -> Image:
 	return nm
 
 func _load_tile(path: String) -> Image:
-	var im := Image.new()
-	im.load(ProjectSettings.globalize_path(path))
-	im.convert(Image.FORMAT_RGBA8)
-	if im.get_width() != TILE:
+	# Cargar vía recurso importado (no globalize_path): así funciona en cualquier
+	# export, no solo corriendo desde el editor. En web no hay filesystem de OS.
+	var tex := load(path) as Texture2D
+	var im: Image = tex.get_image() if tex != null else null
+	if im == null:
+		return Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
+	if im.is_compressed():
+		im.decompress()
+	if im.get_format() != Image.FORMAT_RGBA8:
+		im.convert(Image.FORMAT_RGBA8)
+	if im.get_width() != TILE or im.get_height() != TILE:
 		im.resize(TILE, TILE, Image.INTERPOLATE_NEAREST)
 	return im
 

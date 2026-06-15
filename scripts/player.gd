@@ -124,11 +124,8 @@ func _load_textures() -> void:
 	staff_arm.texture = _load_runtime_tex("res://assets/hero/staffarm.png")
 
 func _load_runtime_tex(res_path: String) -> Texture2D:
-	var img := Image.new()
-	var err := img.load(ProjectSettings.globalize_path(res_path))
-	if err != OK:
-		return null
-	return ImageTexture.create_from_image(img)
+	# La textura importada ya está en el .pck; load() la trae en cualquier export.
+	return load(res_path) as Texture2D
 
 # ---------------- Stats derivados ----------------
 func _equip_sum(field: String) -> float:

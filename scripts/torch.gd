@@ -40,9 +40,12 @@ static func _get_frames() -> SpriteFrames:
 	sf.add_animation("burn")
 	sf.set_animation_speed("burn", 10.0)
 	sf.set_animation_loop("burn", true)
-	var sheet := Image.new()
-	sheet.load(ProjectSettings.globalize_path("res://assets/fx/torch_anim.png"))
-	sheet.convert(Image.FORMAT_RGBA8)
+	var sheet_tex := load("res://assets/fx/torch_anim.png") as Texture2D
+	var sheet: Image = sheet_tex.get_image()
+	if sheet.is_compressed():
+		sheet.decompress()
+	if sheet.get_format() != Image.FORMAT_RGBA8:
+		sheet.convert(Image.FORMAT_RGBA8)
 	var cols := sheet.get_width() / FRAME_PX
 	for i in FRAMES:
 		var fx := (i % cols) * FRAME_PX
