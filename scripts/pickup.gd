@@ -40,25 +40,40 @@ func setup(pos: Vector2, k: String, v: int, idata: Dictionary = {}) -> void:
 
 func _configure() -> void:
 	var col := Color(1.0, 0.85, 0.3)
-	if kind == "coin":
-		var tier := 1
-		if value >= 25: tier = 4
-		elif value >= 12: tier = 3
-		elif value >= 5: tier = 2
-		_icon.texture = load("res://assets/pickups/coin_t%d.png" % tier)
-		_icon.scale = Vector2(0.2, 0.2)   # 80px → ~16
-		_icon.modulate = Color.WHITE
-	else:
-		_icon.texture = _get_gem()
-		_icon.scale = Vector2(0.7, 0.7)
-		match kind:
-			"xp": col = Color(0.45, 1.0, 0.55)
-			"heart": col = Color(1.0, 0.32, 0.42)
-			"potion": col = Color(0.45, 0.62, 1.0)
-			"item": col = Color(Items.rarity_data(item_data.get("rarity", "comun")).color)
-		_icon.modulate = col
+	match kind:
+		"coin":
+			var tier := 1
+			if value >= 25: tier = 4
+			elif value >= 12: tier = 3
+			elif value >= 5: tier = 2
+			_icon.texture = load("res://assets/pickups/coin_t%d.png" % tier)
+			_icon.scale = Vector2(0.2, 0.2)   # 80px → ~16
+			_icon.modulate = Color.WHITE
+		"heart":   # poción ROJA real (vida)
+			_icon.texture = load("res://assets/pickups/heart.png")
+			_icon.scale = Vector2(1.1, 1.1)
+			_icon.modulate = Color(1.15, 1.05, 1.0)   # leve realce para que no quede opaca
+			col = Color(1.0, 0.32, 0.30)
+		"potion":  # poción AZUL real
+			_icon.texture = load("res://assets/pickups/potion.png")
+			_icon.scale = Vector2(1.1, 1.1)
+			_icon.modulate = Color(1.0, 1.05, 1.15)
+			col = Color(0.4, 0.6, 1.0)
+		"xp":
+			_icon.texture = _get_gem()
+			_icon.scale = Vector2(0.7, 0.7)
+			col = Color(0.45, 1.0, 0.55)
+			_icon.modulate = col
+		_:        # item u otros: gema tintada por rareza
+			_icon.texture = _get_gem()
+			_icon.scale = Vector2(0.7, 0.7)
+			col = Color(Items.rarity_data(item_data.get("rarity", "comun")).color)
+			_icon.modulate = col
 	_glow.modulate = Color(col.r, col.g, col.b, 0.45)
 	_glow.scale = Vector2(0.13, 0.13)
+	if kind == "heart" or kind == "potion":   # frasco oscuro → más glow para que lea
+		_glow.modulate.a = 0.6
+		_glow.scale = Vector2(0.17, 0.17)
 
 func _process(delta: float) -> void:
 	_t += delta
