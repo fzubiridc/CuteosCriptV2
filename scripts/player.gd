@@ -12,9 +12,11 @@ const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_we
 const FACING_MIRROR := {"west": "east", "north_west": "north_east", "south_west": "south_east"}
 # HandOverlay (la mano cerrada encima del arma) solo existe para 3 dirs base.
 const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "east": "east"}
-# Antes había direcciones donde la vara iba detrás del cuerpo (N/NE/NW) — el
-# original hacía eso para esconderla. Optamos por mostrarla siempre delante.
-const STAFF_BEHIND := {}
+# Cuando el mago mira para atrás (N/NE/NW), la vara queda DETRÁS del cuerpo
+# (z=-1). El cuerpo la tapa donde se cruzan, pero la parte que sobresale
+# (típicamente la punta arriba) sí se ve. Más realista que verla flotando
+# delante de la espalda.
+const STAFF_BEHIND := {"north": true, "north_east": true, "north_west": true}
 
 @export var base_speed := 95.0
 @export var base_max_hp := 100
@@ -214,9 +216,13 @@ func _refresh_facing_visuals(dir: String) -> void:
 		hand_overlay.centered = true
 	else:
 		hand_overlay.visible = false
-	# Z-order del Weapon: detrás del cuerpo cuando va hacia el norte.
-	weapon.z_index = -1 if STAFF_BEHIND.get(dir, false) else 1
-	hand_overlay.z_index = 2  # siempre por encima del arma cuando visible
+	# Z-order: la vara SIEMPRE está sobre el piso (z=1). Cuando el mago mira
+	# para atrás (N/NE/NW) subimos el z del CUERPO para que la tape donde se
+	# cruzan (la punta que sobresale igual se ve). No bajamos la vara, porque
+	# z negativo la mandaría detrás del TileMapLayer del piso (z=0).
+	weapon.z_index = 1
+	hand_overlay.z_index = 2
+	body.z_index = 5 if STAFF_BEHIND.get(dir, false) else 0
 
 # ---------------- Combate ----------------
 func _try_dash() -> void:
