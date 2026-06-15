@@ -83,10 +83,23 @@ func _ready() -> void:
 	_refresh_weapon()
 	_play("idle", facing_dir)
 	_setup_light()
+	FootShadow.attach(self, 9.0, 17.0)
+	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
+	# así la luz le llega "por los pies" y la sombra del muro no lo oscurece.
+	var fm := CanvasItemMaterial.new()
+	fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	for s in [body, weapon, hand_overlay, staff_arm]:
+		if s:
+			s.material = fm
 
 func _setup_light() -> void:
 	var light := get_node_or_null("Light") as PointLight2D
 	if light == null:
+		return
+	# Charco de luz compartido (elíptico, achatado en Y → vista 3/4).
+	var pool := load("res://assets/fx/light_pool.tres") as Texture2D
+	if pool != null:
+		light.texture = pool
 		return
 	var s := 256
 	var img := Image.create_empty(s, s, false, Image.FORMAT_RGBA8)
@@ -180,6 +193,7 @@ func _refresh_weapon() -> void:
 
 # ---------------- Loop ----------------
 func _physics_process(delta: float) -> void:
+	rig.modulate = LightField.sample(global_position + Vector2(0, 8.0))
 	_tick_timers(delta)
 	if dash_t > 0.0:
 		velocity = dash_vel

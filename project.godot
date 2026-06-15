@@ -23,6 +23,13 @@ GameState="*res://scripts/autoload/game_state.gd"
 Data="*res://scripts/autoload/data.gd"
 Items="*res://scripts/autoload/items.gd"
 Audio="*res://scripts/autoload/audio.gd"
+LightCfg="*res://scripts/autoload/light_cfg.gd"
+LightField="*res://scripts/autoload/light_field.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 
 [editor_plugins]
 

@@ -5,10 +5,27 @@
 [ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
 [ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
+[ext_resource type="Texture2D" path="res://assets/fx/light_radial.tres" id="4_tipki"]
 [ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
+[ext_resource type="Texture2D" path="res://assets/fx/vignette.tres" id="7_o6xl0"]
+[ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 12)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
+emission_shape = 3
+emission_box_extents = Vector3(230, 140, 1)
+direction = Vector3(0, -1, 0)
+spread = 35.0
+initial_velocity_min = 2.0
+initial_velocity_max = 9.0
+angular_velocity_min = -20.0
+angular_velocity_max = 20.0
+gravity = Vector3(4, -6, 0)
+scale_min = 0.01
+scale_max = 0.03
+color = Color(0.7, 0.62, 0.85, 0.22)
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tefeu"]
 sky_top_color = Color(0.38, 0.45, 0.55, 1)
@@ -24,14 +41,15 @@ background_mode = 2
 sky = SubResource("Sky_o6xl0")
 ambient_light_source = 3
 glow_enabled = true
-glow_intensity = 1.0
-glow_bloom = 0.25
-glow_hdr_threshold = 0.85
+glow_intensity = 0.7
+glow_hdr_threshold = 1.2
 
 [node name="Main" type="Node2D" unique_id=508555698]
+y_sort_enabled = true
 script = ExtResource("1_sugp2")
 
 [node name="Dungeon" type="TileMapLayer" parent="." unique_id=1328865758]
+position = Vector2(1.2846222, -0.092300415)
 script = ExtResource("2_jyhfs")
 
 [node name="Player" type="CharacterBody2D" parent="." unique_id=2112145056]
@@ -44,6 +62,15 @@ shape = SubResource("RectangleShape2D_tefeu")
 
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
 zoom = Vector2(3, 3)
+
+[node name="Motes" type="GPUParticles2D" parent="Player/Camera2D" unique_id=608948220]
+z_index = 50
+amount = 22
+texture = ExtResource("4_tipki")
+lifetime = 8.0
+preprocess = 5.0
+randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_tipki")
 
 [node name="Rig" type="Node2D" parent="Player" unique_id=979511126]
 scale = Vector2(0.4, 0.4)
@@ -73,13 +100,16 @@ centered = false
 libraries/ = ExtResource("5_anims")
 
 [node name="Light" type="PointLight2D" parent="Player" unique_id=195600636]
+position = Vector2(1.0999756, 1.0999985)
 color = Color(1, 0.86, 0.62, 1)
-energy = 1.7
+energy = 2.6
 shadow_enabled = true
 shadow_filter = 1
-texture_scale = 2.2
+texture_scale = 3.4
+height = 24.0
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=417060991]
+layer = 2
 visible = false
 script = ExtResource("4_jyhfs")
 
@@ -317,3 +347,18 @@ color = Color(0.32, 0.33, 0.42, 1)
 
 [node name="Env" type="WorldEnvironment" parent="." unique_id=464127370]
 environment = SubResource("Environment_tipki")
+
+[node name="FX" type="CanvasLayer" parent="." unique_id=1442618580]
+
+[node name="Vignette" type="TextureRect" parent="FX" unique_id=236168006]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("7_o6xl0")
+expand_mode = 1
+
+[node name="LightingDebug" type="CanvasLayer" parent="." unique_id=352811338]
+script = ExtResource("9_85g3d")

@@ -15,6 +15,7 @@ var max_hp := 30
 var damage := 8
 var speed := 60.0
 var size := 8.0
+var _foot_shadow: Sprite2D
 var atk_range := 0.0
 var fire_cd := 1.5
 var proj_spd := 150.0
@@ -65,6 +66,13 @@ func setup_type(key: String, is_elite := false) -> void:
 
 func _apply_visual() -> void:
 	base_color = _ai_color()
+	if _foot_shadow == null:
+		_foot_shadow = FootShadow.attach(self, size * 0.9, size * 2.2)
+	if sprite.material == null:   # foot-light: unshaded, tintado por LightField
+		var fm := CanvasItemMaterial.new()
+		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+		sprite.material = fm
+		visual.material = fm
 	var set_name: String = SPRITE_SETS.get(type_key, "")
 	if set_name != "":
 		var sf = load("res://assets/mobs/%s_frames.tres" % set_name)
@@ -104,6 +112,9 @@ func _ai_color() -> Color:
 	return c
 
 func _physics_process(delta: float) -> void:
+	var lc := LightField.sample(global_position)
+	sprite.self_modulate = lc
+	visual.self_modulate = lc
 	hit_cd = maxf(0.0, hit_cd - delta)
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)
