@@ -50,6 +50,7 @@ func _build() -> void:
 	if SaveSystem.has_run():
 		box.add_child(_button("CONTINUAR RUN GUARDADA", _on_continue))
 	box.add_child(_button("▶ ENTRAR A LA CÁRCEL", _on_new))
+	box.add_child(_button("SALIR", _on_quit))
 
 func _label(text: String, color: Color, size: int) -> Label:
 	var l := Label.new()
@@ -80,3 +81,6 @@ func _on_new() -> void:
 
 func _on_continue() -> void:
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _on_quit() -> void:
+	get_tree().quit()

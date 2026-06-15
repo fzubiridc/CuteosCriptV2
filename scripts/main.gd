@@ -30,6 +30,12 @@ func _ready() -> void:
 
 var _autosave_t := 0.0
 
+func _unhandled_input(event: InputEvent) -> void:
+	# ESC durante la partida → vuelve al menú (con SALIR). Guarda la run primero.
+	if event.is_action_pressed("ui_cancel") and GameState.mode == GameState.Mode.PLAY:
+		SaveSystem.save_run(GameState.run, player)
+		get_tree().change_scene_to_file.call_deferred("res://scenes/menu.tscn")
+
 func _process(delta: float) -> void:
 	if GameState.mode == GameState.Mode.PLAY:
 		GameState.run["time"] = float(GameState.run.get("time", 0.0)) + delta
