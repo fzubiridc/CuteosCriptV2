@@ -26,6 +26,7 @@ Audio="*res://scripts/autoload/audio.gd"
 LightCfg="*res://scripts/autoload/light_cfg.gd"
 LightField="*res://scripts/autoload/light_field.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
+Touch="*res://scripts/autoload/touch.gd"
 
 [display]
 

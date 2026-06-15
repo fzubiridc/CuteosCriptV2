@@ -316,7 +316,7 @@ func _try_dash() -> void:
 	if dash_cd_t > 0.0 or dash_t > 0.0: return
 	var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if dir == Vector2.ZERO:
-		dir = (get_global_mouse_position() - global_position).normalized()
+		dir = _aim_dir(global_position)
 	dash_vel = dir * float(Data.BALANCE.dash_speed)
 	dash_t = float(Data.BALANCE.dash_time)
 	dash_cd_t = float(Data.BALANCE.dash_cd)
@@ -331,13 +331,42 @@ func _try_attack() -> void:
 	mana -= cost
 	no_cast_t = 0.0
 	var spawn_pos := tip.global_position if weapon.visible else global_position
-	var dir := (get_global_mouse_position() - spawn_pos).normalized()
+	var dir := _aim_dir(spawn_pos)
 	var dmg := attack_damage()
 	if Rng.unit() * 100.0 < crit_chance(): dmg *= 2
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
 	p.setup(spawn_pos, dir, dmg, true, float(w.get("proj_spd", 260)))
 	Audio.play("attack", -10.0)
+
+## Dirección de apuntado: en mobile auto-apunta al enemigo más cercano (sin mouse);
+## en desktop apunta al mouse.
+const _FACE_VEC := {
+	"south": Vector2(0, 1), "north": Vector2(0, -1), "east": Vector2(1, 0), "west": Vector2(-1, 0),
+	"south_east": Vector2(1, 1), "south_west": Vector2(-1, 1), "north_east": Vector2(1, -1), "north_west": Vector2(-1, -1),
+}
+
+func _aim_dir(from: Vector2) -> Vector2:
+	if Touch.active:
+		var e := _nearest_enemy()
+		if e:
+			return (e.global_position - from).normalized()
+		var mv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if mv != Vector2.ZERO:
+			return mv.normalized()
+		return Vector2(_FACE_VEC.get(facing_dir, Vector2(0, 1))).normalized()
+	return (get_global_mouse_position() - from).normalized()
+
+func _nearest_enemy() -> Node2D:
+	var best: Node2D = null
+	var bd := 99999.0
+	for n in get_parent().get_children():
+		if (n is Enemy or n is Boss) and is_instance_valid(n):
+			var d := global_position.distance_to(n.global_position)
+			if d < bd:
+				bd = d
+				best = n
+	return best
 
 func take_damage(amount: int, from_pos: Vector2) -> void:
 	if ifr > 0.0: return
