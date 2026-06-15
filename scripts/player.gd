@@ -10,13 +10,12 @@ const PROJECTILE := preload("res://scenes/projectile.tscn")
 const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_west", "north", "north_east"]
 # Solo tenemos animaciones para 5 dirs base. El resto va por mirror del Rig.
 const FACING_MIRROR := {"west": "east", "north_west": "north_east", "south_west": "south_east"}
-# HandOverlay (la mano cerrada encima del arma) solo existe para 3 dirs base.
-const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "east": "east"}
-# Cuando el mago mira para atrás (N/NE/NW), la vara queda DETRÁS del cuerpo
-# (z=-1). El cuerpo la tapa donde se cruzan, pero la parte que sobresale
-# (típicamente la punta arriba) sí se ve. Más realista que verla flotando
-# delante de la espalda.
-const STAFF_BEHIND := {"north": true, "north_east": true, "north_west": true}
+# HandOverlay (los dedos por delante de la vara, para el agarre).
+const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "east": "east", "north_east": "north-east"}
+# Solo en NORTE puro la vara va detrás del cuerpo (sube z del cuerpo). En
+# NE/NW usamos el agarre: vara delante del cuerpo + dedos (overlay) delante
+# de la vara → "dedo - vara - resto de mano".
+const STAFF_BEHIND := {"north": true}
 
 @export var base_speed := 95.0
 @export var base_max_hp := 100
@@ -148,6 +147,10 @@ func _refresh_weapon() -> void:
 	# en el píxel "grip" de la imagen (alineado con la mano).
 	weapon.offset = Vector2(-float(grip.x), -float(grip.y))
 	weapon.rotation = deg_to_rad(float(cfg.rot_deg))
+	# Escala spx/ancho_nativo: normaliza el tamaño (staff5-8 son 128px).
+	var tw := _staff_textures[idx].get_width()
+	var s := float(cfg.get("spx", tw)) / float(tw) if tw > 0 else 1.0
+	weapon.scale = Vector2(s, s)
 	weapon.visible = true
 	# Tip es hijo del Weapon: su posición es relativa al grip (que es el origen local).
 	tip.position = Vector2(float(focus.x) - float(grip.x), float(focus.y) - float(grip.y))

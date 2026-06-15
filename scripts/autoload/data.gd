@@ -112,16 +112,18 @@ const MODS := [
 ## grip = pixel de la imagen del arma que se alinea con la mano del personaje.
 ## focus = punta del arma (desde acá sale el proyectil).
 ## rot_deg = rotación visual de la imagen del arma.
+## spx = ancho objetivo del arma en px → escala = spx / ancho_nativo. Las
+## staff5-8 son de 128px nativas, el resto 64px (ver v2hero.js original).
 const STAFF_RIG := [
-	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 8},  "rot_deg": 0},   # staff1
-	{"grip": {"x": 31, "y": 43}, "focus": {"x": 31, "y": 8},  "rot_deg": 0},
-	{"grip": {"x": 32, "y": 46}, "focus": {"x": 32, "y": 8},  "rot_deg": 0},
-	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 7},  "rot_deg": 15},
-	{"grip": {"x": 38, "y": 89}, "focus": {"x": 13, "y": 32}, "rot_deg": -45},
-	{"grip": {"x": 54, "y": 75}, "focus": {"x": 23, "y": 25}, "rot_deg": -45},
-	{"grip": {"x": 35, "y": 93}, "focus": {"x": 13, "y": 37}, "rot_deg": -45},
-	{"grip": {"x": 41, "y": 88}, "focus": {"x": 21, "y": 39}, "rot_deg": -45},
-	{"grip": {"x": 32, "y": 42}, "focus": {"x": 32, "y": 8},  "rot_deg": 0},   # staff9
+	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 49},  # staff1
+	{"grip": {"x": 31, "y": 43}, "focus": {"x": 31, "y": 8},  "rot_deg": 0,   "spx": 64},
+	{"grip": {"x": 32, "y": 46}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 61},
+	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 7},  "rot_deg": 15,  "spx": 64},
+	{"grip": {"x": 38, "y": 89}, "focus": {"x": 13, "y": 32}, "rot_deg": -45, "spx": 64},
+	{"grip": {"x": 54, "y": 75}, "focus": {"x": 23, "y": 25}, "rot_deg": -45, "spx": 64},
+	{"grip": {"x": 35, "y": 93}, "focus": {"x": 13, "y": 37}, "rot_deg": -45, "spx": 64},
+	{"grip": {"x": 41, "y": 88}, "focus": {"x": 21, "y": 39}, "rot_deg": -45, "spx": 51},
+	{"grip": {"x": 32, "y": 42}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 64},  # staff9
 ]
 
 const STAFF_NAMES := [
