@@ -29,8 +29,14 @@ const DEFS := {
 	"bloom_intensity": {"min": 0.0, "max": 3.0, "def": 1.0, "label": "Bloom intensidad", "group": "Post"},
 	"bloom_threshold": {"min": 0.0, "max": 2.0, "def": 0.9, "label": "Bloom umbral", "group": "Post"},
 	"bloom_strength": {"min": 0.0, "max": 10.0, "def": 4.0, "label": "Bloom blur", "group": "Post"},
-	# --- Sombras ---
-	"shadow_smooth": {"min": 0.0, "max": 8.0, "def": 2.0, "label": "Sombra suavidad", "group": "Sombras"},
+	# --- Sombras de muro (occluder nativo) ---
+	"shadow_smooth": {"min": 0.0, "max": 8.0, "def": 2.0, "label": "Sombra muro suavidad", "group": "Sombras"},
+	# --- Sombra proyectada de billboards (silueta del personaje) ---
+	"cast_light_ht": {"min": 30.0, "max": 220.0, "def": 80.0, "label": "Proy. altura luz (zL)", "group": "Sombras"},
+	"cast_max_len": {"min": 8.0, "max": 220.0, "def": 75.0, "label": "Proy. largo máx", "group": "Sombras"},
+	"cast_alpha": {"min": 0.0, "max": 1.0, "def": 0.62, "label": "Proy. opacidad", "group": "Sombras"},
+	"cast_falloff": {"min": 0.0, "max": 4.0, "def": 1.2, "label": "Proy. caída dist", "group": "Sombras"},
+	"cast_width": {"min": 0.3, "max": 2.0, "def": 0.95, "label": "Proy. ancho", "group": "Sombras"},
 }
 
 var _v: Dictionary = {}

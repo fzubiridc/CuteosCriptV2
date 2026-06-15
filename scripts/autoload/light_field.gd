@@ -54,3 +54,33 @@ func sample(pos: Vector2) -> Color:
 		g += lp.color.g * at
 		b += lp.color.b * at
 	return Color(minf(r, 1.5), minf(g, 1.5), minf(b, 1.5))
+
+## Luz dominante en `pos` para la sombra proyectada (billboard). Devuelve:
+##   dir   = versor desde la luz hacia `pos` (hacia donde cae la sombra)
+##   d     = distancia px a esa luz
+##   prox  = 1 - d/radio (1 pegado a la luz, 0 en el borde)
+## Ignora luces cuyo centro coincide con `pos` (p.ej. la luz propia del jugador).
+func shadow_vector(pos: Vector2) -> Dictionary:
+	if not _gathered or _lights.is_empty():
+		_gather()
+	var best := 0.0
+	var res := {"dir": Vector2.ZERO, "d": 0.0, "prox": 0.0}
+	for L in _lights:
+		if not is_instance_valid(L):
+			continue
+		var lp := L as PointLight2D
+		if not lp.enabled:
+			continue
+		var rad := lp.texture_scale * 128.0
+		if rad <= 0.0:
+			continue
+		var off := pos - lp.global_position
+		var d := off.length()
+		if d >= rad or d < 2.0:        # < 2px → es la luz propia de la entidad
+			continue
+		var prox := 1.0 - d / rad
+		var at := pow(prox, 2.0) * lp.energy
+		if at > best:
+			best = at
+			res = {"dir": off / d, "d": d, "prox": prox}
+	return res

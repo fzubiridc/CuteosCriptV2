@@ -83,7 +83,8 @@ func _ready() -> void:
 	_refresh_weapon()
 	_play("idle", facing_dir)
 	_setup_light()
-	FootShadow.attach(self, 9.0, 17.0)
+	FootShadow.attach(self, 9.0, 14.0)     # contacto chico en los pies
+	CastShadow.attach(self, body, 9.0)     # sombra proyectada PRO (silueta real)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
 	# así la luz le llega "por los pies" y la sombra del muro no lo oscurece.
 	var fm := CanvasItemMaterial.new()

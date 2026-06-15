@@ -287,7 +287,9 @@ func _place_torches() -> void:
 			var t := PointLight2D.new()
 			t.set_script(torch_script)
 			t.seed_off = idx * 1.7
-			t.position = to_global(map_to_local(Vector2i(x, r.position.y))) + Vector2(0, 2)
+			# Montada en la CARA del muro (wall_row), no en el piso. El sprite de
+			# la antorcha tiene su propio offset hacia arriba (torch.gd).
+			t.position = to_global(map_to_local(Vector2i(x, wall_row)))
 			holder.add_child(t)
 			idx += 1
 	LightField.mark_dirty()   # refrescar la lista de luces para el foot-light
