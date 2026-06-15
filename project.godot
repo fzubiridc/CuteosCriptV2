@@ -22,6 +22,7 @@ Rng="*res://scripts/autoload/rng.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 Data="*res://scripts/autoload/data.gd"
 Items="*res://scripts/autoload/items.gd"
+Audio="*res://scripts/autoload/audio.gd"
 
 [editor_plugins]
 

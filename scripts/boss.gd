@@ -1,13 +1,14 @@
 extends CharacterBody2D
 class_name Boss
-## Jefe — F5. Máquina de estados que cicla `patterns` (desde Data.BOSSES).
-## Patrones: chase, charge (telegrafía+embiste), burst (anillo), spread (abanico),
-## summon (invoca esbirros). Al 50% de vida entra en 2ª fase (enrage).
+## Jefe. Máquina de patrones (chase/charge/burst/spread/summon) + enrage al 50%.
+## F8e: sprite real — bucle usa sheets rugby animadas (idle/run); liche y
+## golem_anciano usan su PNG estático. Fallback a Polygon2D si no hay set.
 
 const TILE := 16.0
 const PROJECTILE := preload("res://scenes/projectile.tscn")
 const ENEMY := preload("res://scenes/enemy.tscn")
 const PAT_DUR := {"chase": 2.5, "charge": 1.8, "burst": 3.2, "spread": 3.0, "summon": 4.5}
+const BOSS_SETS := {"bucle": "boss", "liche": "liche", "golem_anciano": "golem_anciano"}
 
 var boss_key := "liche"
 var boss_name := "Jefe"
@@ -19,6 +20,7 @@ var speed := 50.0
 var size := 16.0
 var proj_spd := 150.0
 var minion := ""
+var use_sprite := false
 
 var pat_idx := 0
 var pat_t := 0.0
@@ -27,12 +29,13 @@ var enraged := false
 var flash_t := 0.0
 var base_color := Color(0.9, 0.25, 0.5)
 
-var charge_phase := ""        # "" | telegraph | dash | recover
+var charge_phase := ""
 var charge_timer := 0.0
 var charge_dir := Vector2.ZERO
 
 @onready var agent: NavigationAgent2D = $NavigationAgent2D
 @onready var visual: Polygon2D = $Visual
+@onready var sprite: AnimatedSprite2D = $Sprite
 
 func setup_boss(key: String) -> void:
 	boss_key = key
@@ -47,7 +50,6 @@ func setup_boss(key: String) -> void:
 	patterns = d.get("patterns", ["chase"])
 	hp = max_hp
 	_apply_visual()
-	# Después de tener nombre/vida/patrones reales (setup corre tras _ready).
 	_start_pattern()
 	GameState.boss_spawned.emit(self)
 	GameState.boss_hp_changed.emit(hp, max_hp)
@@ -60,11 +62,38 @@ func _apply_visual() -> void:
 	var sh := CircleShape2D.new()
 	sh.radius = size
 	$Shape.shape = sh
-	if visual:
+	var set_name: String = BOSS_SETS.get(boss_key, "")
+	if set_name != "":
+		var sf = load("res://assets/boss/%s_frames.tres" % set_name)
+		if sf != null:
+			sprite.sprite_frames = sf
+			var fh := 54.0
+			var t0 = sf.get_frame_texture("idle", 0)
+			if t0 != null:
+				fh = float(t0.get_height())
+			var s := (size * 2.8) / fh
+			sprite.scale = Vector2(s, s)
+			sprite.visible = true
+			visual.visible = false
+			use_sprite = true
+			sprite.play("idle")
+	if not use_sprite:
+		visual.visible = true
 		visual.color = base_color
 		visual.polygon = PackedVector2Array([
 			Vector2(-size, -size), Vector2(size, -size),
 			Vector2(size, size), Vector2(-size, size)])
+
+func _base_tint() -> Color:
+	if use_sprite:
+		return Color(1.0, 0.6, 0.5) if enraged else Color.WHITE
+	return base_color
+
+func _set_tint(c: Color) -> void:
+	if use_sprite:
+		sprite.modulate = c
+	else:
+		visual.color = c
 
 func _start_pattern() -> void:
 	pat_t = float(PAT_DUR.get(patterns[pat_idx], 2.5))
@@ -87,7 +116,7 @@ func _physics_process(delta: float) -> void:
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)
 		if flash_t == 0.0:
-			visual.color = base_color
+			_set_tint(_base_tint())
 
 	var player := GameState.player
 	if player == null:
@@ -102,7 +131,14 @@ func _physics_process(delta: float) -> void:
 		"summon": _do_summon(delta, ppos)
 		_: _do_chase(delta, ppos)
 
-	# Daño por contacto (el jugador tiene su propia invulnerabilidad).
+	if use_sprite:
+		var moving := velocity.length() > 5.0
+		var anim := "run" if moving else "idle"
+		if sprite.sprite_frames.has_animation(anim) and sprite.animation != anim:
+			sprite.play(anim)
+		if absf(velocity.x) > 1.0:
+			sprite.flip_h = velocity.x < 0.0
+
 	if global_position.distance_to(ppos) < size + 9.0:
 		player.take_damage(damage, global_position)
 
@@ -126,7 +162,7 @@ func _do_charge(delta: float, ppos: Vector2) -> void:
 	if charge_phase == "":
 		charge_phase = "telegraph"
 		charge_timer = 0.55
-		visual.color = Color(1, 1, 0.4)   # telegrafía
+		_set_tint(Color(1, 1, 0.4))
 	charge_timer -= delta
 	match charge_phase:
 		"telegraph":
@@ -136,7 +172,7 @@ func _do_charge(delta: float, ppos: Vector2) -> void:
 				charge_dir = (ppos - global_position).normalized()
 				charge_phase = "dash"
 				charge_timer = 0.45
-				visual.color = base_color
+				_set_tint(_base_tint())
 		"dash":
 			velocity = charge_dir * _spd() * 4.5
 			move_and_slide()
@@ -198,12 +234,12 @@ func _fire(dir: Vector2) -> void:
 func take_damage(amount: int) -> void:
 	hp -= amount
 	flash_t = 0.08
-	visual.color = Color(1, 1, 1)
+	_set_tint(Color(2.2, 2.2, 2.2) if use_sprite else Color(1, 1, 1))
 	GameState.floater(global_position, str(amount), Color(1, 0.8, 0.4))
 	GameState.boss_hp_changed.emit(hp, max_hp)
 	if not enraged and hp <= max_hp * 0.5:
 		enraged = true
-		base_color = Color(1.0, 0.4, 0.2)   # enfurecido
+		base_color = Color(1.0, 0.4, 0.2)
 	if hp <= 0:
 		_die()
 

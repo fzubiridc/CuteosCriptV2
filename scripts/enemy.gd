@@ -7,7 +7,7 @@ class_name Enemy
 const TILE := 16.0
 const PROJECTILE := preload("res://scenes/projectile.tscn")
 # type de Data.ENEMIES -> set de sprites en res://assets/mobs/<set>_frames.tres
-const SPRITE_SETS := {"slime": "slime", "lich": "lich", "fantasma": "ghost", "zombi": "zombie", "orco": "orc"}
+const SPRITE_SETS := {"slime": "slime", "lich": "lich", "fantasma": "ghost", "zombi": "zombie", "orco": "orc", "rata": "rata", "murcielago": "murcielago", "arana": "arana", "golem_chico": "golem", "espectro": "espectro", "cultista": "cultista", "caballero": "caballero"}
 
 var type_key := "rata"
 var ai := "chaser"
@@ -70,7 +70,11 @@ func _apply_visual() -> void:
 		var sf = load("res://assets/mobs/%s_frames.tres" % set_name)
 		if sf != null:
 			sprite.sprite_frames = sf
-			var s := (size * 2.6) / 64.0
+			var fh := 64.0
+			var t0 = sf.get_frame_texture("idle_south", 0)
+			if t0 != null:
+				fh = float(t0.get_height())
+			var s := (size * 2.6) / fh
 			sprite.scale = Vector2(s, s)
 			sprite.modulate = _idle_tint()
 			sprite.visible = true
@@ -210,6 +214,7 @@ func take_damage(amount: int) -> void:
 		_die()
 
 func _die() -> void:
+	Audio.play("enemy_death", -8.0)
 	GameState.run["kills"] = int(GameState.run.get("kills", 0)) + 1
 	GameState.drop_loot(global_position, maxi(2, max_hp / 4))
 	GameState.enemy_killed.emit(self)

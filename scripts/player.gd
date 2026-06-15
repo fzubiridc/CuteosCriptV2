@@ -247,6 +247,7 @@ func _try_dash() -> void:
 	dash_t = float(Data.BALANCE.dash_time)
 	dash_cd_t = float(Data.BALANCE.dash_cd)
 	ifr = maxf(ifr, dash_t + 0.05)
+	Audio.play("dash")
 
 func _try_attack() -> void:
 	var w := _weapon_type_data()
@@ -262,6 +263,7 @@ func _try_attack() -> void:
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
 	p.setup(spawn_pos, dir, dmg, true, float(w.get("proj_spd", 260)))
+	Audio.play("attack", -10.0)
 
 func take_damage(amount: int, from_pos: Vector2) -> void:
 	if ifr > 0.0: return
@@ -271,6 +273,7 @@ func take_damage(amount: int, from_pos: Vector2) -> void:
 	kb = (global_position - from_pos).normalized() * 150.0
 	GameState.floater(global_position, str(dealt), Color(1.0, 0.4, 0.4))
 	GameState.player_damaged.emit(dealt)
+	Audio.play("hurt")
 	if hp <= 0: _die()
 
 func heal(amount: int) -> void: hp = mini(max_hp(), hp + amount)

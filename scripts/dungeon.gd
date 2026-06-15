@@ -35,9 +35,12 @@ func get_spawn_point() -> Vector2:
 func _ensure_tileset() -> void:
 	if tile_set != null:
 		return
+	# Tiles reales (32px → bajados a 16, como el original que dibujaba a 0.5).
+	var floor_img := _load_tile("res://assets/tiles/floor_torre.png")
+	var wall_img := _load_tile("res://assets/tiles/wall_torre.png")
 	var img := Image.create_empty(TILE * 2, TILE, false, Image.FORMAT_RGBA8)
-	img.fill_rect(Rect2i(0, 0, TILE, TILE), Color(0.17, 0.17, 0.23))        # piso
-	img.fill_rect(Rect2i(TILE, 0, TILE, TILE), Color(0.09, 0.09, 0.13))     # muro
+	img.blit_rect(floor_img, Rect2i(0, 0, TILE, TILE), Vector2i(0, 0))
+	img.blit_rect(wall_img, Rect2i(0, 0, TILE, TILE), Vector2i(TILE, 0))
 	var tex := ImageTexture.create_from_image(img)
 
 	var ts := TileSet.new()
@@ -69,6 +72,14 @@ func _ensure_tileset() -> void:
 	fd.set_navigation_polygon(0, nav)
 
 	tile_set = ts
+
+func _load_tile(path: String) -> Image:
+	var im := Image.new()
+	im.load(ProjectSettings.globalize_path(path))
+	im.convert(Image.FORMAT_RGBA8)
+	if im.get_width() != TILE:
+		im.resize(TILE, TILE, Image.INTERPOLATE_NEAREST)
+	return im
 
 # ---------------------------------------------------------------------------
 # Generación de la grilla: salas rectangulares + pasillos en L de 2 de ancho

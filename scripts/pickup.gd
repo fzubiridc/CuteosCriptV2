@@ -38,4 +38,7 @@ func _on_body(body: Node) -> void:
 		"heart": body.heal(value)
 		"potion": body.potions += 1
 		"item": body.pick_up_item(item_data)
+	var snd: String = {"coin": "coin", "heart": "heal", "potion": "heal", "item": "equip"}.get(kind, "")
+	if snd != "":
+		Audio.play(snd)
 	queue_free()

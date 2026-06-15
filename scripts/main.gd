@@ -29,7 +29,7 @@ func _spawn_boss() -> void:
 	var room: Rect2i = dungeon.rooms[dungeon.rooms.size() - 1]
 	var b := BOSS.instantiate()
 	add_child(b)
-	b.setup_boss("liche")
+	b.setup_boss("bucle")
 	b.global_position = dungeon.to_global(dungeon.map_to_local(room.get_center()))
 	b.reset_physics_interpolation()
 
