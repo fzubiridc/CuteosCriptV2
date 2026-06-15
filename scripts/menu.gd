@@ -74,13 +74,9 @@ func _spacer(h: int) -> Control:
 	return s
 
 func _on_new() -> void:
-	print("[menu] _on_new: nueva run -> cargando main.tscn")
 	SaveSystem.clear_run()
 	GameState.reset_run()
-	var err := get_tree().change_scene_to_file("res://scenes/main.tscn")
-	print("[menu] change_scene_to_file -> err=", err)
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func _on_continue() -> void:
-	print("[menu] _on_continue: cargando main.tscn")
-	var err := get_tree().change_scene_to_file("res://scenes/main.tscn")
-	print("[menu] change_scene_to_file -> err=", err)
+	get_tree().change_scene_to_file("res://scenes/main.tscn")

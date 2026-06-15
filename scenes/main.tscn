@@ -9,7 +9,6 @@
 [ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 [ext_resource type="Texture2D" path="res://assets/fx/vignette.tres" id="7_o6xl0"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
-[ext_resource type="Script" path="res://scripts/touch_controls.gd" id="10_choun"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 12)
@@ -363,6 +362,3 @@ expand_mode = 1
 
 [node name="LightingDebug" type="CanvasLayer" parent="." unique_id=352811338]
 script = ExtResource("9_85g3d")
-
-[node name="TouchControls" type="CanvasLayer" parent="." unique_id=2028993793]
-script = ExtResource("10_choun")
