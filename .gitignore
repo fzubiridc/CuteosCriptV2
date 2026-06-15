@@ -23,3 +23,8 @@ Thumbs.db
 
 # Build / cache
 *.import.bak
+
+# Pixelorama working files
+*.pxo
+*_workfile.png
+*_workfile.png.import
