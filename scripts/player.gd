@@ -12,8 +12,9 @@ const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_we
 const FACING_MIRROR := {"west": "east", "north_west": "north_east", "south_west": "south_east"}
 # HandOverlay (la mano cerrada encima del arma) solo existe para 3 dirs base.
 const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "east": "east"}
-# Direcciones donde el cuerpo está delante del arma (la vara se dibuja detrás).
-const STAFF_BEHIND := {"north": true, "north_east": true, "north_west": true}
+# Antes había direcciones donde la vara iba detrás del cuerpo (N/NE/NW) — el
+# original hacía eso para esconderla. Optamos por mostrarla siempre delante.
+const STAFF_BEHIND := {}
 
 @export var base_speed := 95.0
 @export var base_max_hp := 100
