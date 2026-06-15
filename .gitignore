@@ -22,6 +22,7 @@ Thumbs.db
 .vscode/
 
 # Build / cache
+build/
 *.import.bak
 
 # Pixelorama working files
