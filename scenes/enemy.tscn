@@ -8,6 +8,9 @@ radius = 5.0
 [node name="Enemy" type="CharacterBody2D" unique_id=773834283]
 collision_layer = 4
 script = ExtResource("1_7p1mj")
+max_hp = null
+speed = null
+damage = null
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=967563044]
 
@@ -17,3 +20,6 @@ shape = SubResource("CircleShape2D_md0e3")
 [node name="Visual" type="Polygon2D" parent="." unique_id=1359853878]
 color = Color(0.85, 0.3, 0.35, 1)
 polygon = PackedVector2Array(-6, -6, 6, -6, 6, 6, -6, 6)
+
+[node name="Sprite" type="AnimatedSprite2D" parent="." unique_id=882628237]
+visible = false

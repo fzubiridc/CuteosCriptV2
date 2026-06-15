@@ -114,9 +114,12 @@ en este proyecto Godot 4.6 (`Godot Cuteos Cript`).
       idle_south=0 (sigue funcional por herencia de la anim anterior; agregar 1 key cuando
       quiera para robustez). Visualmente perfecto en las 5 dirs base + mirror W/SW/NW.
       Proyectil sale de Tip.global_position (offset +7.7,-21 en east).
-      F8a COMPLETO. PENDIENTE F8b: mobs
-      sheet (slime/lich/ghost/zombie/orc). F8c: mobs frame (rata/skeleton). F8d: tilesets reales.
-      F8e: jefe rugby + items visuales. F8f: audio.  ← próximo
+      F8a COMPLETO + PULIDO (2026-06-14): fix diagonales swappeadas en idle_holdpose
+      (NE↔NW, SE↔SW); escala de varas spx/ancho (staff5-8 128px→0.5); overlay de pulgar
+      NE (hands/north-east.png); vara visible al N/NE/NW; walk lateral con brazo estático
+      (StaffArm desde idle east) + grip fijo + z vara1<brazo2<cuerpo3; quitado overlay east.
+      PENDIENTE F8b: mobs sheet (slime/lich/ghost/zombie/orc). F8c: mobs frame
+      (rata/skeleton). F8d: tilesets reales. F8e: jefe rugby + items visuales. F8f: audio.  ← próximo
 - [ ] F9 — Luz & polish (Light2D, glow, partículas, screen-shake)
 - [ ] F10 — Persistencia (guardar run en user://), récords, pisos persistentes
 - Pendiente menor: no spawnear enemigos a X tiles del spawn; pattern kickball del jefe; arena de jefe + encuentro al cerrar zona; quitar flags DEBUG_BOSS.

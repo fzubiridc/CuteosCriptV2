@@ -1,13 +1,14 @@
 extends CharacterBody2D
 class_name Enemy
-## Enemigo data-driven (F4). Tipo/stats desde Data.ENEMIES. Tres IAs:
-## chaser (persigue), erratic (zigzag), shooter (mantiene distancia y dispara).
-## Aggro híbrido: despierta por sala o proximidad, persigue, leash a casa.
+## Enemigo data-driven. IAs: chaser/erratic/shooter. Aggro híbrido.
+## F8b: sprite real (AnimatedSprite2D) para los mobs sheet; fallback a
+## Polygon2D de color para los tipos sin sprite aún.
 
 const TILE := 16.0
 const PROJECTILE := preload("res://scenes/projectile.tscn")
+# type de Data.ENEMIES -> set de sprites en res://assets/mobs/<set>_frames.tres
+const SPRITE_SETS := {"slime": "slime", "lich": "lich", "fantasma": "ghost", "zombi": "zombie", "orco": "orc"}
 
-# Stats (las setea setup_type desde Data.ENEMIES):
 var type_key := "rata"
 var ai := "chaser"
 var max_hp := 30
@@ -19,8 +20,9 @@ var fire_cd := 1.5
 var proj_spd := 150.0
 var elite := false
 var base_color := Color(0.85, 0.3, 0.35)
+var use_sprite := false
+var face := "south"
 
-# Aggro (asignados por main.gd):
 var home_pos := Vector2.ZERO
 var home_rect := Rect2()
 
@@ -35,6 +37,7 @@ var wobble := 0.0
 
 @onready var agent: NavigationAgent2D = $NavigationAgent2D
 @onready var visual: Polygon2D = $Visual
+@onready var sprite: AnimatedSprite2D = $Sprite
 
 func _ready() -> void:
 	wander_target = home_pos
@@ -62,7 +65,20 @@ func setup_type(key: String, is_elite := false) -> void:
 
 func _apply_visual() -> void:
 	base_color = _ai_color()
-	if visual:
+	var set_name: String = SPRITE_SETS.get(type_key, "")
+	if set_name != "":
+		var sf = load("res://assets/mobs/%s_frames.tres" % set_name)
+		if sf != null:
+			sprite.sprite_frames = sf
+			var s := (size * 2.6) / 64.0
+			sprite.scale = Vector2(s, s)
+			sprite.modulate = _idle_tint()
+			sprite.visible = true
+			visual.visible = false
+			use_sprite = true
+			sprite.play("idle_south")
+	if not use_sprite:
+		visual.visible = true
 		visual.color = base_color
 		visual.polygon = PackedVector2Array([
 			Vector2(-size, -size), Vector2(size, -size),
@@ -71,11 +87,14 @@ func _apply_visual() -> void:
 	sh.radius = size
 	$Shape.shape = sh
 
+func _idle_tint() -> Color:
+	return Color(1.0, 0.92, 0.6) if elite else Color.WHITE
+
 func _ai_color() -> Color:
-	var c := Color(0.85, 0.3, 0.35)        # chaser: rojo
+	var c := Color(0.85, 0.3, 0.35)
 	match ai:
-		"erratic": c = Color(0.7, 0.4, 0.9)   # morado
-		"shooter": c = Color(0.95, 0.6, 0.2)  # naranja
+		"erratic": c = Color(0.7, 0.4, 0.9)
+		"shooter": c = Color(0.95, 0.6, 0.2)
 	if elite:
 		c = c.lerp(Color(1.0, 0.95, 0.5), 0.4)
 	return c
@@ -85,7 +104,10 @@ func _physics_process(delta: float) -> void:
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)
 		if flash_t == 0.0:
-			visual.color = base_color
+			if use_sprite:
+				sprite.modulate = _idle_tint()
+			else:
+				visual.color = base_color
 
 	var player := GameState.player
 	if player == null:
@@ -115,7 +137,6 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = Vector2.ZERO
 
-	# Zigzag para los erratic.
 	if aggro and ai == "erratic" and velocity.length() > 1.0:
 		wobble += delta * 9.0
 		var perp := Vector2(-velocity.y, velocity.x).normalized()
@@ -123,10 +144,23 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Daño por contacto (solo despierto y pegado).
+	if use_sprite:
+		_update_sprite_anim()
+
 	if aggro and to_player < size + 8.0 and hit_cd <= 0.0:
 		hit_cd = 0.8
 		player.take_damage(damage, global_position)
+
+func _update_sprite_anim() -> void:
+	var moving := velocity.length() > 5.0
+	if moving:
+		if absf(velocity.x) > absf(velocity.y):
+			face = "east" if velocity.x > 0.0 else "west"
+		else:
+			face = "south" if velocity.y > 0.0 else "north"
+	var anim := ("walk_" if moving else "idle_") + face
+	if sprite.animation != anim:
+		sprite.play(anim)
 
 func _update_aggro(ppos: Vector2, to_player: float) -> void:
 	if aggro:
@@ -150,10 +184,10 @@ func _wander_point(delta: float) -> Vector2:
 func _shooter_target(ppos: Vector2, to_player: float) -> Vector2:
 	var ideal := atk_range * 0.65
 	if to_player < ideal * 0.85:
-		return global_position + (global_position - ppos).normalized() * 60.0  # retroceder
+		return global_position + (global_position - ppos).normalized() * 60.0
 	elif to_player > ideal * 1.15:
-		return ppos  # acercarse
-	return global_position  # mantener distancia
+		return ppos
+	return global_position
 
 func _shooter_fire(delta: float, ppos: Vector2, to_player: float) -> void:
 	fire_t = maxf(0.0, fire_t - delta)
@@ -165,9 +199,12 @@ func _shooter_fire(delta: float, ppos: Vector2, to_player: float) -> void:
 
 func take_damage(amount: int) -> void:
 	hp -= amount
-	aggro = true   # pegarle lo despierta
+	aggro = true
 	flash_t = 0.08
-	visual.color = Color(1, 1, 1)
+	if use_sprite:
+		sprite.modulate = Color(2.2, 2.2, 2.2)
+	else:
+		visual.color = Color(1, 1, 1)
 	GameState.floater(global_position, str(amount), Color(1, 0.9, 0.5))
 	if hp <= 0:
 		_die()
