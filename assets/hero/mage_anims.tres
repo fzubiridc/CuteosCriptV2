@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" format=3 uid="uid://vg3cyf2tfx67"]
+[gd_resource type="AnimationLibrary" format=3]
 
 [sub_resource type="Animation" id="Animation_sagvh"]
 length = 0.001
@@ -129,10 +129,10 @@ tracks/2/path = NodePath("Rig/Hand:position")
 tracks/2/interp = 1
 tracks/2/loop_wrap = true
 tracks/2/keys = {
-"times": PackedFloat32Array(0, 0.03871461),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
 "update": 0,
-"values": [Vector2(-17.561644, -12.60496), Vector2(-18.390501, -12.960166)]
+"values": [Vector2(17.960165, -12.960147)]
 }
 
 [sub_resource type="Animation" id="Animation_alf2h"]
@@ -209,10 +209,10 @@ tracks/2/path = NodePath("Rig/Hand:position")
 tracks/2/interp = 1
 tracks/2/loop_wrap = true
 tracks/2/keys = {
-"times": PackedFloat32Array(0.028526554),
+"times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 0,
-"values": [Vector2(-16.851194, -10.473632)]
+"values": [Vector2(17.144812, -10.59204)]
 }
 
 [sub_resource type="Animation" id="Animation_bj8jk"]

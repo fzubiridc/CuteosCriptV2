@@ -4,8 +4,8 @@
 [ext_resource type="Script" uid="uid://cki8ikejvyox8" path="res://scripts/main.gd" id="1_sugp2"]
 [ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
-[ext_resource type="SpriteFrames" uid="uid://dh3lshx2e8r2" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
-[ext_resource type="AnimationLibrary" uid="uid://vg3cyf2tfx67" path="res://assets/hero/mage_anims.tres" id="5_anims"]
+[ext_resource type="SpriteFrames" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
+[ext_resource type="AnimationLibrary" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 12)
@@ -22,7 +22,6 @@ collision_layer = 2
 script = ExtResource("1_o5qli")
 
 [node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
-visible = false
 shape = SubResource("RectangleShape2D_tefeu")
 
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
@@ -41,13 +40,11 @@ position = Vector2(14.999998, -9.999999)
 gizmo_extents = 8.0
 
 [node name="Weapon" type="Sprite2D" parent="Player/Rig/Hand" unique_id=930137035]
-visible = false
 centered = false
 
 [node name="Tip" type="Marker2D" parent="Player/Rig/Hand/Weapon" unique_id=51219352]
 
 [node name="HandOverlay" type="Sprite2D" parent="Player/Rig/Hand" unique_id=522880698]
-visible = false
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Player" unique_id=1916177541]
 libraries/ = ExtResource("5_anims")
