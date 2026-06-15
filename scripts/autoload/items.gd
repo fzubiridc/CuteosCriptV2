@@ -61,6 +61,19 @@ func rarity_data(id: String) -> Dictionary:
 			return r
 	return Data.RARITIES[0]
 
+## Stock del mercader (referencia Pixi): 3 ítems (depth+1) + poción de vida.
+func make_shop_stock(depth: int) -> Dictionary:
+	var its: Array = []
+	for i in 3:
+		var it := make_item(depth + 1)
+		it["price"] = int(round(12.0 + item_score(it) * 0.9))
+		it["sold"] = false
+		its.append(it)
+	return {"items": its, "heal_price": 30}
+
+func sell_price(it: Dictionary) -> int:
+	return maxi(1, int(round(item_score(it) * 0.45)))
+
 ## Texto legible de los stats de un ítem (para la UI).
 func describe(it: Dictionary) -> String:
 	var parts := []

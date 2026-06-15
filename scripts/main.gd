@@ -140,6 +140,16 @@ func _close_exit() -> void:
 
 func _on_boss_died() -> void:
 	_open_exit()
+	_spawn_merchant()
+
+func _spawn_merchant() -> void:
+	if _exit == null or not is_instance_valid(_exit):
+		return
+	var m := Merchant.new()
+	add_child(m)
+	m.global_position = _exit.global_position + Vector2(-34, 16)
+	m.reset_physics_interpolation()
+	GameState.floater(m.global_position + Vector2(0, -22), "Un mercader apareció...", Color("c7b8e8"))
 
 # ---------------------------------------------------------------------------
 # Spawns
