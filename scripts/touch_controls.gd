@@ -62,24 +62,29 @@ func _button(action: String, center: Vector2, scl: float, glyph: String) -> void
 	tb.add_child(l)
 
 func _input(event: InputEvent) -> void:
+	# Casts explícitos: en export el parser no estrecha el tipo de `event` dentro
+	# de condiciones compuestas (elif ... and ...), así que tipamos a mano.
 	if event is InputEventScreenTouch:
-		if event.pressed:
-			if _joy_idx == -1 and event.position.x < get_viewport().get_visible_rect().size.x * 0.5:
-				_joy_idx = event.index
-				_joy_origin = event.position
-				_joy_base.position = event.position
-				_joy_knob.position = event.position
-		elif event.index == _joy_idx:
+		var t := event as InputEventScreenTouch
+		if t.pressed:
+			if _joy_idx == -1 and t.position.x < get_viewport().get_visible_rect().size.x * 0.5:
+				_joy_idx = t.index
+				_joy_origin = t.position
+				_joy_base.position = t.position
+				_joy_knob.position = t.position
+		elif t.index == _joy_idx:
 			_joy_idx = -1
 			_release_move()
 			_joy_base.position = _home
 			_joy_knob.position = _home
-	elif event is InputEventScreenDrag and event.index == _joy_idx:
-		var off := event.position - _joy_origin
-		if off.length() > _radius:
-			off = off.normalized() * _radius
-		_joy_knob.position = _joy_origin + off
-		_apply_move(off)
+	elif event is InputEventScreenDrag:
+		var d := event as InputEventScreenDrag
+		if d.index == _joy_idx:
+			var off: Vector2 = d.position - _joy_origin
+			if off.length() > _radius:
+				off = off.normalized() * _radius
+			_joy_knob.position = _joy_origin + off
+			_apply_move(off)
 
 func _apply_move(off: Vector2) -> void:
 	var dz := _radius * 0.3
