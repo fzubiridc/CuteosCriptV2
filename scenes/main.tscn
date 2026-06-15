@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://cki8ikejvyox8" path="res://scripts/main.gd" id="1_sugp2"]
 [ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
-[ext_resource type="SpriteFrames" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
+[ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
 [ext_resource type="AnimationLibrary" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
@@ -33,7 +33,7 @@ scale = Vector2(0.4, 0.4)
 [node name="Body" type="AnimatedSprite2D" parent="Player/Rig" unique_id=332504085]
 position = Vector2(0, -14)
 sprite_frames = ExtResource("4_tbgi4")
-animation = &"idle_hold_north_east"
+animation = &"idle_hold_east"
 
 [node name="Hand" type="Marker2D" parent="Player/Rig" unique_id=1895517757]
 position = Vector2(14.999998, -9.999999)
@@ -45,6 +45,11 @@ centered = false
 [node name="Tip" type="Marker2D" parent="Player/Rig/Hand/Weapon" unique_id=51219352]
 
 [node name="HandOverlay" type="Sprite2D" parent="Player/Rig/Hand" unique_id=522880698]
+
+[node name="StaffArm" type="Sprite2D" parent="Player/Rig" unique_id=520122344]
+z_index = 2
+position = Vector2(-4, -30)
+centered = false
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Player" unique_id=1916177541]
 libraries/ = ExtResource("5_anims")

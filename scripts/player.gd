@@ -11,7 +11,7 @@ const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_we
 # Solo tenemos animaciones para 5 dirs base. El resto va por mirror del Rig.
 const FACING_MIRROR := {"west": "east", "north_west": "north_east", "south_west": "south_east"}
 # HandOverlay (los dedos por delante de la vara, para el agarre).
-const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "east": "east", "north_east": "north-east"}
+const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "north_east": "north-east"}
 # Solo en NORTE puro la vara va detrás del cuerpo (sube z del cuerpo). En
 # NE/NW usamos el agarre: vara delante del cuerpo + dedos (overlay) delante
 # de la vara → "dedo - vara - resto de mano".
@@ -66,6 +66,7 @@ var _hand_textures := {}
 @onready var weapon: Sprite2D = $Rig/Hand/Weapon
 @onready var tip: Marker2D = $Rig/Hand/Weapon/Tip
 @onready var hand_overlay: Sprite2D = $Rig/Hand/HandOverlay
+@onready var staff_arm: Sprite2D = $Rig/StaffArm
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
 
 func _ready() -> void:
@@ -86,6 +87,7 @@ func _load_textures() -> void:
 		var src_name: String = HAND_OVERLAY_DIRS[godot_dir]
 		var path := "res://assets/hero/hands/%s.png" % src_name
 		_hand_textures[godot_dir] = _load_runtime_tex(path)
+	staff_arm.texture = _load_runtime_tex("res://assets/hero/staffarm.png")
 
 func _load_runtime_tex(res_path: String) -> Texture2D:
 	var img := Image.new()
@@ -225,7 +227,15 @@ func _refresh_facing_visuals(dir: String) -> void:
 	# z negativo la mandaría detrás del TileMapLayer del piso (z=0).
 	weapon.z_index = 1
 	hand_overlay.z_index = 2
-	body.z_index = 5 if STAFF_BEHIND.get(dir, false) else 0
+	# Brazo estático en walk de costado: vara(1) < brazo(2) < cuerpo(3 vía anim).
+	var side_walk: bool = cur_anim.begins_with("walk") and FACING_MIRROR.get(dir, dir) == "east"
+	staff_arm.visible = side_walk
+	if side_walk:
+		hand_overlay.visible = false
+	# El z del CUERPO lo controla el AnimationPlayer por animación y por frame
+	# (track Rig/Body:z_index): 0 = vara adelante, 5 = el cuerpo la tapa. Así
+	# en walk_east/west el torso esconde el brazo de la vara en los frames en
+	# que el brazo va hacia atrás del ciclo de caminata.
 
 # ---------------- Combate ----------------
 func _try_dash() -> void:
