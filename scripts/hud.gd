@@ -42,6 +42,40 @@ func _ready() -> void:
 	$PausePanel/BtnResume.pressed.connect(_toggle_pause)
 	$PausePanel/BtnRestartP.pressed.connect(_restart)
 	$DeathPanel/BtnRestartD.pressed.connect(_restart)
+	_layout_responsive()
+
+# ---------------- Layout responsive (HUD diseñado a 1152×648 → centrado a cualquier res) ----------------
+func _layout_responsive() -> void:
+	const DCX := 576.0   # centro del diseño original (1152/2, 648/2)
+	const DCY := 324.0
+	for pname in ["UpgradePanel", "PausePanel", "DeathPanel", "InventoryPanel"]:
+		var panel := get_node_or_null(pname) as Control
+		if panel == null:
+			continue
+		_full_rect(panel)
+		for child in panel.get_children():
+			if child is Control:
+				if child.name == "BG":
+					_full_rect(child)
+				else:
+					_center_rel(child, DCX, DCY)
+	var bui := get_node_or_null("BossUI") as Control
+	if bui:
+		_full_rect(bui)
+		for child in bui.get_children():
+			if child is Control:
+				_center_rel(child, DCX, DCY)
+
+func _full_rect(c: Control) -> void:
+	c.anchor_left = 0.0; c.anchor_top = 0.0; c.anchor_right = 1.0; c.anchor_bottom = 1.0
+	c.offset_left = 0.0; c.offset_top = 0.0; c.offset_right = 0.0; c.offset_bottom = 0.0
+
+## Re-ancla el control al centro de pantalla preservando su posición relativa al
+## centro del diseño original → el layout 1152×648 queda centrado a cualquier res.
+func _center_rel(c: Control, cx: float, cy: float) -> void:
+	var l := c.offset_left; var t := c.offset_top; var r := c.offset_right; var b := c.offset_bottom
+	c.anchor_left = 0.5; c.anchor_right = 0.5; c.anchor_top = 0.5; c.anchor_bottom = 0.5
+	c.offset_left = l - cx; c.offset_right = r - cx; c.offset_top = t - cy; c.offset_bottom = b - cy
 
 func _process(_delta: float) -> void:
 	var p = GameState.player
