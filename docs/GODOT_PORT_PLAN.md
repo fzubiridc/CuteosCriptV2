@@ -118,8 +118,12 @@ en este proyecto Godot 4.6 (`Godot Cuteos Cript`).
       (NE↔NW, SE↔SW); escala de varas spx/ancho (staff5-8 128px→0.5); overlay de pulgar
       NE (hands/north-east.png); vara visible al N/NE/NW; walk lateral con brazo estático
       (StaffArm desde idle east) + grip fijo + z vara1<brazo2<cuerpo3; quitado overlay east.
-      PENDIENTE F8b: mobs sheet (slime/lich/ghost/zombie/orc). F8c: mobs frame
-      (rata/skeleton). F8d: tilesets reales. F8e: jefe rugby + items visuales. F8f: audio.  ← próximo
+      F8b HECHO: 5 mobs sheet (slime/lich/ghost/zombie/orc). F8c HECHO: rata frame-based +
+      6 mobs estáticos. F8d HECHO: tilesets reales (floor/wall torre, 32→16). F8e HECHO: jefe
+      con sprite (bucle rugby animado; liche/golem estáticos). F8f HECHO: audio (música loop +
+      SFX). TODOS los enemigos con sprite, 0 cubos. **F8 COMPLETO** (2026-06-14).
+      Pendiente menor de F8: sprites de pickups (coin/xp siguen cuadrados), anims por-patrón
+      del jefe (tackle/kick/summon usan idle/run), sprites para zonas cavernas/santuario.
 - [ ] F9 — Luz & polish (Light2D, glow, partículas, screen-shake)
 - [ ] F10 — Persistencia (guardar run en user://), récords, pisos persistentes
 - Pendiente menor: no spawnear enemigos a X tiles del spawn; pattern kickball del jefe; arena de jefe + encuentro al cerrar zona; quitar flags DEBUG_BOSS.

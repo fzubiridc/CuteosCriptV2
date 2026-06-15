@@ -47,6 +47,7 @@ func _ensure_tileset() -> void:
 	ts.tile_size = Vector2i(TILE, TILE)
 	ts.add_physics_layer()
 	ts.add_navigation_layer()
+	ts.add_occlusion_layer()
 
 	var src := TileSetAtlasSource.new()
 	src.texture = tex
@@ -61,6 +62,12 @@ func _ensure_tileset() -> void:
 	td.set_collision_polygon_points(0, 0, PackedVector2Array([
 		Vector2(-8, -8), Vector2(8, -8), Vector2(8, 8), Vector2(-8, 8)
 	]))
+	# Oclusión del muro: proyecta sombras 2D desde las luces (Light2D).
+	var occ := OccluderPolygon2D.new()
+	occ.polygon = PackedVector2Array([
+		Vector2(-8, -8), Vector2(8, -8), Vector2(8, 8), Vector2(-8, 8)
+	])
+	td.set_occluder(0, occ)
 
 	# Navegación en el tile de piso (para el NavigationAgent2D de los enemigos).
 	var fd := src.get_tile_data(FLOOR_ATLAS, 0)

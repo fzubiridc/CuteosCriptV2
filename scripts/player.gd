@@ -67,6 +67,10 @@ var _hand_textures := {}
 @onready var tip: Marker2D = $Rig/Hand/Weapon/Tip
 @onready var hand_overlay: Sprite2D = $Rig/Hand/HandOverlay
 @onready var staff_arm: Sprite2D = $Rig/StaffArm
+@onready var cam: Camera2D = $Camera2D
+
+var shake_t := 0.0
+var shake_amt := 0.0
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
 
 func _ready() -> void:
@@ -78,6 +82,23 @@ func _ready() -> void:
 	_load_textures()
 	_refresh_weapon()
 	_play("idle", facing_dir)
+	_setup_light()
+
+func _setup_light() -> void:
+	var light := get_node_or_null("Light") as PointLight2D
+	if light == null:
+		return
+	var s := 256
+	var img := Image.create_empty(s, s, false, Image.FORMAT_RGBA8)
+	var c := Vector2(s / 2.0, s / 2.0)
+	var maxd := s / 2.0
+	for y in s:
+		for x in s:
+			var d := Vector2(x, y).distance_to(c) / maxd
+			var a := clampf(1.0 - d, 0.0, 1.0)
+			a = a * a   # falloff suave (halo)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	light.texture = ImageTexture.create_from_image(img)
 
 func _load_textures() -> void:
 	for i in 9:
@@ -172,6 +193,15 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("dash"): _try_dash()
 	if Input.is_action_pressed("attack"): _try_attack()
 	if Input.is_action_just_pressed("potion"): _use_potion()
+	if shake_t > 0.0:
+		shake_t -= delta
+		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amt * (shake_t / 0.25)
+	elif cam.offset != Vector2.ZERO:
+		cam.offset = Vector2.ZERO
+
+func shake(amt := 4.0) -> void:
+	shake_amt = amt
+	shake_t = 0.25
 
 func _tick_timers(delta: float) -> void:
 	atk_cd_t = maxf(0.0, atk_cd_t - delta)
@@ -274,6 +304,7 @@ func take_damage(amount: int, from_pos: Vector2) -> void:
 	GameState.floater(global_position, str(dealt), Color(1.0, 0.4, 0.4))
 	GameState.player_damaged.emit(dealt)
 	Audio.play("hurt")
+	shake(5.0)
 	if hp <= 0: _die()
 
 func heal(amount: int) -> void: hp = mini(max_hp(), hp + amount)

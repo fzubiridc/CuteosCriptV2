@@ -16,3 +16,7 @@ shape = SubResource("CircleShape2D_q3m7n")
 [node name="Visual" type="Polygon2D" parent="." unique_id=1654979336]
 color = Color(0.6, 0.95, 1, 1)
 polygon = PackedVector2Array(-3, -3, 3, -3, 3, 3, -3, 3)
+
+[node name="Glow" type="PointLight2D" parent="." unique_id=1881149561]
+energy = 1.6
+texture_scale = 0.45

@@ -5,10 +5,28 @@
 [ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
 [ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
-[ext_resource type="AnimationLibrary" path="res://assets/hero/mage_anims.tres" id="5_anims"]
+[ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 12)
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tefeu"]
+sky_top_color = Color(0.38, 0.45, 0.55, 1)
+sky_horizon_color = Color(0.65, 0.67, 0.7, 1)
+ground_bottom_color = Color(0.2, 0.17, 0.13, 1)
+ground_horizon_color = Color(0.65, 0.67, 0.7, 1)
+
+[sub_resource type="Sky" id="Sky_o6xl0"]
+sky_material = SubResource("ProceduralSkyMaterial_tefeu")
+
+[sub_resource type="Environment" id="Environment_tipki"]
+background_mode = 2
+sky = SubResource("Sky_o6xl0")
+ambient_light_source = 3
+glow_enabled = true
+glow_intensity = 1.0
+glow_bloom = 0.25
+glow_hdr_threshold = 0.85
 
 [node name="Main" type="Node2D" unique_id=508555698]
 script = ExtResource("1_sugp2")
@@ -53,6 +71,13 @@ centered = false
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Player" unique_id=1916177541]
 libraries/ = ExtResource("5_anims")
+
+[node name="Light" type="PointLight2D" parent="Player" unique_id=195600636]
+color = Color(1, 0.86, 0.62, 1)
+energy = 1.7
+shadow_enabled = true
+shadow_filter = 1
+texture_scale = 2.2
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=417060991]
 visible = false
@@ -286,3 +311,9 @@ offset_top = 320.0
 offset_right = 696.0
 offset_bottom = 376.0
 text = "Reiniciar"
+
+[node name="Ambient" type="CanvasModulate" parent="." unique_id=2006469636]
+color = Color(0.32, 0.33, 0.42, 1)
+
+[node name="Env" type="WorldEnvironment" parent="." unique_id=464127370]
+environment = SubResource("Environment_tipki")

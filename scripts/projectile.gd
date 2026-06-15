@@ -11,6 +11,7 @@ var friendly := true
 var z_height := 0.0
 
 @onready var visual: Polygon2D = $Visual
+@onready var glow: PointLight2D = $Glow
 
 func setup(pos: Vector2, dir: Vector2, dmg: int, is_friendly := true, spd := 260.0) -> void:
 	global_position = pos
@@ -21,6 +22,10 @@ func setup(pos: Vector2, dir: Vector2, dmg: int, is_friendly := true, spd := 260
 	if visual:
 		visual.position = Vector2(0, -z_height)
 		visual.color = Color(0.6, 0.95, 1.0) if friendly else Color(1.0, 0.55, 0.25)
+	if glow:
+		glow.color = Color(0.5, 0.95, 1.0) if friendly else Color(1.0, 0.5, 0.2)
+		if glow.texture == null:
+			glow.texture = load("res://assets/fx/light_radial.tres")
 	reset_physics_interpolation()
 
 func _ready() -> void:
