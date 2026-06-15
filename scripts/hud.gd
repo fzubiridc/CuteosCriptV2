@@ -20,6 +20,7 @@ const BAR_W := 220.0
 @onready var pause_panel: Control = $PausePanel
 @onready var death_panel: Control = $DeathPanel
 @onready var death_sub: Label = $DeathPanel/DSub
+@onready var death_title: Label = $DeathPanel/DTitle
 
 var _choices: Array = []
 
@@ -35,6 +36,7 @@ func _ready() -> void:
 	GameState.boss_died.connect(_on_boss_died)
 	GameState.level_up.connect(_on_level_up)
 	GameState.player_died.connect(_on_death)
+	GameState.mode_changed.connect(_on_mode)
 	for i in 3:
 		up_btns[i].pressed.connect(_pick.bind(i))
 	$PausePanel/BtnResume.pressed.connect(_toggle_pause)
@@ -141,13 +143,31 @@ func _toggle_pause() -> void:
 
 # ---------------- Muerte / reinicio ----------------
 func _on_death() -> void:
+	_show_end("MORISTE", true)
+
+func _on_mode(m: int) -> void:
+	# El HUD se muestra en juego/muerte/victoria (la escena lo trae oculto).
+	visible = m == GameState.Mode.PLAY or m == GameState.Mode.DEAD or m == GameState.Mode.WIN
+	if m == GameState.Mode.WIN:
+		_show_end("¡GANASTE!", false)   # main ya registró el récord y limpió el save
+
+func _show_end(title: String, do_record: bool) -> void:
 	var p = GameState.player
-	death_sub.text = "Nivel %d · %d bajas" % [p.level, int(GameState.run.get("kills", 0))]
+	var run = GameState.run
+	if do_record:
+		SaveSystem.record(run, p, false)
+		SaveSystem.clear_run()
+	death_title.text = title
+	var rec := SaveSystem.get_records()
+	death_sub.text = "Prof %d · Nivel %d · %d bajas\nRécord: prof %d · %d bajas" % [
+		int(run.get("depth", 1)), p.level, int(run.get("kills", 0)),
+		int(rec.get("best_depth", 0)), int(rec.get("best_kills", 0))]
 	death_panel.visible = true
 	get_tree().paused = true
 
 func _restart() -> void:
 	get_tree().paused = false
+	SaveSystem.clear_run()   # reiniciar = empezar run nueva
 	GameState.reset_run()
 	GameState.set_mode(GameState.Mode.PLAY)
 	get_tree().reload_current_scene()

@@ -145,6 +145,36 @@ func crit_chance() -> float: return crit + _equip_sum("crit")
 func atkspd() -> float: return atkspd_mul + _equip_sum("atkspd") / 100.0
 func defense_total() -> int: return defense + int(_equip_sum("def"))
 
+# ---------------- Persistencia (F10) ----------------
+func to_save() -> Dictionary:
+	return {
+		"bonus_hp": bonus_hp, "dmg_mul": dmg_mul, "spd_add": spd_add,
+		"crit": crit, "atkspd_mul": atkspd_mul, "defense": defense,
+		"hp": hp, "mana": mana, "coins": coins, "xp": xp, "level": level,
+		"xp_to_next": xp_to_next, "potions": potions,
+		"equip": equip, "bag": bag,
+	}
+
+func load_save(d: Dictionary) -> void:
+	bonus_hp = int(d.get("bonus_hp", 0))
+	dmg_mul = float(d.get("dmg_mul", 1.0))
+	spd_add = float(d.get("spd_add", 0.0))
+	crit = float(d.get("crit", 8.0))
+	atkspd_mul = float(d.get("atkspd_mul", 1.0))
+	defense = int(d.get("defense", 0))
+	coins = int(d.get("coins", 0))
+	xp = int(d.get("xp", 0))
+	level = int(d.get("level", 1))
+	xp_to_next = int(d.get("xp_to_next", 8))
+	potions = int(d.get("potions", 1))
+	equip = d.get("equip", equip)
+	bag = d.get("bag", [])
+	hp = mini(int(d.get("hp", max_hp())), max_hp())
+	mana = float(d.get("mana", max_mana))
+	_refresh_weapon()
+	GameState.coins_changed.emit(coins)
+	GameState.xp_changed.emit(xp, level)
+
 func _weapon_type_data() -> Dictionary:
 	var w = equip.get("arma", null)
 	if w and Data.WEAPON_TYPES.has(w.get("weapon_type", "")):
