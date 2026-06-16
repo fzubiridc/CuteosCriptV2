@@ -46,6 +46,21 @@ func _ready() -> void:
 	$PausePanel/BtnRestartP.pressed.connect(_restart)
 	$DeathPanel/BtnRestartD.pressed.connect(_restart)
 	_layout_responsive()
+	_skin_inventory()
+
+## Reskin del inventario: theme + marco temado (Panel) detrás del contenido.
+func _skin_inventory() -> void:
+	inv_panel.theme = UiTheme.get_theme()
+	if inv_panel.has_node("Frame"):
+		return
+	var frame := Panel.new()
+	frame.name = "Frame"
+	frame.anchor_left = 0.5; frame.anchor_right = 0.5; frame.anchor_top = 0.5; frame.anchor_bottom = 0.5
+	frame.offset_left = -500; frame.offset_right = 500
+	frame.offset_top = -300; frame.offset_bottom = 312
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE   # no bloquea los botones de la bolsa
+	inv_panel.add_child(frame)
+	inv_panel.move_child(frame, 1)   # detrás de los labels, delante del BG (índice 0)
 
 # ---------------- Layout responsive (HUD diseñado a 1152×648 → centrado a cualquier res) ----------------
 func _layout_responsive() -> void:
@@ -229,9 +244,19 @@ func _build_shop() -> void:
 		_shop_panel.queue_free()
 	var p = GameState.player
 	var stock = _shop_merchant.stock
+	# Pantalla completa: dim de fondo (oscurece el juego + bloquea clicks) + panel.
+	var screen := Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.theme = UiTheme.get_theme()
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(dim)
 	var root := PanelContainer.new()
 	root.anchor_left = 0.5; root.anchor_right = 0.5; root.anchor_top = 0.5; root.anchor_bottom = 0.5
-	root.offset_left = -320; root.offset_right = 320; root.offset_top = -200; root.offset_bottom = 200
+	root.offset_left = -320; root.offset_right = 320; root.offset_top = -210; root.offset_bottom = 210
+	screen.add_child(root)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	root.add_child(vb)
@@ -264,8 +289,8 @@ func _build_shop() -> void:
 			srow.add_child(sb)
 	var close := Button.new(); close.text = "Cerrar  [E]"; close.pressed.connect(_close_shop)
 	vb.add_child(close)
-	add_child(root)
-	_shop_panel = root
+	add_child(screen)
+	_shop_panel = screen
 
 func _shop_card(it: Dictionary, idx: int) -> Control:
 	var card := VBoxContainer.new(); card.custom_minimum_size = Vector2(160, 0)
