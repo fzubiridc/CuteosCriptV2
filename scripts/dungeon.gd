@@ -24,13 +24,19 @@ const ROW_FLOOR_AO := 1
 const ROW_FACE := 2
 const ROW_TOP := 3
 
+const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
+const FACE_MAX_LIGHTS := 64
+
 var grid: Array = []
 var rooms: Array[Rect2i] = []
 
-# Caras foot-lit: textura plana de ladrillo por variante + sprites unshaded por
-# celda-cara (tintados con LightField.sample como las entidades). Permite tener
-# las 3: piso iluminado + cara iluminada + sombra desde la esquina del muro.
+# Caras foot-lit por píxel: por cada variante de muro, textura de ladrillo +
+# un ShaderMaterial (wall_face.gdshader) con su normal-map. Los sprites de cara
+# usan ese material; dungeon les pasa las luces como uniforms cada frame. Permite
+# las 3 (piso + cara iluminados + sombra desde la esquina) con gradiente por
+# píxel y relieve, sin que la sombra del occluder oscurezca la cara.
 var _face_tex: Array = []
+var _face_mats: Array = []
 var _face_sprites: Array = []
 
 func generate() -> void:
@@ -57,10 +63,17 @@ func _ensure_tileset() -> void:
 	for i in WALL_VARIANTS:
 		walls.append(_load_tile("res://assets/tiles/torre/wall_%d.png" % i))
 
-	# Texturas planas de ladrillo para las caras foot-lit (render unshaded aparte).
+	# Caras foot-lit por píxel: textura de ladrillo + normal-map por variante,
+	# cada una en su ShaderMaterial (luz por píxel + relieve).
 	_face_tex.clear()
+	_face_mats.clear()
 	for i in WALL_VARIANTS:
 		_face_tex.append(ImageTexture.create_from_image(walls[i]))
+		var nrm := ImageTexture.create_from_image(_make_normal(walls[i], 4.5))
+		var mat := ShaderMaterial.new()
+		mat.shader = FACE_SHADER
+		mat.set_shader_parameter("normal_tex", nrm)
+		_face_mats.append(mat)
 
 	var cols := maxi(FLOOR_VARIANTS, WALL_VARIANTS)
 	var img := Image.create_empty(TILE * cols, TILE * 4, false, Image.FORMAT_RGBA8)
@@ -346,14 +359,13 @@ func _paint() -> void:
 ## la antorcha la ilumina aunque el occluder de la propia cara proyecte la sombra
 ## desde la esquina del muro. Pierde el relieve por normal-map (tinte plano).
 func _spawn_face(x: int, y: int) -> void:
+	var v := _variant(x, y, WALL_VARIANTS)
 	var spr := Sprite2D.new()
-	spr.texture = _face_tex[_variant(x, y, WALL_VARIANTS)]
+	spr.texture = _face_tex[v]
+	spr.material = _face_mats[v]   # shader unshaded: luz por píxel + relieve
 	spr.position = map_to_local(Vector2i(x, y))
 	spr.z_as_relative = false
 	spr.z_index = -9   # sobre el piso/tope del tilemap (z=-10), debajo de las entidades (z=0)
-	var m := CanvasItemMaterial.new()
-	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	spr.material = m
 	add_child(spr)
 	_face_sprites.append(spr)
 
@@ -363,7 +375,44 @@ func _clear_faces() -> void:
 			s.queue_free()
 	_face_sprites.clear()
 
+## Empaqueta las luces de la escena y se las pasa al shader de las caras cada
+## frame (todos los materiales de variante comparten las mismas luces).
 func _process(_delta: float) -> void:
-	for s in _face_sprites:
-		if is_instance_valid(s):
-			s.self_modulate = LightField.sample(s.global_position)
+	if _face_mats.is_empty():
+		return
+	var pos := PackedVector2Array()
+	var col := PackedVector3Array()
+	var energy := PackedFloat32Array()
+	var radius := PackedFloat32Array()
+	var height := PackedFloat32Array()
+	for L in LightField.get_lights():
+		var lp := L as PointLight2D
+		if lp == null or not is_instance_valid(lp) or not lp.enabled:
+			continue
+		var rad := lp.texture_scale * 128.0
+		if rad <= 0.0:
+			continue
+		pos.append(lp.global_position)
+		col.append(Vector3(lp.color.r, lp.color.g, lp.color.b))
+		energy.append(lp.energy)
+		radius.append(rad)
+		height.append(lp.height)
+		if pos.size() >= FACE_MAX_LIGHTS:
+			break
+	var count := pos.size()
+	# Pad a tamaño fijo del array del shader (las extra quedan con radio 0 → ignoradas).
+	pos.resize(FACE_MAX_LIGHTS)
+	col.resize(FACE_MAX_LIGHTS)
+	energy.resize(FACE_MAX_LIGHTS)
+	radius.resize(FACE_MAX_LIGHTS)
+	height.resize(FACE_MAX_LIGHTS)
+	var amb := LightCfg.ambient_color() * LightCfg.get_v("foot_ambient")
+	var amb_v := Vector3(amb.r, amb.g, amb.b)
+	for mat in _face_mats:
+		mat.set_shader_parameter("light_count", count)
+		mat.set_shader_parameter("light_pos", pos)
+		mat.set_shader_parameter("light_color", col)
+		mat.set_shader_parameter("light_energy", energy)
+		mat.set_shader_parameter("light_radius", radius)
+		mat.set_shader_parameter("light_height", height)
+		mat.set_shader_parameter("ambient", amb_v)

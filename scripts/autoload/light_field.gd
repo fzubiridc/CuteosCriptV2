@@ -13,6 +13,13 @@ func mark_dirty() -> void:
 	_lights.clear()
 	_gathered = false
 
+## Lista de PointLight2D activas (jugador + antorchas). La usa el shader de las
+## caras de muro para iluminarlas por píxel con las mismas luces.
+func get_lights() -> Array:
+	if not _gathered or _lights.is_empty():
+		_gather()
+	return _lights
+
 func _gather() -> void:
 	_lights.clear()
 	var scene := get_tree().current_scene
