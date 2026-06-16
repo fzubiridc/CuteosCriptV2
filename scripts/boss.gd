@@ -63,11 +63,9 @@ func _apply_visual() -> void:
 	sh.radius = size
 	$Shape.shape = sh
 	FootShadow.attach(self, size * 0.85, size * 2.6)
-	if sprite.material == null:   # foot-light: unshaded, tintado por LightField
-		var fm := CanvasItemMaterial.new()
-		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-		sprite.material = fm
-		visual.material = fm
+	if sprite.material == null:   # luz POR PÍXEL (mismo shader unshaded que las caras de muro)
+		sprite.material = LightField.entity_material
+		visual.material = LightField.entity_material
 	var sprite_set: String = BOSS_SETS.get(boss_key, "")
 	if sprite_set != "":
 		var sf = load("res://assets/boss/%s_frames.tres" % sprite_set)
@@ -119,9 +117,6 @@ func _spd() -> float:
 	return speed * (1.3 if enraged else 1.0)
 
 func _physics_process(delta: float) -> void:
-	var lc := LightField.sample(global_position)
-	sprite.self_modulate = lc
-	visual.self_modulate = lc
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)
 		if flash_t == 0.0:

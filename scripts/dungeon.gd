@@ -25,7 +25,6 @@ const ROW_FACE := 2
 const ROW_TOP := 3
 
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
-const FACE_MAX_LIGHTS := 64
 
 var grid: Array = []
 var rooms: Array[Rect2i] = []
@@ -375,44 +374,10 @@ func _clear_faces() -> void:
 			s.queue_free()
 	_face_sprites.clear()
 
-## Empaqueta las luces de la escena y se las pasa al shader de las caras cada
-## frame (todos los materiales de variante comparten las mismas luces).
+## Pasa las luces (empaquetadas por LightField) al shader de las caras cada frame.
 func _process(_delta: float) -> void:
 	if _face_mats.is_empty():
 		return
-	var pos := PackedVector2Array()
-	var col := PackedVector3Array()
-	var energy := PackedFloat32Array()
-	var radius := PackedFloat32Array()
-	var height := PackedFloat32Array()
-	for L in LightField.get_lights():
-		var lp := L as PointLight2D
-		if lp == null or not is_instance_valid(lp) or not lp.enabled:
-			continue
-		var rad := lp.texture_scale * 128.0
-		if rad <= 0.0:
-			continue
-		pos.append(lp.global_position)
-		col.append(Vector3(lp.color.r, lp.color.g, lp.color.b))
-		energy.append(lp.energy)
-		radius.append(rad)
-		height.append(lp.height)
-		if pos.size() >= FACE_MAX_LIGHTS:
-			break
-	var count := pos.size()
-	# Pad a tamaño fijo del array del shader (las extra quedan con radio 0 → ignoradas).
-	pos.resize(FACE_MAX_LIGHTS)
-	col.resize(FACE_MAX_LIGHTS)
-	energy.resize(FACE_MAX_LIGHTS)
-	radius.resize(FACE_MAX_LIGHTS)
-	height.resize(FACE_MAX_LIGHTS)
-	var amb := LightCfg.ambient_color() * LightCfg.get_v("foot_ambient")
-	var amb_v := Vector3(amb.r, amb.g, amb.b)
+	var p := LightField.current_packed()
 	for mat in _face_mats:
-		mat.set_shader_parameter("light_count", count)
-		mat.set_shader_parameter("light_pos", pos)
-		mat.set_shader_parameter("light_color", col)
-		mat.set_shader_parameter("light_energy", energy)
-		mat.set_shader_parameter("light_radius", radius)
-		mat.set_shader_parameter("light_height", height)
-		mat.set_shader_parameter("ambient", amb_v)
+		LightField.apply_lights(mat, p)

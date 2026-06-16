@@ -54,5 +54,8 @@ void fragment() {
 	float m = max(acc.r, max(acc.g, acc.b));
 	if (m > cap) { acc *= cap / m; }
 
-	COLOR = vec4(albedo.rgb * acc, albedo.a);
+	// Multiplicar por COLOR (modulate/self_modulate/vertex) preserva el flash de
+	// daño y el color base del Polygon2D → este shader sirve igual para las caras
+	// de muro y para las entidades (enemigos/boss).
+	COLOR = vec4(albedo.rgb * acc, albedo.a) * COLOR;
 }

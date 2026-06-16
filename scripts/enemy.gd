@@ -66,11 +66,9 @@ func setup_type(key: String, is_elite := false) -> void:
 
 func _apply_visual() -> void:
 	base_color = _ai_color()
-	if sprite.material == null:   # foot-light: unshaded, tintado por LightField
-		var fm := CanvasItemMaterial.new()
-		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-		sprite.material = fm
-		visual.material = fm
+	if sprite.material == null:   # luz POR PÍXEL (mismo shader unshaded que las caras de muro)
+		sprite.material = LightField.entity_material
+		visual.material = LightField.entity_material
 	var sprite_set: String = SPRITE_SETS.get(type_key, "")
 	if sprite_set != "":
 		var sf = load("res://assets/mobs/%s_frames.tres" % sprite_set)
@@ -118,9 +116,6 @@ func _ai_color() -> Color:
 	return c
 
 func _physics_process(delta: float) -> void:
-	var lc := LightField.sample(global_position)
-	sprite.self_modulate = lc
-	visual.self_modulate = lc
 	hit_cd = maxf(0.0, hit_cd - delta)
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)

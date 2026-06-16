@@ -8,6 +8,74 @@ var _amb_node: CanvasModulate
 var _amb_fallback := Color(0.34, 0.33, 0.42)
 var _gathered := false
 
+# Iluminación por píxel (mismo shader que las caras de muro). entity_material lo
+# comparten todas las entidades foot-lit (enemigos/boss): la luz se calcula por
+# fragmento desde estas luces, así obtienen gradiente por píxel en vez de un
+# tinte plano por sprite. Sin relieve (normal plana) porque no tienen normal-map.
+const LIT_SHADER := preload("res://shaders/wall_face.gdshader")
+const MAX_LIGHTS := 64
+var entity_material: ShaderMaterial
+var _packed: Dictionary = {}
+
+func _ready() -> void:
+	entity_material = ShaderMaterial.new()
+	entity_material.shader = LIT_SHADER
+	var flat := Image.create_empty(1, 1, false, Image.FORMAT_RGBA8)
+	flat.set_pixel(0, 0, Color(0.5, 0.5, 1.0))   # normal (0,0,1)
+	entity_material.set_shader_parameter("normal_tex", ImageTexture.create_from_image(flat))
+	entity_material.set_shader_parameter("relief_floor", 1.0)   # solo falloff, sin relieve
+
+func _process(_delta: float) -> void:
+	_packed = pack_lights()
+	apply_lights(entity_material, _packed)
+
+## Empaqueta las luces de la escena para el shader (reusado por dungeon para las
+## caras). Devuelve arrays de tamaño fijo MAX_LIGHTS + count real + ambiente.
+func pack_lights() -> Dictionary:
+	var pos := PackedVector2Array()
+	var col := PackedVector3Array()
+	var energy := PackedFloat32Array()
+	var radius := PackedFloat32Array()
+	var height := PackedFloat32Array()
+	for L in get_lights():
+		var lp := L as PointLight2D
+		if lp == null or not is_instance_valid(lp) or not lp.enabled:
+			continue
+		var rad := lp.texture_scale * 128.0
+		if rad <= 0.0:
+			continue
+		pos.append(lp.global_position)
+		col.append(Vector3(lp.color.r, lp.color.g, lp.color.b))
+		energy.append(lp.energy)
+		radius.append(rad)
+		height.append(lp.height)
+		if pos.size() >= MAX_LIGHTS:
+			break
+	var count := pos.size()
+	pos.resize(MAX_LIGHTS); col.resize(MAX_LIGHTS)
+	energy.resize(MAX_LIGHTS); radius.resize(MAX_LIGHTS); height.resize(MAX_LIGHTS)
+	var amb := LightCfg.ambient_color() * LightCfg.get_v("foot_ambient")
+	return {"count": count, "pos": pos, "col": col, "energy": energy,
+		"radius": radius, "height": height, "ambient": Vector3(amb.r, amb.g, amb.b)}
+
+## Resultado de pack_lights de este frame (lo cachea _process). dungeon lo reusa
+## para no empaquetar dos veces.
+func current_packed() -> Dictionary:
+	if _packed.is_empty():
+		_packed = pack_lights()
+	return _packed
+
+func apply_lights(mat: ShaderMaterial, p: Dictionary) -> void:
+	if mat == null or p.is_empty():
+		return
+	mat.set_shader_parameter("light_count", p["count"])
+	mat.set_shader_parameter("light_pos", p["pos"])
+	mat.set_shader_parameter("light_color", p["col"])
+	mat.set_shader_parameter("light_energy", p["energy"])
+	mat.set_shader_parameter("light_radius", p["radius"])
+	mat.set_shader_parameter("light_height", p["height"])
+	mat.set_shader_parameter("ambient", p["ambient"])
+
 ## Llamar cuando cambian las luces de la escena (al generar la mazmorra).
 func mark_dirty() -> void:
 	_lights.clear()
