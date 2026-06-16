@@ -38,11 +38,15 @@ var _face_tex: Array = []
 var _face_mats: Array = []
 var _face_sprites: Array = []
 
+## Emitida al terminar de generar un piso (la usa el minimapa para resetear niebla).
+signal regenerated
+
 func generate() -> void:
 	_ensure_tileset()
 	_gen_grid()
 	_paint()
 	_place_torches()
+	regenerated.emit()
 
 func get_spawn_point() -> Vector2:
 	if rooms.is_empty():

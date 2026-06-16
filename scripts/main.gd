@@ -5,6 +5,7 @@ extends Node2D
 
 const ENEMY := preload("res://scenes/enemy.tscn")
 const BOSS := preload("res://scenes/boss.tscn")
+const MINIMAP := preload("res://scripts/minimap.gd")
 
 @onready var dungeon: Dungeon = $Dungeon
 @onready var player: CharacterBody2D = $Player
@@ -27,6 +28,9 @@ func _ready() -> void:
 		_build_floor()
 	GameState.set_mode(GameState.Mode.PLAY)
 	SaveSystem.save_run(GameState.run, player)   # checkpoint al entrar
+	var mm := MINIMAP.new()                      # minimapa + mapa (M), con niebla
+	add_child(mm)
+	mm.setup(dungeon, player)
 
 var _autosave_t := 0.0
 
