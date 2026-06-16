@@ -22,7 +22,7 @@ func _ready() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _get_frames()
 	_sprite.scale = Vector2(0.3, 0.3)
-	_sprite.position = Vector2(0, -6)
+	_sprite.position = Vector2(0, -17)   # sube el sprite sobre la cara (la luz está ~11px más abajo, en la sala)
 	_sprite.z_index = 6
 	var mat := CanvasItemMaterial.new()
 	mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED

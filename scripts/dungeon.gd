@@ -287,9 +287,11 @@ func _place_torches() -> void:
 			var t := PointLight2D.new()
 			t.set_script(torch_script)
 			t.seed_off = idx * 1.7
-			# Montada en la CARA del muro (wall_row), no en el piso. El sprite de
-			# la antorcha tiene su propio offset hacia arriba (torch.gd).
-			t.position = to_global(map_to_local(Vector2i(x, wall_row)))
+			# La LUZ va un poco DENTRO de la sala (fuera del occluder del muro) para
+			# que ilumine el piso; si la dejábamos en la cara, el muro bloqueaba su
+			# propia luz. El SPRITE de la antorcha se sube en torch.gd para quedar
+			# sobre la cara del muro.
+			t.position = to_global(map_to_local(Vector2i(x, wall_row))) + Vector2(0, 11)
 			holder.add_child(t)
 			idx += 1
 	LightField.mark_dirty()   # refrescar la lista de luces para el foot-light
