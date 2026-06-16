@@ -68,9 +68,9 @@ func _apply_visual() -> void:
 		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 		sprite.material = fm
 		visual.material = fm
-	var set_name: String = BOSS_SETS.get(boss_key, "")
-	if set_name != "":
-		var sf = load("res://assets/boss/%s_frames.tres" % set_name)
+	var sprite_set: String = BOSS_SETS.get(boss_key, "")
+	if sprite_set != "":
+		var sf = load("res://assets/boss/%s_frames.tres" % sprite_set)
 		if sf != null:
 			sprite.sprite_frames = sf
 			var fh := 54.0

@@ -20,10 +20,10 @@ var _music: AudioStreamPlayer
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	for name in SFX:
-		var s = load(SFX[name])
+	for key in SFX:
+		var s = load(SFX[key])
 		if s != null:
-			_streams[name] = s
+			_streams[key] = s
 	for i in 8:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
@@ -38,8 +38,8 @@ func _ready() -> void:
 		_music.stream = m
 		_music.play()
 
-func play(name: String, vol_db := -6.0) -> void:
-	var s = _streams.get(name)
+func play(key: String, vol_db := -6.0) -> void:
+	var s = _streams.get(key)
 	if s == null:
 		return
 	var p := _pool[_next]

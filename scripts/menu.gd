@@ -52,11 +52,11 @@ func _build() -> void:
 	box.add_child(_button("▶ ENTRAR A LA CÁRCEL", _on_new))
 	box.add_child(_button("SALIR", _on_quit))
 
-func _label(text: String, color: Color, size: int) -> Label:
+func _label(text: String, color: Color, font_size: int) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", color)
 	return l
 

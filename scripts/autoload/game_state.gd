@@ -15,6 +15,9 @@ var player: Node = null
 var run: Dictionary = {}
 
 # --- Señales (eventos del juego) ---
+# Bus de eventos: las señales las emiten otras clases (enemy, boss, player…),
+# por eso GDScript las marca "unused" dentro de ESTA clase. Es esperado.
+@warning_ignore_start("unused_signal")
 signal mode_changed(new_mode: Mode)
 signal player_damaged(amount: int)
 signal player_died
@@ -27,6 +30,7 @@ signal boss_spawned(boss: Node)
 signal boss_hp_changed(current: int, maximum: int)
 signal boss_died
 signal level_up(choices: Array)
+@warning_ignore_restore("unused_signal")
 
 func _ready() -> void:
 	reset_run()

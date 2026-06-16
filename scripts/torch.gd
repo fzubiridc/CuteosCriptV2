@@ -17,7 +17,7 @@ const WARM := Color(1.0, 0.60, 0.24)   # 0xff9a3c, máxima calidez
 func _ready() -> void:
 	texture = load("res://assets/fx/light_pool.tres")
 	shadow_enabled = true
-	shadow_filter = 1                # PCF5 suave
+	shadow_filter = Light2D.SHADOW_FILTER_PCF5   # PCF5 suave
 	# Sprite animado de la antorcha (unshaded → se ve siempre, como auto-iluminado).
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _get_frames()
@@ -47,9 +47,11 @@ static func _get_frames() -> SpriteFrames:
 		sheet.decompress()
 	if sheet.get_format() != Image.FORMAT_RGBA8:
 		sheet.convert(Image.FORMAT_RGBA8)
+	@warning_ignore("integer_division")
 	var cols := sheet.get_width() / FRAME_PX
 	for i in FRAMES:
 		var fx := (i % cols) * FRAME_PX
+		@warning_ignore("integer_division")
 		var fy := (i / cols) * FRAME_PX
 		var fimg := sheet.get_region(Rect2i(fx, fy, FRAME_PX, FRAME_PX))
 		sf.add_frame("burn", ImageTexture.create_from_image(fimg))

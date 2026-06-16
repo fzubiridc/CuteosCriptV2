@@ -71,9 +71,9 @@ func _apply_visual() -> void:
 		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 		sprite.material = fm
 		visual.material = fm
-	var set_name: String = SPRITE_SETS.get(type_key, "")
-	if set_name != "":
-		var sf = load("res://assets/mobs/%s_frames.tres" % set_name)
+	var sprite_set: String = SPRITE_SETS.get(type_key, "")
+	if sprite_set != "":
+		var sf = load("res://assets/mobs/%s_frames.tres" % sprite_set)
 		if sf != null:
 			sprite.sprite_frames = sf
 			var fh := 64.0
@@ -233,6 +233,7 @@ func take_damage(amount: int) -> void:
 func _die() -> void:
 	Audio.play("enemy_death", -8.0)
 	GameState.run["kills"] = int(GameState.run.get("kills", 0)) + 1
+	@warning_ignore("integer_division")
 	GameState.drop_loot(global_position, maxi(2, max_hp / 4))
 	GameState.enemy_killed.emit(self)
 	queue_free()

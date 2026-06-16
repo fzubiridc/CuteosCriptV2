@@ -97,7 +97,7 @@ func _on_body(body: Node) -> void:
 	queue_free()
 
 # ---------------------------------------------------------------------------
-func _mat(blend: int) -> CanvasItemMaterial:
+func _mat(blend: CanvasItemMaterial.BlendMode) -> CanvasItemMaterial:
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = blend
 	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
