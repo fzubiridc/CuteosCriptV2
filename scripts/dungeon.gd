@@ -82,7 +82,10 @@ func _ensure_tileset() -> void:
 		_nav_tile(src.get_tile_data(Vector2i(i, ROW_FLOOR), 0))
 		_nav_tile(src.get_tile_data(Vector2i(i, ROW_FLOOR_AO), 0))
 	for i in WALL_VARIANTS:
-		_solid_tile(src.get_tile_data(Vector2i(i, ROW_FACE), 0))
+		# Cara: colisión PERO sin occluder → deja que la luz de la antorcha la
+		# ilumine (si tuviera occluder, el muro se taparía su propia luz).
+		_collide_tile(src.get_tile_data(Vector2i(i, ROW_FACE), 0))
+		# Tope: colisión + occluder → el muro proyecta sombra desde arriba.
 		_solid_tile(src.get_tile_data(Vector2i(i, ROW_TOP), 0))
 
 	tile_set = ts
@@ -99,9 +102,12 @@ func _nav_tile(td: TileData) -> void:
 	nav.add_polygon(PackedInt32Array([0, 1, 2, 3]))
 	td.set_navigation_polygon(0, nav)
 
-func _solid_tile(td: TileData) -> void:
+func _collide_tile(td: TileData) -> void:
 	td.add_collision_polygon(0)
 	td.set_collision_polygon_points(0, 0, _square(8.0))
+
+func _solid_tile(td: TileData) -> void:
+	_collide_tile(td)
 	var occ := OccluderPolygon2D.new()
 	occ.polygon = _square(8.0)
 	td.set_occluder(0, occ)

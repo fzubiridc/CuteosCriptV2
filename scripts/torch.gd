@@ -62,6 +62,10 @@ func _apply_cfg() -> void:
 	height = LightCfg.get_v("torch_height")
 	shadow_filter_smooth = LightCfg.get_v("shadow_smooth")
 	color = Color(1, 1, 1).lerp(WARM, LightCfg.get_v("torch_warmth"))   # calidez tuneable
+	# Boost cálido del sprite de la llama (>1 → glowea con el bloom HDR = fuego real).
+	if _sprite:
+		var g: float = LightCfg.get_v("torch_glow")
+		_sprite.modulate = Color(g, g * 0.72, g * 0.42, 1.0)
 
 func _process(_delta: float) -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
