@@ -15,14 +15,17 @@ const DEFS := {
 	"amb_r": {"min": 0.0, "max": 1.0, "def": 0.46, "label": "Ambient R", "group": "Ambiente"},
 	"amb_g": {"min": 0.0, "max": 1.0, "def": 0.44, "label": "Ambient G", "group": "Ambiente"},
 	"amb_b": {"min": 0.0, "max": 1.0, "def": 0.55, "label": "Ambient B", "group": "Ambiente"},
+	"foot_ambient": {"min": 0.0, "max": 1.0, "def": 0.55, "label": "Ambiente entidades (foot)", "group": "Ambiente"},
 	# --- Luz del jugador ---
 	"player_energy": {"min": 0.0, "max": 4.0, "def": 2.2, "label": "Jugador energía", "group": "Jugador"},
 	"player_radius": {"min": 0.1, "max": 1.5, "def": 0.55, "label": "Jugador radio", "group": "Jugador"},
 	"player_height": {"min": 0.0, "max": 64.0, "def": 26.0, "label": "Jugador altura", "group": "Jugador"},
+	"player_warmth": {"min": 0.0, "max": 1.0, "def": 0.55, "label": "Jugador calidez (0=blanca)", "group": "Jugador"},
 	# --- Antorchas (L1) ---
 	"torch_energy": {"min": 0.0, "max": 4.0, "def": 2.25, "label": "Antorcha energía", "group": "Antorchas"},
 	"torch_radius": {"min": 0.2, "max": 2.5, "def": 1.1, "label": "Antorcha radio", "group": "Antorchas"},
 	"torch_height": {"min": 0.0, "max": 64.0, "def": 27.0, "label": "Antorcha altura", "group": "Antorchas"},
+	"torch_warmth": {"min": 0.0, "max": 1.0, "def": 0.78, "label": "Antorcha calidez (0=blanca)", "group": "Antorchas"},
 	# --- Post-proceso (WorldEnvironment) ---
 	"exposure": {"min": 0.5, "max": 3.0, "def": 1.1, "label": "Exposición", "group": "Post"},
 	"bloom_on": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Bloom on/off", "group": "Post"},
@@ -34,9 +37,18 @@ const DEFS := {
 	# --- Sombra proyectada de billboards (silueta del personaje) ---
 	"cast_light_ht": {"min": 30.0, "max": 220.0, "def": 80.0, "label": "Proy. altura luz (zL)", "group": "Sombras"},
 	"cast_max_len": {"min": 8.0, "max": 220.0, "def": 75.0, "label": "Proy. largo máx", "group": "Sombras"},
-	"cast_alpha": {"min": 0.0, "max": 1.0, "def": 0.62, "label": "Proy. opacidad", "group": "Sombras"},
+	"cast_alpha": {"min": 0.0, "max": 1.0, "def": 0.85, "label": "Proy. opacidad", "group": "Sombras"},
 	"cast_falloff": {"min": 0.0, "max": 4.0, "def": 1.2, "label": "Proy. caída dist", "group": "Sombras"},
 	"cast_width": {"min": 0.3, "max": 2.0, "def": 0.95, "label": "Proy. ancho", "group": "Sombras"},
+	"cast_lift": {"min": -30.0, "max": 30.0, "def": 0.0, "label": "Proy. subir ancla (px)", "group": "Sombras"},
+	"cast_blur": {"min": 0.0, "max": 8.0, "def": 0.7, "label": "Proy. difusión", "group": "Sombras"},
+	"cast_blur_grow": {"min": 0.0, "max": 8.0, "def": 1.2, "label": "Proy. difusión hacia punta", "group": "Sombras"},
+	"cast_tip_fade": {"min": 0.2, "max": 4.0, "def": 1.3, "label": "Proy. pérdida hacia punta", "group": "Sombras"},
+	"cast_base_fade": {"min": 0.0, "max": 0.6, "def": 0.06, "label": "Proy. difumin. en la base", "group": "Sombras"},
+	# Sombra de contacto (circular, fija debajo — no depende de antorchas)
+	"contact_size": {"min": 0.2, "max": 3.0, "def": 1.0, "label": "Contacto tamaño", "group": "Sombras"},
+	"contact_alpha": {"min": 0.0, "max": 1.0, "def": 0.42, "label": "Contacto opacidad", "group": "Sombras"},
+	"contact_flat": {"min": 0.2, "max": 1.0, "def": 0.55, "label": "Contacto achatado (1=redondo)", "group": "Sombras"},
 }
 
 var _v: Dictionary = {}

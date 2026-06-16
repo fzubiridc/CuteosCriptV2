@@ -31,7 +31,7 @@ func _apply() -> void:
 		amb.color = LightCfg.ambient_color()
 	var pl := scene.get_node_or_null("Player/Light") as PointLight2D
 	if pl:
-		pl.color = PLAYER_LIGHT_COLOR
+		pl.color = Color(1, 1, 1).lerp(PLAYER_LIGHT_COLOR, LightCfg.get_v("player_warmth"))
 		pl.energy = LightCfg.get_v("player_energy")
 		pl.texture_scale = LightCfg.get_v("player_radius")
 		pl.height = LightCfg.get_v("player_height")

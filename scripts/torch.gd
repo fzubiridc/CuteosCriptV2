@@ -12,9 +12,10 @@ var seed_off := 0.0
 var _base_energy := 2.25
 var _sprite: AnimatedSprite2D
 
+const WARM := Color(1.0, 0.60, 0.24)   # 0xff9a3c, máxima calidez
+
 func _ready() -> void:
 	texture = load("res://assets/fx/light_pool.tres")
-	color = Color(1.0, 0.60, 0.24)   # 0xff9a3c cálida
 	shadow_enabled = true
 	shadow_filter = 1                # PCF5 suave
 	# Sprite animado de la antorcha (unshaded → se ve siempre, como auto-iluminado).
@@ -60,6 +61,7 @@ func _apply_cfg() -> void:
 	texture_scale = LightCfg.get_v("torch_radius")
 	height = LightCfg.get_v("torch_height")
 	shadow_filter_smooth = LightCfg.get_v("shadow_smooth")
+	color = Color(1, 1, 1).lerp(WARM, LightCfg.get_v("torch_warmth"))   # calidez tuneable
 
 func _process(_delta: float) -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0

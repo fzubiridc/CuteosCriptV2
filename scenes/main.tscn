@@ -60,6 +60,9 @@ script = ExtResource("1_o5qli")
 [node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
 shape = SubResource("RectangleShape2D_tefeu")
 
+[node name="Feet" type="Marker2D" parent="Player"]
+position = Vector2(0, 4)
+
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
 zoom = Vector2(3, 3)
 

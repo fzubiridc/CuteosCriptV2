@@ -15,7 +15,7 @@ var max_hp := 30
 var damage := 8
 var speed := 60.0
 var size := 8.0
-var _foot_shadow: Sprite2D
+var _shadow_attached := false
 var atk_range := 0.0
 var fire_cd := 1.5
 var proj_spd := 150.0
@@ -66,8 +66,6 @@ func setup_type(key: String, is_elite := false) -> void:
 
 func _apply_visual() -> void:
 	base_color = _ai_color()
-	if _foot_shadow == null:
-		_foot_shadow = FootShadow.attach(self, size * 0.9, size * 2.2)
 	if sprite.material == null:   # foot-light: unshaded, tintado por LightField
 		var fm := CanvasItemMaterial.new()
 		fm.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
@@ -98,6 +96,14 @@ func _apply_visual() -> void:
 	var sh := CircleShape2D.new()
 	sh.radius = size
 	$Shape.shape = sh
+
+	# Sombra: proyectada PRO (silueta) si hay sprite; de contacto si es polígono.
+	if not _shadow_attached:
+		_shadow_attached = true
+		if use_sprite:
+			CastShadow.attach(self, sprite, size)
+		else:
+			FootShadow.attach(self, size * 0.9, size * 2.2)
 
 func _idle_tint() -> Color:
 	return Color(1.0, 0.92, 0.6) if elite else Color.WHITE

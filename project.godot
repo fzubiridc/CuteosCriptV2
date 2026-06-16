@@ -26,11 +26,13 @@ Audio="*res://scripts/autoload/audio.gd"
 LightCfg="*res://scripts/autoload/light_cfg.gd"
 LightField="*res://scripts/autoload/light_field.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
+Touch="*res://scripts/autoload/touch.gd"
+Fps="*res://scripts/autoload/fps_counter.gd"
 
 [display]
 
-window/size/viewport_width=1920
-window/size/viewport_height=1080
+window/size/viewport_width=1280
+window/size/viewport_height=720
 
 [editor_plugins]
 
