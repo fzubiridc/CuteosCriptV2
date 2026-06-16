@@ -27,6 +27,12 @@ const ROW_TOP := 3
 var grid: Array = []
 var rooms: Array[Rect2i] = []
 
+# Caras foot-lit: textura plana de ladrillo por variante + sprites unshaded por
+# celda-cara (tintados con LightField.sample como las entidades). Permite tener
+# las 3: piso iluminado + cara iluminada + sombra desde la esquina del muro.
+var _face_tex: Array = []
+var _face_sprites: Array = []
+
 func generate() -> void:
 	_ensure_tileset()
 	_gen_grid()
@@ -50,6 +56,11 @@ func _ensure_tileset() -> void:
 	var walls: Array = []
 	for i in WALL_VARIANTS:
 		walls.append(_load_tile("res://assets/tiles/torre/wall_%d.png" % i))
+
+	# Texturas planas de ladrillo para las caras foot-lit (render unshaded aparte).
+	_face_tex.clear()
+	for i in WALL_VARIANTS:
+		_face_tex.append(ImageTexture.create_from_image(walls[i]))
 
 	var cols := maxi(FLOOR_VARIANTS, WALL_VARIANTS)
 	var img := Image.create_empty(TILE * cols, TILE * 4, false, Image.FORMAT_RGBA8)
@@ -82,10 +93,10 @@ func _ensure_tileset() -> void:
 		_nav_tile(src.get_tile_data(Vector2i(i, ROW_FLOOR), 0))
 		_nav_tile(src.get_tile_data(Vector2i(i, ROW_FLOOR_AO), 0))
 	for i in WALL_VARIANTS:
-		# Cara: colisión PERO sin occluder → deja que la luz de la antorcha la
-		# ilumine (si tuviera occluder, el muro se taparía su propia luz).
-		_collide_tile(src.get_tile_data(Vector2i(i, ROW_FACE), 0))
-		# Tope: colisión + occluder → el muro proyecta sombra desde arriba.
+		# Cara + tope: colisión + occluder en TODA la masa de muro. Así la sombra
+		# se proyecta desde el contorno del muro contra el piso (el borde del wall
+		# tile, "la punta") y NO desde el tope que queda una fila (16px) más arriba.
+		_solid_tile(src.get_tile_data(Vector2i(i, ROW_FACE), 0))
 		_solid_tile(src.get_tile_data(Vector2i(i, ROW_TOP), 0))
 
 	tile_set = ts
@@ -309,6 +320,7 @@ func _place_torches() -> void:
 ## piso / cara-de-ladrillo / tope-oscuro / AO da la profundidad; los topes son
 ## lit pero muy oscuros (0.10) en vez de unshaded.
 func _paint() -> void:
+	_clear_faces()
 	clear()
 	y_sort_enabled = false
 	z_index = -10
@@ -321,6 +333,37 @@ func _paint() -> void:
 				atlas = Vector2i(v, ROW_FLOOR_AO if wall_above else ROW_FLOOR)
 			elif y + 1 < MAP_H and grid[y + 1][x] == 1:
 				atlas = Vector2i(_variant(x, y, WALL_VARIANTS), ROW_FACE)
+				_spawn_face(x, y)   # cara foot-lit encima (el tile del tilemap aporta occluder+colisión)
 			else:
 				atlas = Vector2i(_variant(x, y, WALL_VARIANTS), ROW_TOP)
 			set_cell(Vector2i(x, y), SRC_ID, atlas)
+
+# ---------------------------------------------------------------------------
+# Caras foot-lit
+# ---------------------------------------------------------------------------
+## La cara del muro se dibuja como Sprite2D UNSHADED encima de su tile (que queda
+## oscuro por el occluder, pero tapado) y se tinta cada frame con LightField →
+## la antorcha la ilumina aunque el occluder de la propia cara proyecte la sombra
+## desde la esquina del muro. Pierde el relieve por normal-map (tinte plano).
+func _spawn_face(x: int, y: int) -> void:
+	var spr := Sprite2D.new()
+	spr.texture = _face_tex[_variant(x, y, WALL_VARIANTS)]
+	spr.position = map_to_local(Vector2i(x, y))
+	spr.z_as_relative = false
+	spr.z_index = -9   # sobre el piso/tope del tilemap (z=-10), debajo de las entidades (z=0)
+	var m := CanvasItemMaterial.new()
+	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	spr.material = m
+	add_child(spr)
+	_face_sprites.append(spr)
+
+func _clear_faces() -> void:
+	for s in _face_sprites:
+		if is_instance_valid(s):
+			s.queue_free()
+	_face_sprites.clear()
+
+func _process(_delta: float) -> void:
+	for s in _face_sprites:
+		if is_instance_valid(s):
+			s.self_modulate = LightField.sample(s.global_position)
