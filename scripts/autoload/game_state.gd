@@ -73,14 +73,20 @@ func drop_loot(pos: Vector2, xp_amount: int, is_boss := false) -> void:
 			_drop_item(scene, pos + _roff(10.0), Items.make_item(depth))
 
 func _drop(scene: Node, pos: Vector2, kind: String, value: int) -> void:
-	var p := PICKUP.instantiate()
-	scene.add_child(p)
-	p.setup(pos, kind, value)
+	# Diferido: el pickup es un Area2D y al entrar al árbol enciende su monitoring;
+	# si el drop ocurre dentro del paso de física (muerte de enemigo en una colisión)
+	# Godot tira "Can't change this state while flushing queries". call_deferred lo
+	# corre después del flush.
+	_spawn_pickup_deferred.call_deferred(scene, PICKUP.instantiate(), pos, kind, value, {})
 
 func _drop_item(scene: Node, pos: Vector2, item: Dictionary) -> void:
-	var p := PICKUP.instantiate()
+	_spawn_pickup_deferred.call_deferred(scene, PICKUP.instantiate(), pos, "item", 0, item)
+
+func _spawn_pickup_deferred(scene: Node, p: Node, pos: Vector2, kind: String, value: int, item: Dictionary) -> void:
+	if not is_instance_valid(scene) or not is_instance_valid(p):
+		return
 	scene.add_child(p)
-	p.setup(pos, "item", 0, item)
+	p.setup(pos, kind, value, item)
 
 func _roff(r: float) -> Vector2:
 	return Vector2(Rng.range_f(-r, r), Rng.range_f(-r, r))
