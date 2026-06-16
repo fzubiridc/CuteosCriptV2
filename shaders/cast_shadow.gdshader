@@ -14,16 +14,19 @@ uniform float blur = 1.6;        // radio base de difusión (texels)
 uniform float blur_grow = 3.0;   // cuánto crece el blur hacia la punta
 
 float samp(sampler2D tex, vec2 uv, vec2 px, float r) {
-	float a = texture(tex, uv).a * 0.28;
-	a += texture(tex, uv + vec2(px.x * r, 0.0)).a * 0.12;
-	a += texture(tex, uv - vec2(px.x * r, 0.0)).a * 0.12;
-	a += texture(tex, uv + vec2(0.0, px.y * r)).a * 0.12;
-	a += texture(tex, uv - vec2(0.0, px.y * r)).a * 0.12;
-	a += texture(tex, uv + vec2(px.x * r, px.y * r)).a * 0.06;
-	a += texture(tex, uv - vec2(px.x * r, px.y * r)).a * 0.06;
-	a += texture(tex, uv + vec2(px.x * r, -px.y * r)).a * 0.06;
-	a += texture(tex, uv - vec2(px.x * r, -px.y * r)).a * 0.06;
-	return a;
+	// Blur en disco: centro + 2 anillos de 8 muestras (interior r*0.5, exterior r)
+	// con pesos tipo gaussiano → difusión suave de verdad, sin "fantasmas"/escalones
+	// al subir el radio (a diferencia de la cruz de 9 taps anterior).
+	float a = texture(tex, uv).a * 0.18;
+	float wsum = 0.18;
+	for (int k = 0; k < 8; k++) {
+		float ang = float(k) * 0.78539816;          // 2π/8
+		vec2 d = vec2(cos(ang), sin(ang));
+		a += texture(tex, uv + d * px * (r * 0.5)).a * 0.072;
+		a += texture(tex, uv + d * px * r).a * 0.043;
+		wsum += 0.115;
+	}
+	return a / wsum;
 }
 
 void fragment() {

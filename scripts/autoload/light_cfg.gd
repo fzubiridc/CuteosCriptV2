@@ -27,6 +27,7 @@ const DEFS := {
 	"torch_height": {"min": 0.0, "max": 64.0, "def": 26.24, "label": "Antorcha altura", "group": "Antorchas"},
 	"torch_warmth": {"min": 0.0, "max": 1.0, "def": 0.66, "label": "Antorcha calidez (0=blanca)", "group": "Antorchas"},
 	"torch_glow": {"min": 1.0, "max": 3.0, "def": 1.6, "label": "Antorcha brillo llama (bloom)", "group": "Antorchas"},
+	"torch_flicker": {"min": 0.0, "max": 1.0, "def": 0.5, "label": "Antorcha parpadeo (0=estable)", "group": "Antorchas"},
 	# --- Post-proceso (WorldEnvironment) ---
 	"exposure": {"min": 0.5, "max": 3.0, "def": 1.75, "label": "Exposición", "group": "Post"},
 	"bloom_on": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Bloom on/off", "group": "Post"},

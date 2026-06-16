@@ -71,5 +71,9 @@ func _apply_cfg() -> void:
 
 func _process(_delta: float) -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
-	var flick := 0.82 + sin(t * 7.0 + seed_off) * 0.12 + sin(t * 17.0 + seed_off * 1.7) * 0.05
+	var amt: float = LightCfg.get_v("torch_flicker")
+	# Llama suave: 2 ondas LENTAS (sin la componente nerviosa de 17 rad/s). `amt`
+	# escala cuánto baja respecto del brillo pleno (0 = estable; 0.5 ≈ [0.92,1.0]).
+	var wave := sin(t * 5.0 + seed_off) * 0.65 + sin(t * 9.5 + seed_off * 1.7) * 0.35
+	var flick := 1.0 - amt * 0.16 * (0.5 - 0.5 * wave)
 	energy = _base_energy * flick
