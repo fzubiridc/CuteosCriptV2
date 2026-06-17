@@ -5,6 +5,15 @@ class_name Pickup
 ## en la oscuridad. Se recoge por contacto.
 
 static var _gem: Texture2D
+static var _xp_flame_cache := {}    # color → Array de frames (compartido)
+
+# Colores de llamita de XP disponibles (se elige uno al azar por drop). Sumar acá
+# "red"/"blue" cuando estén: {"dir": <subcarpeta>, "prefix": <prefijo de archivo>}.
+const XP_FLAMES := {
+	"green":  {"dir": "green",  "prefix": "llamita_32_"},
+	"yellow": {"dir": "yellow", "prefix": "llamita_amarilla_32_"},
+	"red":    {"dir": "red",    "prefix": "llamita_roja_32_"},
+}
 
 var kind := "coin"
 var value := 1
@@ -15,6 +24,9 @@ var item_data: Dictionary = {}
 var _icon: Sprite2D
 var _glow: Sprite2D
 var _t := 0.0
+var _flame_frames: Array = []
+var _flame_i := 0
+var _flame_t := 0.0
 
 func _ready() -> void:
 	body_entered.connect(_on_body)
@@ -60,20 +72,38 @@ func _configure() -> void:
 			_icon.modulate = Color(1.0, 1.05, 1.15)
 			col = Color(0.4, 0.6, 1.0)
 		"xp":
-			_icon.texture = _get_gem()
-			_icon.scale = Vector2(0.7, 0.7)
 			col = Color(0.45, 1.0, 0.55)
-			_icon.modulate = col
-		_:        # item u otros: gema tintada por rareza
-			_icon.texture = _get_gem()
-			_icon.scale = Vector2(0.7, 0.7)
+			var colors: Array = XP_FLAMES.keys()
+			var c: String = colors[Rng.range_i(0, colors.size() - 1)]   # color al azar
+			_flame_frames = _get_xp_flames(c)
+			if not _flame_frames.is_empty():
+				_icon.texture = _flame_frames[0]   # llamita animada (color random)
+				_icon.scale = Vector2(0.28, 0.28)   # bien chica
+				_icon.modulate = Color.WHITE        # color real de la llama
+			else:
+				_icon.texture = _get_gem()
+				_icon.scale = Vector2(0.7, 0.7)
+				_icon.modulate = col
+		_:        # ítem dropeado
 			col = Color(Items.rarity_data(item_data.get("rarity", "comun")).color)
-			_icon.modulate = col
+			if kind == "item" and String(item_data.get("slot", "")) == "arma":
+				# Arma: su sprite REAL (staff del tier de material), acostado en el piso.
+				_icon.texture = _staff_tex_for(item_data)
+				_icon.scale = Vector2(0.5, 0.5)
+				_icon.rotation = deg_to_rad(40)
+				_icon.modulate = Color.WHITE
+			else:
+				# Armadura/accesorio: gema tintada por rareza (no hay sprite propio).
+				_icon.texture = _get_gem()
+				_icon.scale = Vector2(0.7, 0.7)
+				_icon.modulate = col
 	_glow.modulate = Color(col.r, col.g, col.b, 0.45)
 	_glow.scale = Vector2(0.13, 0.13)
 	if kind == "heart" or kind == "potion":   # frasco oscuro → más glow para que lea
 		_glow.modulate.a = 0.6
 		_glow.scale = Vector2(0.17, 0.17)
+	elif kind == "xp":                          # llama chica → halo chico
+		_glow.scale = Vector2(0.07, 0.07)
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -81,6 +111,12 @@ func _process(delta: float) -> void:
 	_icon.position.y = -bob - 2.0
 	_glow.position.y = -bob * 0.5
 	_glow.modulate.a = 0.35 + 0.18 * sin(_t * 4.0)
+	if not _flame_frames.is_empty():   # llamita de XP: cicla frames
+		_flame_t += delta
+		if _flame_t >= 0.07:
+			_flame_t = 0.0
+			_flame_i = (_flame_i + 1) % _flame_frames.size()
+			_icon.texture = _flame_frames[_flame_i]
 
 func _on_body(body: Node) -> void:
 	if not (body is Player):
@@ -102,6 +138,37 @@ func _mat(blend: CanvasItemMaterial.BlendMode) -> CanvasItemMaterial:
 	m.blend_mode = blend
 	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	return m
+
+## Frames de la llamita de XP de un color (cacheados). Fallback a carga cruda si el
+## editor todavía no importó los PNG (copiados en caliente).
+static func _get_xp_flames(color: String) -> Array:
+	if _xp_flame_cache.has(color):
+		return _xp_flame_cache[color]
+	var frames: Array = []
+	var cfg: Dictionary = XP_FLAMES.get(color, {})
+	if not cfg.is_empty():
+		for i in 13:
+			var p: String = "res://assets/pickups/xp/%s/%s%02d.png" % [cfg.dir, cfg.prefix, i + 1]
+			var t := load(p) as Texture2D
+			if t == null:
+				var img := Image.load_from_file(ProjectSettings.globalize_path(p))
+				if img != null:
+					t = ImageTexture.create_from_image(img)
+			if t != null:
+				frames.append(t)
+	_xp_flame_cache[color] = frames
+	return frames
+
+## Staff (arma) según el tier de material del ítem — mismo criterio que el player.
+func _staff_tex_for(idata: Dictionary) -> Texture2D:
+	var mat_id: String = idata.get("material", "madera")
+	var idx := 0
+	for i in Data.MATERIALS.size():
+		if Data.MATERIALS[i].id == mat_id:
+			idx = i
+			break
+	idx = clampi(idx, 0, 8)
+	return load("res://assets/hero/staffs/staff%d.png" % (idx + 1))
 
 ## Gema glow: bead redondo con núcleo brillante y borde definido (se tinta por modulate).
 static func _get_gem() -> Texture2D:

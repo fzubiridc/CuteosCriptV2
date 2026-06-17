@@ -175,14 +175,24 @@ func _spawn_boss(key: String) -> void:
 func _spawn_enemies(zone: Dictionary) -> void:
 	var pool: Array = zone.enemies
 	var dens := float(zone.get("density", 1.0))
+	var elite_p := float(Data.BALANCE.elite_chance)
 	for i in range(1, dungeon.rooms.size()):
-		if Rng.chance(clampf(0.55 * dens + 0.12, 0.0, 0.92)):
-			var room: Rect2i = dungeon.rooms[i]
+		var room: Rect2i = dungeon.rooms[i]
+		# Varios mobs por sala, escalado por área (salas grandes → más), esparcidos.
+		var n := clampi(int(round(room.size.x * room.size.y / 26.0 * dens)), 2, 5)
+		var home_rect := Rect2(Vector2(room.position) * Dungeon.TILE, Vector2(room.size) * Dungeon.TILE)
+		for j in n:
 			var e := ENEMY.instantiate()
 			add_child(e)
-			e.setup_type(Rng.pick(pool), Rng.chance(float(Data.BALANCE.elite_chance)))
-			var center_world := dungeon.to_global(dungeon.map_to_local(room.get_center()))
-			e.global_position = center_world
-			e.home_pos = center_world
-			e.home_rect = Rect2(Vector2(room.position) * Dungeon.TILE, Vector2(room.size) * Dungeon.TILE)
+			e.setup_type(Rng.pick(pool), Rng.chance(elite_p))
+			var pos := dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
+			e.global_position = pos
+			e.home_pos = pos
+			e.home_rect = home_rect
 			e.reset_physics_interpolation()
+
+## Celda al azar dentro de la sala (con 1 tile de margen para no pegarse al muro).
+func _rand_room_cell(room: Rect2i) -> Vector2i:
+	var x := Rng.range_i(room.position.x + 1, maxi(room.position.x + 1, room.position.x + room.size.x - 2))
+	var y := Rng.range_i(room.position.y + 1, maxi(room.position.y + 1, room.position.y + room.size.y - 2))
+	return Vector2i(x, y)

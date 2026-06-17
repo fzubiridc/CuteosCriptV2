@@ -11,7 +11,7 @@
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
-size = Vector2(10, 12)
+size = Vector2(10, 6)
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
 emission_shape = 3
@@ -58,6 +58,7 @@ collision_layer = 2
 script = ExtResource("1_o5qli")
 
 [node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
+position = Vector2(0, 6)
 shape = SubResource("RectangleShape2D_tefeu")
 
 [node name="Feet" type="Marker2D" parent="Player"]
@@ -352,16 +353,6 @@ color = Color(0.32, 0.33, 0.42, 1)
 environment = SubResource("Environment_tipki")
 
 [node name="FX" type="CanvasLayer" parent="." unique_id=1442618580]
-
-[node name="Vignette" type="TextureRect" parent="FX" unique_id=236168006]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("7_o6xl0")
-expand_mode = 1
 
 [node name="LightingDebug" type="CanvasLayer" parent="." unique_id=352811338]
 script = ExtResource("9_85g3d")

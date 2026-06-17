@@ -99,7 +99,7 @@ func _apply_visual() -> void:
 	if not _shadow_attached:
 		_shadow_attached = true
 		if use_sprite:
-			CastShadow.attach(self, sprite, size)
+			CastShadow.attach(self, sprite, size, false)   # mobs: solo sombra circular (sin proyectada)
 		else:
 			FootShadow.attach(self, size * 0.9, size * 2.2)
 

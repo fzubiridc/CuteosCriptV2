@@ -10,9 +10,9 @@ class_name Dungeon
 const TILE := 16
 const MAP_W := 64
 const MAP_H := 64
-const ROOM_COUNT := 14
-const ROOM_MIN := 6
-const ROOM_MAX := 11
+const ROOM_COUNT := 20
+const ROOM_MIN := 7
+const ROOM_MAX := 13
 
 const SRC_ID := 0
 # Atlas por VARIANTES (como Pixi: 8 paredes + 6 pisos, elegidas por hash por celda).
@@ -37,6 +37,9 @@ var rooms: Array[Rect2i] = []
 var _face_tex: Array = []
 var _face_mats: Array = []
 var _face_sprites: Array = []
+var _ao_sprites: Array = []         # overlays de AO en uniones piso/muro (oeste/este)
+static var _ao_l_tex: Texture2D     # gradiente AO oscuro-a-la-izquierda (cache)
+static var _ao_r_tex: Texture2D     # gradiente AO oscuro-a-la-derecha (cache)
 
 ## Emitida al terminar de generar un piso (la usa el minimapa para resetear niebla).
 signal regenerated
@@ -71,8 +74,9 @@ func _ensure_tileset() -> void:
 	_face_tex.clear()
 	_face_mats.clear()
 	for i in WALL_VARIANTS:
-		_face_tex.append(ImageTexture.create_from_image(walls[i]))
-		var nrm := ImageTexture.create_from_image(_make_normal(walls[i], 4.5))
+		var tall := _make_tall_brick(walls[i])   # 16×24: 1.5 ladrillos a escala nativa + banda base
+		_face_tex.append(ImageTexture.create_from_image(tall))
+		var nrm := ImageTexture.create_from_image(_make_normal(tall, 4.5))
 		var mat := ShaderMaterial.new()
 		mat.shader = FACE_SHADER
 		mat.set_shader_parameter("normal_tex", nrm)
@@ -155,6 +159,59 @@ func _make_floor_ao(floor_img: Image) -> Image:
 			ao.set_pixel(x, y, Color(c.r * mul, c.g * mul, c.b * mul, c.a))
 	return ao
 
+## Cara de muro ALTA (16×24 = 1.5 ladrillos) tileando el ladrillo a escala NATIVA
+## (sin estirar), con el ladrillo completo anclado abajo + banda de contacto en la
+## base. La media-cara de arriba invade el tile superior → altura real, sin deformar.
+const FACE_H := 24
+func _make_tall_brick(brick: Image) -> Image:
+	var im := Image.create_empty(TILE, FACE_H, false, Image.FORMAT_RGBA8)
+	for y in FACE_H:
+		var by := posmod(y - (FACE_H - TILE), TILE)   # ladrillo completo anclado abajo
+		for x in TILE:
+			im.set_pixel(x, y, brick.get_pixel(x, by))
+	# banda de contacto oscura en la base (últimos 3px) → asienta el muro en el piso.
+	var band := 3
+	for y in range(FACE_H - band, FACE_H):
+		var t := float(y - (FACE_H - band)) / float(band)
+		var mul := lerpf(0.82, 0.55, t)
+		for x in TILE:
+			var c := im.get_pixel(x, y)
+			im.set_pixel(x, y, Color(c.r * mul, c.g * mul, c.b * mul, c.a))
+	return im
+
+## Gradiente AO lateral (7px): oscuro pegado al muro → transparente hacia adentro.
+func _ao_side_tex(dark_left: bool) -> Texture2D:
+	if dark_left and _ao_l_tex != null:
+		return _ao_l_tex
+	if not dark_left and _ao_r_tex != null:
+		return _ao_r_tex
+	var w := 7
+	var img := Image.create_empty(w, TILE, false, Image.FORMAT_RGBA8)
+	for x in w:
+		var tt := float(x) / float(w - 1)
+		var edge := tt if dark_left else (1.0 - tt)   # 0 en el borde que toca el muro
+		var a := lerpf(0.30, 0.0, edge)
+		for y in TILE:
+			img.set_pixel(x, y, Color(0, 0, 0, a))
+	var tex := ImageTexture.create_from_image(img)
+	if dark_left:
+		_ao_l_tex = tex
+	else:
+		_ao_r_tex = tex
+	return tex
+
+## Sprite de AO en el borde izq/der de un piso que toca un muro lateral.
+func _spawn_ao_side(x: int, y: int, dark_left: bool) -> void:
+	var spr := Sprite2D.new()
+	spr.texture = _ao_side_tex(dark_left)
+	spr.centered = false
+	var c := map_to_local(Vector2i(x, y))
+	spr.position = c + (Vector2(-8, -8) if dark_left else Vector2(1, -8))
+	spr.z_as_relative = false
+	spr.z_index = -9   # sobre el piso (tilemap z=-10), debajo de entidades (z=0)
+	add_child(spr)
+	_ao_sprites.append(spr)
+
 ## Tope de muro estilo Pixi: base wallDark (saturada, no negra) + textura del
 ## ladrillo al 30% + capa de sombra → oscuro pero con color y relieve.
 func _make_top(brick: Image) -> Image:
@@ -228,7 +285,7 @@ func _gen_grid() -> void:
 
 	var prev_center := Vector2i.ZERO
 	for i in ROOM_COUNT:
-		for attempt in 20:
+		for attempt in 30:
 			var w := Rng.range_i(ROOM_MIN, ROOM_MAX)
 			var h := Rng.range_i(ROOM_MIN, ROOM_MAX - 1)
 			var x := Rng.range_i(1, MAP_W - w - 1)
@@ -347,6 +404,11 @@ func _paint() -> void:
 				var wall_above: bool = y - 1 >= 0 and grid[y - 1][x] == 0
 				var v := _variant(x, y, FLOOR_VARIANTS)
 				atlas = Vector2i(v, ROW_FLOOR_AO if wall_above else ROW_FLOOR)
+				# AO en las uniones laterales (oeste/este): overlay direccional.
+				if x - 1 >= 0 and grid[y][x - 1] == 0:
+					_spawn_ao_side(x, y, true)
+				if x + 1 < MAP_W and grid[y][x + 1] == 0:
+					_spawn_ao_side(x, y, false)
 			elif y + 1 < MAP_H and grid[y + 1][x] == 1:
 				atlas = Vector2i(_variant(x, y, WALL_VARIANTS), ROW_FACE)
 				_spawn_face(x, y)   # cara foot-lit encima (el tile del tilemap aporta occluder+colisión)
@@ -366,7 +428,9 @@ func _spawn_face(x: int, y: int) -> void:
 	var spr := Sprite2D.new()
 	spr.texture = _face_tex[v]
 	spr.material = _face_mats[v]   # shader unshaded: luz por píxel + relieve
-	spr.position = map_to_local(Vector2i(x, y))
+	# Cara 16×24 (1.5 ladrillos, escala nativa) anclada en la base: los 8px de arriba
+	# invaden el tile superior → altura real sin deformar. La física sigue en el footprint.
+	spr.position = map_to_local(Vector2i(x, y)) - Vector2(0, 4)
 	spr.z_as_relative = false
 	spr.z_index = -9   # sobre el piso/tope del tilemap (z=-10), debajo de las entidades (z=0)
 	add_child(spr)
@@ -377,11 +441,20 @@ func _clear_faces() -> void:
 		if is_instance_valid(s):
 			s.queue_free()
 	_face_sprites.clear()
+	for s in _ao_sprites:
+		if is_instance_valid(s):
+			s.queue_free()
+	_ao_sprites.clear()
 
 ## Pasa las luces (empaquetadas por LightField) al shader de las caras cada frame.
 func _process(_delta: float) -> void:
 	if _face_mats.is_empty():
 		return
 	var p := LightField.current_packed()
+	var relief: float = LightCfg.get_v("wall_relief")   # 1 = la cara recibe luz como el piso
+	var boost: float = LightCfg.get_v("wall_light")     # sube intensidad Y techo (cap) juntos
 	for mat in _face_mats:
 		LightField.apply_lights(mat, p)
+		mat.set_shader_parameter("relief_floor", relief)
+		mat.set_shader_parameter("light_boost", boost)
+		mat.set_shader_parameter("cap", 1.4 * boost)

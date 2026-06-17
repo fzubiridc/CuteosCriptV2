@@ -18,6 +18,7 @@ uniform float light_radius[MAX_LIGHTS];
 uniform float light_height[MAX_LIGHTS];
 uniform vec3 ambient = vec3(0.1, 0.1, 0.12);
 uniform float cap = 1.4;
+uniform float light_boost = 1.0;   // multiplica el aporte de luz (caras de muro)
 uniform float normal_strength = 1.0;
 uniform float relief_floor = 0.65;   // 1.0 = sin relieve; más bajo = relieve más marcado
 uniform sampler2D normal_tex : repeat_disable;
@@ -47,7 +48,7 @@ void fragment() {
 		vec3 ldir = normalize(vec3(delta, max(light_height[i], 1.0)));
 		float ndl = max(dot(n, ldir), 0.0);
 		float relief = mix(relief_floor, 1.0, ndl);
-		acc += light_color[i] * att * relief;
+		acc += light_color[i] * att * relief * light_boost;
 	}
 
 	// Cap preservando el tono (igual que LightField.sample).

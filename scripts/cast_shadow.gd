@@ -18,15 +18,17 @@ var _src: Node2D          # AnimatedSprite2D o Sprite2D fuente (la silueta)
 var _foot_y := 6.0        # fallback si no hay nodo "Feet" en la entidad
 var _pool: Array[Sprite2D] = []
 var _contact: Sprite2D
+var _cast_projected := true   # false → solo sombra circular de contacto (sin siluetas)
 
 # Cache de la fila de los pies (último píxel opaco) por textura → no rescanear.
 static var _feet_cache: Dictionary = {}
 const SHADER := preload("res://shaders/cast_shadow.gdshader")
 
-static func attach(entity: Node2D, src: Node2D, foot_y: float = 6.0) -> CastShadow:
+static func attach(entity: Node2D, src: Node2D, foot_y: float = 6.0, cast_projected: bool = true) -> CastShadow:
 	var cs := CastShadow.new()
 	cs._src = src
 	cs._foot_y = foot_y
+	cs._cast_projected = cast_projected
 	cs.z_index = -4                 # sobre el piso (-10), debajo de entidades (0)
 	cs.show_behind_parent = true
 	entity.add_child(cs)
@@ -141,7 +143,10 @@ func _process(_dt: float) -> void:
 	if feet_node != null:
 		foot_global = feet_node.global_position
 	else:
-		foot_global = parent.global_position + Vector2(0, _foot_y)
+		# Pies REALES del sprite (centrado): centro + (fila_pies − medio_alto) × escala.
+		# Evita que la sombra quede por debajo y la entidad parezca flotar.
+		var fpy0: float = _feet_py(tex, h)
+		foot_global = _src.global_position + Vector2(0, (fpy0 - h * 0.5) * bscale)
 	foot_global.y -= lift
 	var foot_local: Vector2 = to_local(foot_global)
 
@@ -152,6 +157,12 @@ func _process(_dt: float) -> void:
 	_contact.position = foot_local
 	_contact.scale = Vector2(cw, cw * LightCfg.get_v("contact_flat"))
 	_contact.modulate = Color(0.0, 0.0, 0.0, LightCfg.get_v("contact_alpha"))
+
+	# Sin proyectadas (p.ej. mobs): solo la circular de contacto.
+	if not _cast_projected:
+		for s in _pool:
+			s.visible = false
+		return
 
 	# Una silueta proyectada por luz cercana.
 	var lights := LightField.shadow_lights(foot_global, MAX_SHADOWS, parent)

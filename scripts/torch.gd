@@ -60,6 +60,7 @@ static func _get_frames() -> SpriteFrames:
 
 func _apply_cfg() -> void:
 	_base_energy = LightCfg.get_v("torch_energy")
+	energy = _base_energy   # luz estable (sin parpadeo)
 	texture_scale = LightCfg.get_v("torch_radius")
 	height = LightCfg.get_v("torch_height")
 	shadow_filter_smooth = LightCfg.get_v("shadow_smooth")
@@ -68,12 +69,3 @@ func _apply_cfg() -> void:
 	if _sprite:
 		var g: float = LightCfg.get_v("torch_glow")
 		_sprite.modulate = Color(g, g * 0.72, g * 0.42, 1.0)
-
-func _process(_delta: float) -> void:
-	var t := float(Time.get_ticks_msec()) / 1000.0
-	var amt: float = LightCfg.get_v("torch_flicker")
-	# Llama suave: 2 ondas LENTAS (sin la componente nerviosa de 17 rad/s). `amt`
-	# escala cuánto baja respecto del brillo pleno (0 = estable; 0.5 ≈ [0.92,1.0]).
-	var wave := sin(t * 5.0 + seed_off) * 0.65 + sin(t * 9.5 + seed_off * 1.7) * 0.35
-	var flick := 1.0 - amt * 0.16 * (0.5 - 0.5 * wave)
-	energy = _base_energy * flick

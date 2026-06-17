@@ -26,14 +26,12 @@ const DEFS := {
 	"torch_radius": {"min": 0.2, "max": 2.5, "def": 0.798, "label": "Antorcha radio", "group": "Antorchas"},
 	"torch_height": {"min": 0.0, "max": 64.0, "def": 26.24, "label": "Antorcha altura", "group": "Antorchas"},
 	"torch_warmth": {"min": 0.0, "max": 1.0, "def": 0.66, "label": "Antorcha calidez (0=blanca)", "group": "Antorchas"},
-	"torch_glow": {"min": 1.0, "max": 3.0, "def": 1.6, "label": "Antorcha brillo llama (bloom)", "group": "Antorchas"},
-	"torch_flicker": {"min": 0.0, "max": 1.0, "def": 0.5, "label": "Antorcha parpadeo (0=estable)", "group": "Antorchas"},
-	# --- Post-proceso (WorldEnvironment) ---
-	"exposure": {"min": 0.5, "max": 3.0, "def": 1.75, "label": "Exposición", "group": "Post"},
-	"bloom_on": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Bloom on/off", "group": "Post"},
-	"bloom_intensity": {"min": 0.0, "max": 3.0, "def": 0.69, "label": "Bloom intensidad", "group": "Post"},
-	"bloom_threshold": {"min": 0.0, "max": 2.0, "def": 0.88, "label": "Bloom umbral", "group": "Post"},
-	"bloom_strength": {"min": 0.0, "max": 10.0, "def": 2.0, "label": "Bloom blur", "group": "Post"},
+	"torch_glow": {"min": 1.0, "max": 3.0, "def": 1.6, "label": "Antorcha brillo llama", "group": "Antorchas"},
+	"wall_relief": {"min": 0.4, "max": 1.0, "def": 1.0, "label": "Muro: luz en plano (1=igual que piso)", "group": "Antorchas"},
+	"wall_light": {"min": 1.0, "max": 4.0, "def": 2.0, "label": "Muro: fuerza de luz (boost+cap)", "group": "Antorchas"},
+	# --- Post-proceso (shader de pantalla) ---
+	"exposure": {"min": 0.3, "max": 3.0, "def": 1.0, "label": "Exposición/Brillo (1=normal)", "group": "Post"},
+	"saturation": {"min": 0.0, "max": 2.0, "def": 1.0, "label": "Saturación (1=normal)", "group": "Post"},
 	# --- Sombras de muro (occluder nativo) ---
 	"shadow_smooth": {"min": 0.0, "max": 8.0, "def": 2.72, "label": "Sombra muro suavidad", "group": "Sombras"},
 	# --- Sombra proyectada de billboards (silueta del personaje) ---

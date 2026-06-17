@@ -38,10 +38,8 @@ func pack_lights() -> Dictionary:
 	var radius := PackedFloat32Array()
 	var height := PackedFloat32Array()
 	for L in get_lights():
-		if not is_instance_valid(L):   # al volver al menú (ESC) las luces viejas se liberan
-			continue
 		var lp := L as PointLight2D
-		if lp == null or not lp.enabled:
+		if lp == null or not is_instance_valid(lp) or not lp.enabled:
 			continue
 		var rad := lp.texture_scale * 128.0
 		if rad <= 0.0:

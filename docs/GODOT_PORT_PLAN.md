@@ -124,7 +124,18 @@ en este proyecto Godot 4.6 (`Godot Cuteos Cript`).
       SFX). TODOS los enemigos con sprite, 0 cubos. **F8 COMPLETO** (2026-06-14).
       Pendiente menor de F8: sprites de pickups (coin/xp siguen cuadrados), anims por-patrón
       del jefe (tackle/kick/summon usan idle/run), sprites para zonas cavernas/santuario.
-- [ ] F9 — Luz & polish (Light2D, glow, partículas, screen-shake)
+- [~] F9 — Luz & polish. Light2D + caras foot-lit por shader, sombras (proyectada solo
+      player; mobs solo contacto), post-proceso 2D por shader (saturación/exposición; el
+      Environment en 2D solo daba glow, que se quitó por inservible). Panel de tuning (L).
+- [x] **Pase de "feel pixi" (2026-06-17).** Inventario HD (header/bolsa 5×5/paper-doll con
+      mago animado + plataforma rúnica animada). Combate/feel: walk más lenta, pasos
+      (footsteps.mp3), dash con partículas 2×2 idénticas al pixi, proyectil = anim `power`
+      real + explosión `powerboom` + sfx cast/boom (m4a→wav), facing al mouse al atacar.
+      Mundo: más mobs por sala (2–5, esparcidos), más salas/recorrible, vignette quitada,
+      zoom 4.0 (knob), colisión del player a los pies (pegarse a muros norte), muros 1.5
+      tiles a escala nativa + banda de contacto + AO de unión lateral, knob de fuerza de
+      luz en muro. Drops: armas con su staff real, resto gema; XP = llamita animada
+      (verde/amarilla/roja, color random). Antorcha sin parpadeo.
 - [ ] F10 — Persistencia (guardar run en user://), récords, pisos persistentes
 - Pendiente menor: no spawnear enemigos a X tiles del spawn; pattern kickball del jefe; arena de jefe + encuentro al cerrar zona; quitar flags DEBUG_BOSS.
 - Polish opcional pendiente: no spawnear enemigos a X tiles del punto de aparición.

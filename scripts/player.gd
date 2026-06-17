@@ -5,6 +5,7 @@ class_name Player
 ## las 5 dirs base de walk_empty. El proyectil sale de Tip (punta del staff).
 
 const PROJECTILE := preload("res://scenes/projectile.tscn")
+const CAMERA_ZOOM := 4.0   # knob de zoom de cámara (3 = original, más = más cerca)
 
 # Mapeo de octantes (de velocity.angle, 0=east, sentido horario)
 const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_west", "north", "north_east"]
@@ -48,6 +49,7 @@ var kb := Vector2.ZERO
 var dash_t := 0.0
 var dash_cd_t := 0.0
 var dash_vel := Vector2.ZERO
+static var _px_tex: Texture2D            # 1×1 blanco compartido (partícula del dash)
 var ifr := 0.0
 
 # Animación / facing
@@ -82,6 +84,7 @@ func _ready() -> void:
 	_load_textures()
 	_refresh_weapon()
 	_play("idle", facing_dir)
+	cam.zoom = Vector2(CAMERA_ZOOM, CAMERA_ZOOM)   # knob de zoom (subir = más cerca)
 	_setup_light()
 	CastShadow.attach(self, body)          # sombra proyectada PRO + contacto (auto-ancla a los pies)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
@@ -227,6 +230,8 @@ func _physics_process(delta: float) -> void:
 	else:
 		var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		velocity = dir * move_speed() + kb
+	if dash_t > 0.0:                          # estela fantasma del pixi: 1 partícula/frame
+		_spawn_dash_particle()
 	kb = kb.move_toward(Vector2.ZERO, 800.0 * delta)
 	move_and_slide()
 	_regen_mana(delta)
@@ -256,16 +261,26 @@ func _regen_mana(delta: float) -> void:
 		mana = minf(max_mana, mana + max_mana * 0.28 * delta)
 
 # ---------------- Facing / animación ----------------
+const WALK_ANIM_SPEED := 0.7   # más lenta que real-time (feel del pixi)
+
 func _update_anim() -> void:
-	if velocity.length() > 5.0:
-		var ang := velocity.angle()
-		var idx := int(round(ang / (PI / 4.0)) + 8) % 8
-		facing_dir = OCTANTS[idx]
+	var moving := velocity.length() > 5.0
+	Audio.footsteps(moving)
+	if Input.is_action_pressed("attack"):
+		# Atacando: el cuerpo gira hacia donde apunta el mouse (como el pixi), así los
+		# tiros no salen "por la espalda" y queda mirando hacia donde disparó.
+		var aim := _aim_dir(global_position)
+		if aim != Vector2.ZERO:
+			facing_dir = OCTANTS[int(round(aim.angle() / (PI / 4.0)) + 8) % 8]
+		_play("walk" if moving else "idle", facing_dir)
+	elif moving:
+		facing_dir = OCTANTS[int(round(velocity.angle() / (PI / 4.0)) + 8) % 8]
 		_play("walk", facing_dir)
 	else:
 		_play("idle", facing_dir)
 
 func _play(anim_kind: String, dir: String) -> void:
+	anim_player.speed_scale = WALK_ANIM_SPEED if anim_kind == "walk" else 1.0
 	# Mirror para w/sw/nw — usamos la animación E/SE/NE con Rig.scale.x negativa.
 	var actual_dir: String = FACING_MIRROR.get(dir, dir)
 	var mirror: bool = actual_dir != dir
@@ -320,6 +335,35 @@ func _try_dash() -> void:
 	ifr = maxf(ifr, dash_t + 0.05)
 	Audio.play("dash")
 
+## Partícula del dash IDÉNTICA al pixi ("estela fantasma"): cuadradito 2×2 px,
+## color #9ab8d8, quieto, alpha ~0.66 que se desvanece en 0.22s. Una por frame.
+func _spawn_dash_particle() -> void:
+	var s := Sprite2D.new()
+	s.texture = _get_px_tex()
+	s.scale = Vector2(2, 2)                       # 2×2 px (pixiRect 2×2)
+	s.z_index = -3
+	s.material = _unshaded_mat()                  # color exacto, sin tinte de luz
+	s.modulate = Color(0.60, 0.72, 0.85, 0.66)    # #9ab8d8, alpha = min(1, t*3) inicial
+	s.global_position = global_position + Vector2(randf_range(-2.5, 2.5), 4.0 + randf_range(-3.5, 3.5))
+	get_parent().add_child(s)
+	var tw := s.create_tween()
+	tw.tween_property(s, "modulate:a", 0.0, 0.22) # vida 0.22s, fade lineal
+	tw.tween_callback(s.queue_free)
+
+func _unshaded_mat() -> CanvasItemMaterial:
+	var m := CanvasItemMaterial.new()
+	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	return m
+
+## Textura 1×1 blanca compartida (se escala a 2×2 y se tinta por modulate).
+static func _get_px_tex() -> Texture2D:
+	if _px_tex != null:
+		return _px_tex
+	var img := Image.create_empty(1, 1, false, Image.FORMAT_RGBA8)
+	img.set_pixel(0, 0, Color.WHITE)
+	_px_tex = ImageTexture.create_from_image(img)
+	return _px_tex
+
 func _try_attack() -> void:
 	var w := _weapon_type_data()
 	var cost := float(w.get("mana_cost", 9))
@@ -334,7 +378,7 @@ func _try_attack() -> void:
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
 	p.setup(spawn_pos, dir, dmg, true, float(w.get("proj_spd", 260)))
-	Audio.play("attack", -10.0)
+	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
 
 ## Dirección de apuntado: hacia el mouse.
 func _aim_dir(from: Vector2) -> Vector2:
@@ -420,6 +464,7 @@ func _use_potion() -> void:
 
 func _die() -> void:
 	hp = 0
+	Audio.footsteps(false)
 	GameState.set_mode(GameState.Mode.DEAD)
 	GameState.player_died.emit()
 	set_physics_process(false)
