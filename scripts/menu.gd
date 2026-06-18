@@ -45,6 +45,7 @@ func _build() -> void:
 	_title.add_theme_color_override("font_shadow_color", Color("4a2a10"))
 	_title.add_theme_constant_override("shadow_offset_x", 3)
 	_title.add_theme_constant_override("shadow_offset_y", 3)
+	_title.add_theme_font_override("font", _spaced_font(6))   # letter-spacing 6px (pixi)
 	wrap.add_child(_title)
 
 	var tw := create_tween().set_loops()
@@ -78,14 +79,47 @@ func _label(text: String, color: Color, font_size: int) -> Label:
 	l.add_theme_color_override("font_color", color)
 	return l
 
+## Botón estilo pixi: fondo #2a2336, borde #3a3346 (dorado en hover), texto dorado,
+## esquinas redondeadas. Reemplaza el botón gris default de Godot.
+const BTN_BG := Color("2a2336")
+const BTN_BORDER := Color("3a3346")
+
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(340, 48)
+	b.custom_minimum_size = Vector2(360, 0)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_font_override("font", _spaced_font(2))   # letter-spacing 2px (pixi .btn)
+	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_color_override("font_color", GOLD)
+	b.add_theme_color_override("font_hover_color", GOLD)
+	b.add_theme_color_override("font_pressed_color", GOLD)
+	b.add_theme_color_override("font_focus_color", GOLD)
+	b.add_theme_stylebox_override("normal", _btn_sb(BTN_BORDER, BTN_BG))
+	b.add_theme_stylebox_override("hover", _btn_sb(GOLD, BTN_BG))
+	b.add_theme_stylebox_override("pressed", _btn_sb(GOLD, Color("221c2e")))
+	b.add_theme_stylebox_override("focus", _btn_sb(BTN_BORDER, BTN_BG))  # sin doble borde
 	b.pressed.connect(cb)
 	return b
+
+func _btn_sb(border: Color, bg: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.set_border_width_all(2)
+	sb.border_color = border
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 28.0
+	sb.content_margin_right = 28.0
+	sb.content_margin_top = 10.0
+	sb.content_margin_bottom = 10.0
+	return sb
+
+## Fuente default + espaciado entre glifos (replica letter-spacing del CSS pixi).
+func _spaced_font(px: int) -> FontVariation:
+	var fv := FontVariation.new()
+	fv.base_font = ThemeDB.fallback_font
+	fv.spacing_glyph = px
+	return fv
 
 func _spacer(h: int) -> Control:
 	var s := Control.new()

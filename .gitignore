@@ -47,3 +47,6 @@ assets/mobs/spiders/arana_negra.png
 assets/mobs/spiders/arana_negra.png.import
 assets/mobs/spiders/arana_roja.png
 assets/mobs/spiders/arana_roja.png.import
+
+# Log temporal de export CLI
+export_log.txt

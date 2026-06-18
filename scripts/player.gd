@@ -18,7 +18,11 @@ const HAND_OVERLAY_DIRS := {"south": "south", "south_east": "south-east", "north
 # de la vara → "dedo - vara - resto de mano".
 const STAFF_BEHIND := {"north": true}
 
-@export var base_speed := 95.0
+@export_group("Movimiento")
+@export var base_speed := 78.0           # knob: velocidad base de desplazamiento
+@export var walk_anim_speed := 0.7       # knob: cadencia base de la caminata
+@export var walk_speed_ref := 95.0       # knob: velocidad donde walk_anim_speed queda calibrada
+@export_group("")
 @export var base_max_hp := 100
 @export var base_attack_dmg := 12
 @export var max_mana := 100.0
@@ -261,7 +265,9 @@ func _regen_mana(delta: float) -> void:
 		mana = minf(max_mana, mana + max_mana * 0.28 * delta)
 
 # ---------------- Facing / animación ----------------
-const WALK_ANIM_SPEED := 0.7   # más lenta que real-time (feel del pixi)
+# Coordinación pasos↔desplazamiento: la cadencia de la caminata escala con la
+# velocidad real (knobs walk_anim_speed / walk_speed_ref, arriba), así un aumento
+# de velocidad acelera los pasos en proporción y los pies no "patinan".
 
 func _update_anim() -> void:
 	var moving := velocity.length() > 5.0
@@ -280,7 +286,13 @@ func _update_anim() -> void:
 		_play("idle", facing_dir)
 
 func _play(anim_kind: String, dir: String) -> void:
-	anim_player.speed_scale = WALK_ANIM_SPEED if anim_kind == "walk" else 1.0
+	if anim_kind == "walk":
+		# Cadencia ∝ velocidad real → coordinación pasos/desplazamiento. Clamp para
+		# evitar pies absurdamente rápidos con mucho stacking de velocidad.
+		var ratio := clampf(move_speed() / walk_speed_ref, 0.5, 2.0)
+		anim_player.speed_scale = walk_anim_speed * ratio
+	else:
+		anim_player.speed_scale = 1.0
 	# Mirror para w/sw/nw — usamos la animación E/SE/NE con Rig.scale.x negativa.
 	var actual_dir: String = FACING_MIRROR.get(dir, dir)
 	var mirror: bool = actual_dir != dir
