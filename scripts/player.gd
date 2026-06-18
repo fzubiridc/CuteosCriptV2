@@ -364,20 +364,27 @@ static func _get_px_tex() -> Texture2D:
 	_px_tex = ImageTexture.create_from_image(img)
 	return _px_tex
 
+const MANA_COST_MUL := 0.6   # menos consumo de maná por tiro
+
 func _try_attack() -> void:
 	var w := _weapon_type_data()
-	var cost := float(w.get("mana_cost", 9))
+	var cost := float(w.get("mana_cost", 9)) * MANA_COST_MUL
 	if atk_cd_t > 0.0 or mana < cost: return
 	atk_cd_t = float(w.get("cd", 0.28)) / atkspd()
 	mana -= cost
 	no_cast_t = 0.0
-	var spawn_pos := tip.global_position if weapon.visible else global_position
-	var dir := _aim_dir(spawn_pos)
+	# Modelo 2.5D (pixi): el orbe COLISIONA en el plano de los pies (adelantado en la
+	# mira) y se DIBUJA elevado hacia la punta de la vara (z). Así no choca contra un
+	# muro que la punta "pisa" visualmente, y su luz cae en el piso.
+	var aim := (get_global_mouse_position() - global_position).normalized()
+	var tipg := tip.global_position if weapon.visible else global_position
+	var spawn := Vector2(tipg.x, global_position.y + 5.0 + aim.y * 6.0)
 	var dmg := attack_damage()
 	if Rng.unit() * 100.0 < crit_chance(): dmg *= 2
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
-	p.setup(spawn_pos, dir, dmg, true, float(w.get("proj_spd", 260)))
+	p.z_height = clampf(spawn.y - tipg.y, 2.0, 12.0)   # altura visual del orbe (acotada)
+	p.setup(spawn, aim, dmg, true, float(w.get("proj_spd", 260)))
 	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
 
 ## Dirección de apuntado: hacia el mouse.

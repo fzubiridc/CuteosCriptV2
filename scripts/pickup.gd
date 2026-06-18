@@ -22,21 +22,21 @@ var item_data: Dictionary = {}
 @onready var visual: Polygon2D = $Visual
 
 var _icon: Sprite2D
-var _glow: Sprite2D
-var _t := 0.0
+var _z := 0.0          # altura visual del saltito de spawn
+var _vz := 0.0         # velocidad vertical del saltito
 var _flame_frames: Array = []
 var _flame_i := 0
 var _flame_t := 0.0
+var _hover := false           # mouse sobre el ítem (para info + click derecho)
+var _info: Control            # tooltip de info del ítem (en CanvasLayer, screen-space)
+
+const XP_MAGNET_R := 48.0     # rango del imán de XP
+const ITEM_HOVER_R := 13.0    # radio de hover del ítem
 
 func _ready() -> void:
 	body_entered.connect(_on_body)
 	if visual:
 		visual.visible = false
-	_glow = Sprite2D.new()
-	_glow.texture = load("res://assets/fx/light_radial.tres")
-	_glow.z_index = 8
-	_glow.material = _mat(CanvasItemMaterial.BLEND_MODE_ADD)
-	add_child(_glow)
 	_icon = Sprite2D.new()
 	_icon.z_index = 9
 	_icon.material = _mat(CanvasItemMaterial.BLEND_MODE_MIX)  # unshaded = visible en oscuro
@@ -48,6 +48,7 @@ func setup(pos: Vector2, k: String, v: int, idata: Dictionary = {}) -> void:
 	value = v
 	item_data = idata
 	_configure()
+	_vz = 92.0   # saltito al salir del mob (sube y cae)
 	reset_physics_interpolation()
 
 func _configure() -> void:
@@ -97,40 +98,98 @@ func _configure() -> void:
 				_icon.texture = _get_gem()
 				_icon.scale = Vector2(0.7, 0.7)
 				_icon.modulate = col
-	_glow.modulate = Color(col.r, col.g, col.b, 0.45)
-	_glow.scale = Vector2(0.13, 0.13)
-	if kind == "heart" or kind == "potion":   # frasco oscuro → más glow para que lea
-		_glow.modulate.a = 0.6
-		_glow.scale = Vector2(0.17, 0.17)
-	elif kind == "xp":                          # llama chica → halo chico
-		_glow.scale = Vector2(0.07, 0.07)
 
 func _process(delta: float) -> void:
-	_t += delta
-	var bob := sin(_t * 3.0) * 1.5
-	_icon.position.y = -bob - 2.0
-	_glow.position.y = -bob * 0.5
-	_glow.modulate.a = 0.35 + 0.18 * sin(_t * 4.0)
+	# Saltito de spawn: sube y cae; al tocar el piso queda quieto (sin flotar).
+	if _vz != 0.0 or _z > 0.0:
+		_vz -= 560.0 * delta
+		_z += _vz * delta
+		if _z <= 0.0:
+			_z = 0.0
+			_vz = 0.0
+		_icon.position.y = -_z - 2.0
 	if not _flame_frames.is_empty():   # llamita de XP: cicla frames
 		_flame_t += delta
 		if _flame_t >= 0.07:
 			_flame_t = 0.0
 			_flame_i = (_flame_i + 1) % _flame_frames.size()
 			_icon.texture = _flame_frames[_flame_i]
+	if kind == "xp":
+		# Imán: cuando el jugador está cerca, la XP se arrima (más rápido cuanto más cerca).
+		var pl = GameState.player
+		if pl != null and is_instance_valid(pl):
+			var d := global_position.distance_to(pl.global_position)
+			if d < XP_MAGNET_R:
+				var spd: float = lerpf(60.0, 280.0, 1.0 - d / XP_MAGNET_R)
+				global_position = global_position.move_toward(pl.global_position, spd * delta)
+	elif kind == "item":
+		# Hover con el mouse → muestra info; se levanta con click derecho.
+		var over := get_global_mouse_position().distance_to(global_position) < ITEM_HOVER_R
+		if over and not _hover:
+			_hover = true
+			_show_info()
+		elif not over and _hover:
+			_hover = false
+			_hide_info()
+		if _hover and _info != null:
+			_info.position = get_viewport().get_mouse_position() + Vector2(14, -8)
 
 func _on_body(body: Node) -> void:
 	if not (body is Player):
 		return
+	if kind == "item":
+		return   # los ítems se levantan con click derecho, no por contacto
 	match kind:
 		"coin": body.add_coins(value)
 		"xp": body.gain_xp(value)
 		"heart": body.heal(value)
 		"potion": body.potions += 1
-		"item": body.pick_up_item(item_data)
-	var snd: String = {"coin": "coin", "heart": "heal", "potion": "heal", "item": "equip"}.get(kind, "")
+	var snd: String = {"coin": "coin", "heart": "heal", "potion": "heal"}.get(kind, "")
 	if snd != "":
 		Audio.play(snd)
 	queue_free()
+
+## Click derecho sobre un ítem en hover → levantarlo.
+func _unhandled_input(event: InputEvent) -> void:
+	if kind != "item" or not _hover:
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		var pl = GameState.player
+		if pl != null and is_instance_valid(pl):
+			pl.pick_up_item(item_data)
+			Audio.play("equip")
+			get_viewport().set_input_as_handled()
+			queue_free()
+
+## Tooltip de info (screen-space, sigue al mouse). Nombre + rareza + stats.
+func _show_info() -> void:
+	if _info != null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	add_child(layer)
+	var rd: Dictionary = Items.rarity_data(item_data.get("rarity", "comun"))
+	var panel := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.06, 0.05, 0.08, 0.92)
+	box.set_border_width_all(1)
+	box.border_color = Color(rd.color)
+	box.set_corner_radius_all(2)
+	box.set_content_margin_all(6)
+	panel.add_theme_stylebox_override("panel", box)
+	layer.add_child(panel)
+	var lbl := Label.new()
+	lbl.text = "%s [%s]\n%s" % [item_data.get("name", "ítem"), rd.name, Items.describe(item_data)]
+	lbl.add_theme_font_override("font", UiTheme.font_body())
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", Color(rd.color))
+	panel.add_child(lbl)
+	_info = panel
+
+func _hide_info() -> void:
+	if _info != null:
+		_info.get_parent().queue_free()   # libera el CanvasLayer entero
+		_info = null
 
 # ---------------------------------------------------------------------------
 func _mat(blend: CanvasItemMaterial.BlendMode) -> CanvasItemMaterial:

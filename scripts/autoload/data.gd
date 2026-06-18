@@ -42,6 +42,7 @@ const ENEMIES := {
 	"orco":       {"name": "Orco", "hp": 36, "dmg": 11, "spd": 52, "ai": "chaser", "size": 13},
 	"murcielago": {"name": "Murciélago", "hp": 12, "dmg": 5, "spd": 115, "ai": "erratic", "size": 9},
 	"arana":      {"name": "Araña", "hp": 24, "dmg": 9, "spd": 88, "ai": "erratic", "size": 10},
+	"arana_v2":     {"name": "Araña", "hp": 24, "dmg": 9, "spd": 90, "ai": "erratic", "size": 11},
 	"golem_chico":{"name": "Gólem menor", "hp": 65, "dmg": 16, "spd": 34, "ai": "chaser", "size": 13},
 	"espectro":   {"name": "Espectro", "hp": 35, "dmg": 12, "spd": 72, "ai": "erratic", "size": 11},
 	"cultista":   {"name": "Cultista", "hp": 30, "dmg": 10, "spd": 50, "ai": "shooter", "size": 11, "range": 160, "fire_cd": 1.5, "proj_spd": 150},
@@ -50,8 +51,8 @@ const ENEMIES := {
 
 ## Zonas (ZONES en data.js). El orden define la progresión.
 const ZONES := [
-	{"id": "torre", "name": "Torre en Ruinas", "floors": 2, "enemies": ["rata", "slime", "lich", "fantasma", "zombi", "orco"], "boss": "bucle", "density": 1.0},
-	{"id": "cavernas", "name": "Cavernas Hondas", "floors": 2, "enemies": ["murcielago", "arana", "orco", "golem_chico"], "boss": "golem_anciano", "density": 1.15},
+	{"id": "torre", "name": "Torre en Ruinas", "floors": 2, "enemies": ["rata", "slime", "lich", "fantasma", "zombi", "orco", "arana_v2"], "boss": "bucle", "density": 1.0},
+	{"id": "cavernas", "name": "Cavernas Hondas", "floors": 2, "enemies": ["murcielago", "arana_v2", "orco", "golem_chico"], "boss": "golem_anciano", "density": 1.15},
 	{"id": "santuario", "name": "Santuario Profano", "floors": 2, "enemies": ["espectro", "cultista", "caballero"], "boss": "liche", "density": 1.25},
 ]
 

@@ -9,6 +9,8 @@ static var _orb: Texture2D
 static var _power_frames: Array = []
 static var _boom_frames: SpriteFrames
 
+const BOLT_KB := 140.0   # empuje del bolt al pegarle a un mob
+
 var velocity := Vector2.ZERO
 var damage := 12
 var life := 1.2
@@ -71,6 +73,7 @@ func setup(pos: Vector2, dir: Vector2, dmg: int, is_friendly := true, spd := 260
 			_orb_sprite.modulate = col * 1.8
 			_orb_sprite.scale = Vector2(0.42, 0.42)
 	if _trail:
+		_trail.position = Vector2(0, -z_height)   # estela a la altura visual del orbe
 		if friendly:
 			# Chispas arcanas del pixi: azul → violeta que se desvanece.
 			var ramp := Gradient.new()
@@ -84,8 +87,8 @@ func setup(pos: Vector2, dir: Vector2, dmg: int, is_friendly := true, spd := 260
 			_trail.color = Color(col.r, col.g, col.b, 0.7)
 	if glow:
 		glow.color = col
-		glow.texture_scale = 0.13
-		glow.energy = 1.0
+		glow.texture_scale = 0.42   # ilumina el piso a su paso (ref. pixi)
+		glow.energy = 1.5
 		if glow.texture == null:
 			glow.texture = load("res://assets/fx/light_radial.tres")
 	reset_physics_interpolation()
@@ -117,8 +120,12 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node) -> void:
-	if friendly and (body is Enemy or body is Boss):
-		body.take_damage(damage)
+	if friendly and body is Enemy:
+		body.take_damage(damage, velocity.normalized() * BOLT_KB)   # empuje
+		_impact()
+		queue_free()
+	elif friendly and body is Boss:
+		body.take_damage(damage)   # el jefe no recibe knockback
 		_impact()
 		queue_free()
 	elif not friendly and body is Player:
@@ -140,6 +147,18 @@ func _impact() -> void:
 	boom.play("boom")
 	boom.animation_finished.connect(boom.queue_free)
 	get_parent().add_child(boom)
+	# Luz de explosión: flash que se retiene un poco y se apaga (brasa).
+	var lt := PointLight2D.new()
+	lt.texture = load("res://assets/fx/light_radial.tres")
+	lt.color = Color(0.55, 0.6, 1.0)
+	lt.energy = 3.2
+	lt.texture_scale = 0.7
+	lt.global_position = global_position + Vector2(0, -z_height)
+	get_parent().add_child(lt)
+	var tw := lt.create_tween()
+	tw.tween_property(lt, "energy", 1.4, 0.10)                              # flash → brasa
+	tw.tween_property(lt, "energy", 0.0, 0.45).set_ease(Tween.EASE_OUT)     # se apaga
+	tw.tween_callback(lt.queue_free)
 
 # ---------------------------------------------------------------------------
 func _add_mat() -> CanvasItemMaterial:

@@ -7,7 +7,7 @@ class_name Enemy
 const TILE := 16.0
 const PROJECTILE := preload("res://scenes/projectile.tscn")
 # type de Data.ENEMIES -> set de sprites en res://assets/mobs/<set>_frames.tres
-const SPRITE_SETS := {"slime": "slime", "lich": "lich", "fantasma": "ghost", "zombi": "zombie", "orco": "orc", "rata": "rata", "murcielago": "murcielago", "arana": "arana", "golem_chico": "golem", "espectro": "espectro", "cultista": "cultista", "caballero": "caballero"}
+const SPRITE_SETS := {"slime": "slime", "lich": "lich", "fantasma": "ghost", "zombi": "zombie", "orco": "orc", "rata": "rata", "murcielago": "murcielago", "arana": "arana", "golem_chico": "golem", "espectro": "espectro", "cultista": "cultista", "caballero": "caballero", "arana_v2": "arana_v2"}
 
 var type_key := "rata"
 var ai := "chaser"
@@ -28,6 +28,10 @@ var home_pos := Vector2.ZERO
 var home_rect := Rect2()
 
 var hp := 30
+var kb := Vector2.ZERO   # empuje (knockback) que decae cada frame
+var _shadow: CastShadow   # sombra de contacto (para apagar su _process al dormir)
+var _sleeping := false    # mob lejano "dormido" (gating de performance)
+const WAKE_RANGE := 300.0 # distancia al jugador para activarse (más allá: duerme)
 var aggro := false
 var hit_cd := 0.0
 var flash_t := 0.0
@@ -71,7 +75,11 @@ func _apply_visual() -> void:
 		visual.material = LightField.entity_material
 	var sprite_set: String = SPRITE_SETS.get(type_key, "")
 	if sprite_set != "":
-		var sf = load("res://assets/mobs/%s_frames.tres" % sprite_set)
+		var sf
+		if sprite_set.begins_with("arana_"):
+			sf = _get_spider_frames(sprite_set)   # construido por código desde el sheet
+		else:
+			sf = load("res://assets/mobs/%s_frames.tres" % sprite_set)
 		if sf != null:
 			sprite.sprite_frames = sf
 			var fh := 64.0
@@ -99,12 +107,62 @@ func _apply_visual() -> void:
 	if not _shadow_attached:
 		_shadow_attached = true
 		if use_sprite:
-			CastShadow.attach(self, sprite, size, false)   # mobs: solo sombra circular (sin proyectada)
+			_shadow = CastShadow.attach(self, sprite, size, false)   # mobs: solo sombra circular (sin proyectada)
 		else:
 			FootShadow.attach(self, size * 0.9, size * 2.2)
 
 func _idle_tint() -> Color:
 	return Color(1.0, 0.92, 0.6) if elite else Color.WHITE
+
+# --- Arañas: SpriteFrames por código desde un sheet RPGM 3 col × 4 fila.
+# Filas: 0=south, 1=west, 2=east, 3=north. walk = 3 frames en loop; idle = frame medio. ---
+static var _spider_cache := {}
+static var _spider_sheets := {}
+const SPIDER_ROWS := {"south": 0, "west": 1, "east": 2, "north": 3}
+
+static func _get_spider_frames(setname: String) -> SpriteFrames:
+	if _spider_cache.has(setname):
+		return _spider_cache[setname]
+	var sheet := _spider_sheet(setname)
+	var sf := SpriteFrames.new()
+	if sheet != null:
+		@warning_ignore("integer_division")
+		var fw := sheet.get_width() / 3
+		@warning_ignore("integer_division")
+		var fh := sheet.get_height() / 4
+		for kind in ["idle", "walk"]:
+			for dir in SPIDER_ROWS:
+				var row: int = SPIDER_ROWS[dir]
+				var an := "%s_%s" % [kind, dir]
+				sf.add_animation(an)
+				sf.set_animation_speed(an, 8.0)
+				sf.set_animation_loop(an, true)
+				if kind == "walk":
+					for col in [0, 1, 2]:
+						sf.add_frame(an, _spider_atlas(sheet, fw, fh, col, row))
+				else:
+					sf.add_frame(an, _spider_atlas(sheet, fw, fh, 1, row))   # idle = frame del medio
+	_spider_cache[setname] = sf
+	return sf
+
+static func _spider_atlas(sheet: Texture2D, fw: int, fh: int, col: int, row: int) -> AtlasTexture:
+	var at := AtlasTexture.new()
+	at.atlas = sheet
+	at.region = Rect2(col * fw, row * fh, fw, fh)
+	return at
+
+## Sheet del color (cacheado). Fallback a carga cruda si el editor no lo importó aún.
+static func _spider_sheet(setname: String) -> Texture2D:
+	if _spider_sheets.has(setname):
+		return _spider_sheets[setname]
+	var path := "res://assets/mobs/spiders/%s.png" % setname
+	var tex := load(path) as Texture2D
+	if tex == null:
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null:
+			tex = ImageTexture.create_from_image(img)
+	_spider_sheets[setname] = tex
+	return tex
 
 func _ai_color() -> Color:
 	var c := Color(0.85, 0.3, 0.35)
@@ -130,6 +188,24 @@ func _physics_process(delta: float) -> void:
 		return
 	var ppos: Vector2 = player.global_position
 	var to_player := global_position.distance_to(ppos)
+
+	# Gating: los mobs lejanos "duermen" (sin pathfinding/anim/sombra) → ahorro grande
+	# con muchos mobs. Se despiertan al acercarse el jugador.
+	if to_player > WAKE_RANGE:
+		if not _sleeping:
+			_sleeping = true
+			if _shadow != null:
+				_shadow.set_process(false)
+			if use_sprite and sprite:
+				sprite.stop()
+		velocity = Vector2.ZERO
+		return
+	elif _sleeping:
+		_sleeping = false
+		if _shadow != null:
+			_shadow.set_process(true)
+		if use_sprite and sprite:
+			sprite.play()
 
 	_update_aggro(ppos, to_player)
 
@@ -158,7 +234,9 @@ func _physics_process(delta: float) -> void:
 		var perp := Vector2(-velocity.y, velocity.x).normalized()
 		velocity += perp * sin(wobble) * move_speed * 0.6
 
+	velocity += kb
 	move_and_slide()
+	kb = kb.move_toward(Vector2.ZERO, 900.0 * delta)
 
 	if use_sprite:
 		_update_sprite_anim()
@@ -213,8 +291,9 @@ func _shooter_fire(delta: float, ppos: Vector2, to_player: float) -> void:
 		get_parent().add_child(p)
 		p.setup(global_position, (ppos - global_position).normalized(), damage, false, proj_spd)
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, knockback := Vector2.ZERO) -> void:
 	hp -= amount
+	kb += knockback
 	aggro = true
 	flash_t = 0.08
 	if use_sprite:
@@ -231,4 +310,11 @@ func _die() -> void:
 	@warning_ignore("integer_division")
 	GameState.drop_loot(global_position, maxi(2, max_hp / 4))
 	GameState.enemy_killed.emit(self)
+	# Si el sprite tiene animación de muerte (arañas: bolita), la reproduce y recién
+	# ahí se libera. Mientras, se congela y deja de colisionar.
+	if use_sprite and sprite.sprite_frames != null and sprite.sprite_frames.has_animation("death"):
+		set_physics_process(false)
+		($Shape as CollisionShape2D).set_deferred("disabled", true)
+		sprite.play("death")
+		await sprite.animation_finished
 	queue_free()
