@@ -29,3 +29,21 @@ build/
 *.pxo
 *_workfile.png
 *_workfile.png.import
+
+# Notas / scratch
+*notas*.txt
+
+# Assets descartados / refs de trabajo (no versionar)
+assets/hero/mage/idle_holdpose_ref/
+assets/mobs/merchant.png
+assets/mobs/merchant.png.import
+assets/mobs/spiders/arana_azul.png
+assets/mobs/spiders/arana_azul.png.import
+assets/mobs/spiders/arana_dorada.png
+assets/mobs/spiders/arana_dorada.png.import
+assets/mobs/spiders/arana_morada.png
+assets/mobs/spiders/arana_morada.png.import
+assets/mobs/spiders/arana_negra.png
+assets/mobs/spiders/arana_negra.png.import
+assets/mobs/spiders/arana_roja.png
+assets/mobs/spiders/arana_roja.png.import
