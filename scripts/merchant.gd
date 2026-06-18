@@ -18,17 +18,15 @@ func _ready() -> void:
 	add_child(shape)
 
 	var spr := AnimatedSprite2D.new()
-	var sf = load("res://assets/mobs/cultista_frames.tres")
-	if sf:
-		spr.sprite_frames = sf
-		var fh := 64.0
-		var t0 = sf.get_frame_texture("idle_south", 0)
-		if t0:
-			fh = float(t0.get_height())
-		var s := (12.0 * 2.6) / fh
-		spr.scale = Vector2(s, s)
-		spr.play("idle_south")
-	spr.modulate = Color(1.0, 0.9, 0.55)
+	var sf := _get_frames()
+	spr.sprite_frames = sf
+	var fh := 63.0
+	var t0 = sf.get_frame_texture("idle", 0)
+	if t0:
+		fh = float(t0.get_height())
+	var s := (9.75 * 2.6) / fh   # mitad + 30%
+	spr.scale = Vector2(s, s)
+	spr.play("idle")
 	var mat := CanvasItemMaterial.new()
 	mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	spr.material = mat
@@ -67,3 +65,25 @@ func _process(_delta: float) -> void:
 		var hud := get_tree().current_scene.get_node_or_null("HUD")
 		if hud and hud.has_method("open_shop"):
 			hud.open_shop(self)
+
+## SpriteFrames del mercader (idle, 4 frames) desde el sheet. Fallback a carga cruda.
+static var _frames: SpriteFrames
+
+static func _get_frames() -> SpriteFrames:
+	if _frames != null:
+		return _frames
+	var sf := SpriteFrames.new()
+	sf.add_animation("idle")
+	sf.set_animation_speed("idle", 5.0)
+	sf.set_animation_loop("idle", true)
+	for i in 4:   # 4 frames sueltos exportados (merchant_0001..0004, 64×64)
+		var path := "res://assets/mobs/merchant_%04d.png" % (i + 1)
+		var t := load(path) as Texture2D
+		if t == null:
+			var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+			if img != null:
+				t = ImageTexture.create_from_image(img)
+		if t != null:
+			sf.add_frame("idle", t)
+	_frames = sf
+	return sf

@@ -53,7 +53,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 func _build_floor(seed_val: int = -1) -> void:
 	for n in get_children():
-		if n is Enemy or n is Boss or n is Pickup or n is Projectile:
+		if n is Enemy or n is Boss or n is Pickup or n is Projectile or n is Chest or n is Merchant or n.is_in_group("decor"):
 			n.queue_free()
 	if seed_val < 0:
 		Rng.randomize_seed()
@@ -69,12 +69,15 @@ func _build_floor(seed_val: int = -1) -> void:
 	var zone: Dictionary = Data.ZONES[int(GameState.run.get("zone_idx", 0))]
 	var is_boss_floor: bool = int(GameState.run.get("floor_in_zone", 0)) >= int(zone.floors) - 1
 	_spawn_enemies(zone)
+	_spawn_chests()
+	_spawn_decor()
 	_make_exit()
 	if is_boss_floor:
 		_close_exit()
 		_spawn_boss(String(zone.boss))
 	else:
 		_open_exit()
+		_spawn_merchant_floor()
 
 func next_floor() -> void:
 	if not _exit_open:
@@ -160,6 +163,110 @@ func _spawn_merchant() -> void:
 	m.global_position = _exit.global_position + Vector2(-34, 16)
 	m.reset_physics_interpolation()
 	GameState.floater(m.global_position + Vector2(0, -22), "Un mercader apareció...", Color("c7b8e8"))
+
+# --- Cofres ---
+func _spawn_chests() -> void:
+	if dungeon.rooms.size() < 2:
+		return
+	for i in Rng.range_i(1, 2):
+		var room: Rect2i = dungeon.rooms[Rng.range_i(1, dungeon.rooms.size() - 1)]
+		var ch := Chest.new()
+		ch.gold = Rng.chance(0.22)
+		add_child(ch)
+		ch.global_position = dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
+		ch.reset_physics_interpolation()
+
+# --- Mercader en pisos normales (además del post-jefe), en la sala más lejana ---
+func _spawn_merchant_floor() -> void:
+	var rooms := dungeon.rooms
+	if rooms.size() < 3:
+		return
+	var spawn_c := dungeon.to_global(dungeon.map_to_local(rooms[0].get_center()))
+	var exit_c: Vector2 = _exit.global_position if (_exit and is_instance_valid(_exit)) else spawn_c
+	# Sala (ni spawn ni salida) lo más lejos posible de AMBOS.
+	var best := -1
+	var best_score := -1.0
+	for ri in range(1, rooms.size() - 1):
+		var c := dungeon.to_global(dungeon.map_to_local(rooms[ri].get_center()))
+		var score: float = minf(c.distance_to(spawn_c), c.distance_to(exit_c))
+		if score > best_score:
+			best_score = score
+			best = ri
+	if best < 0:
+		return
+	var pos := dungeon.to_global(dungeon.map_to_local(rooms[best].get_center()))
+	var m := Merchant.new()
+	add_child(m)
+	m.global_position = pos
+	m.reset_physics_interpolation()
+	# Despejar mobs cerca del mercader → zona segura para comprar.
+	for n in get_children():
+		if n is Enemy and n.global_position.distance_to(pos) < 70.0:
+			n.queue_free()
+
+# --- Decoración de salas (props del pixi, solo visual / sin colisión) ---
+const DECOR_SHEETS := {"furniture": "magic_furniture", "supplies": "dobj_supplies", "other": "dobj_other"}
+const DECOR := {
+	"bookshelf":     {"sheet": "furniture", "r": [1, 69, 46, 52], "scale": 0.55},
+	"bookshelf_pot": {"sheet": "furniture", "r": [1, 133, 46, 52], "scale": 0.55},
+	"cabinet":       {"sheet": "furniture", "r": [1, 5, 46, 52], "scale": 0.55},
+	"desk":          {"sheet": "furniture", "r": [53, 40, 39, 24], "scale": 0.6},
+	"table":         {"sheet": "furniture", "r": [53, 10, 39, 22], "scale": 0.6},
+	"barrel":        {"sheet": "supplies", "r": [22, 332, 19, 29], "scale": 0.8},
+	"sack":          {"sheet": "supplies", "r": [112, 335, 28, 28], "scale": 0.55},
+	"statue":        {"sheet": "other", "r": [7, 5, 34, 43], "scale": 0.55},
+	"crystal":       {"sheet": "other", "r": [70, 59, 21, 27], "scale": 0.6},
+	"banner_blue":   {"sheet": "other", "r": [196, 64, 23, 30], "scale": 0.6},
+	"banner_red":    {"sheet": "other", "r": [164, 64, 23, 30], "scale": 0.6},
+}
+const FURNITURE := ["bookshelf", "bookshelf_pot", "cabinet", "desk", "table"]
+const SCATTER := ["barrel", "sack", "statue", "crystal"]
+const BANNERS := ["banner_blue", "banner_red"]
+static var _decor_tex := {}
+
+func _spawn_decor() -> void:
+	for ri in range(1, dungeon.rooms.size()):
+		var room: Rect2i = dungeon.rooms[ri]
+		if room.size.x < 4 or room.size.y < 4:
+			continue
+		if Rng.chance(0.6):   # mueble contra la pared norte
+			var fx := Rng.range_i(room.position.x + 1, room.position.x + room.size.x - 2)
+			_place_decor(FURNITURE[Rng.range_i(0, FURNITURE.size() - 1)], Vector2i(fx, room.position.y + 1))
+		if Rng.chance(0.35):  # estandarte en la pared norte
+			var bx := Rng.range_i(room.position.x + 1, room.position.x + room.size.x - 2)
+			_place_decor(BANNERS[Rng.range_i(0, BANNERS.size() - 1)], Vector2i(bx, room.position.y))
+		for j in Rng.range_i(0, 2):   # props sueltos
+			_place_decor(SCATTER[Rng.range_i(0, SCATTER.size() - 1)], _rand_room_cell(room))
+
+func _place_decor(type: String, cell: Vector2i) -> void:
+	var def: Dictionary = DECOR[type]
+	var sheet := _decor_sheet(def.sheet)
+	if sheet == null:
+		return
+	var spr := Sprite2D.new()
+	spr.add_to_group("decor")
+	var at := AtlasTexture.new()
+	at.atlas = sheet
+	at.region = Rect2(def.r[0], def.r[1], def.r[2], def.r[3])
+	spr.texture = at
+	var sc: float = def.scale
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(0, 8.0 / sc - float(def.r[3]) * 0.5)   # base anclada al piso
+	spr.z_index = -1   # debajo de entidades, sobre el piso
+	spr.global_position = dungeon.to_global(dungeon.map_to_local(cell))
+	add_child(spr)
+
+func _decor_sheet(key: String) -> Texture2D:
+	if _decor_tex.has(key):
+		return _decor_tex[key]
+	var path := "res://assets/decor/%s.png" % DECOR_SHEETS[key]
+	var tex := load(path) as Texture2D
+	if tex == null:
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null:
+			tex = ImageTexture.create_from_image(img)
+	_decor_tex[key] = tex
+	return tex
 
 # ---------------------------------------------------------------------------
 # Spawns
