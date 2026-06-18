@@ -1,0 +1,81 @@
+Lo ultimo que escribio el agente:
+Dale, WGSL/WebGPU, el camino cutting-edge. Voy a escribir el shader en WGSL (WebGPU) + GLSL de fallback, con esta técnica: oclusión 2D raymarcheada en el fragment shader — por cada píxel marcho un rayo hacia la luz a través de una textura de muros; si choca pared antes de llegar, está en sombra. Da oclusión real, suave, por píxel, en una pasada. Más limpio que el shadow-mapping multipass.
+
+Antes de escribir shaders a ciegas, traigo el boilerplate exacto de filters custom de v8 (convenciones de uniforms/varyings, entry points, cómo se pasan texturas) para no adivinar:
+
+Obtenido
+https://pixijs.com/8.x/guides/components/filters
+El boilerplate WGSL de v8 es fácil de errar a ciegas, así que lo saco de la fuente de verdad: el propio bundle v8 trae filtros con WGSL embebido. Grepeo las convenciones exactas (struct de uniforms, bindings, entry points):
+
+Ejecutó
+Extract v8 WGSL filter boilerplate from bundle
+Buenas señales (uTexture/uSampler en group(0), entry mainFragment). Saco la firma completa del fragment y el binding(0) de uniforms globales para tener el template exacto:
+
+Ejecutó
+Get WGSL global uniforms binding and fragment signature
+Dale, WGSL/WebGPU es el target final. Una realidad que te marco sin vueltas (no es miedo, es el loop de trabajo): acá no puedo correr WebGPU (el headless usa WebGL) y el screenshot está muerto. Así que el WGSL lo verificás vos. Para no hacerte de chofer en cada typo, prototipo la lógica del shader en GLSL (que sí compilo/corro acá para cazar errores), la dejo andando, y la porto a WGSL — translation mecánica, final WebGPU como elegiste.
+
+Arranco por el cimiento que necesita cualquier shader de oclusión, y que puedo construir y verificar sin GPU: la textura de máscara de muros (1 texel por tile) que el shader va a samplear para saber dónde hay pared.
+
+
+Leyó un archivo, editado 2 archivos, ejecutado un comando
+Verifico que la máscara se construya (recargo, entro a jugar, chequeo la textura):
+
+
+Ejecutado un comando, usado 2 herramientas
+Máscara de muros lista (46×46, matchea el nivel), v8, sin errores. Cimiento del shader puesto. Lo commiteo y cierro el turno con el plan claro:
+
+Ejecutó
+Commit wall-mask foundation
+Dónde estamos (todo committeado)
+012ad6b — Pixi v8.17.1 migrado y funcionando (0 errores, gameplay completo).
+54d1952 — máscara de muros (textura 1 texel/tile) lista para el shader.
+Guardé tu feedback de estilo en memoria (decisivo, sin exceso de cautela).
+Próximo paso: el shader de oclusión
+Ya tengo todo para escribirlo. El plan concreto:
+
+Custom Filter v8 aplicado a la capa de luz, que recibe: la máscara de muros + uniforms (posición de las luces en pantalla, cámara, zoom, tile size).
+Fragment shader — por cada píxel: marcha un rayo hacia la luz a través de la máscara; si pega muro antes de llegar → ese píxel queda en sombra. Acumula suavidad para penumbra.
+Prototipo en GLSL (lo compilo/corro acá para cazar errores de sintaxis), lo dejo andando, y lo porto a WGSL → WebGPU en tu RX 580.
+El loop de trabajo: yo escribo y compile-checkeo el GLSL acá; vos corrés en tu Chrome y me decís cómo se ve / me pegás cualquier error de shader de la consola. Con eso iteramos hasta que quede.
+
+Cuando me digas, arranco a escribir el shader (empiezo por el caso de la luz del jugador como prueba de concepto, después lo extiendo a las antorchas). ¿Le damos?
+
+------
+
+Yo accabo de reiniciar la conversacion por context. programa carcel de cuteo.
+
+cosas a ver: no necesariamente ordenadas por prioridad:
+
+arreglar linea de ladrillos en upper tiles, cuando estábamos en versiones anteriores habíamos logrado que los muros tuvieran un grosor. ahora parecen como de papel, grosor 0 y además hay una linea de rotura en los upper tiles, creo que alog se rompió en la migración a pixi, de canvas a pixi no de v7 a v8. pero postergue el arreglo.
+
+aplicar sombra a las esquinas , esto lo veo complicado, quiero que me des tu analizis capaz no lo es.
+
+aplicar sombra a los ítems y mobs y cofres, etc a todo lo que haya que aplicar, podríamos usar el mismo motor para todos?
+
+revisar/arreglar colision con cofres. debería no poder pasarlos por arriba.
+
+revisar acercamiento a muros y cofres desde abajo, siento que quedo un poco separado, que opciones hay? es necesario?
+
+achicar un poquito las antorchas
+
+la sombra circular de abajo del personaje hacerla un poquito diámetro mas grande y también mas fuerte. hay alguna manera de unir las dos sombras? o es muy complicado.
+quiero que a medida que me alejo del jugador la sombra general vaya aumentando, pero no demasiado  y que llegue a un limite que pueda ver algo pero mas oscuro que a corta y media distancia.la luz de la antorcha es manejada por motor? si es asi la sombra debería ir asociada a la potencia de la luz tmb.. mas fuerte la luz mas fueret la sombra. en esta migración perdi el sombreado. o capaz lo eliminaste deliberadamente porque pasábamos a la v8 y querias hacerlo de 0. me interesa que quede pro. vos propone.
+
+pregúntame lo que no entiendas. o donde tengas opciones que creas mejores
+
+
+
+
+-------------------
+respecto a los proyectiles. en alguna migración perdi la animación de explosión de mi bolt.los sprites de mi proyectil ósea de trayectoria van por el piso mientras la bola va por arriba. una cosa que empezó a pasar desde que hablamos para nocolisionar los proyectiles con las paredes si estaba pegado, es que ahora disparando verticalmente hacia abajo hacía un muro, el proyectil para Mucho antes
+
+falta sombra de esquinas, se encesita shader? y este creo que ya es muy complejo, si yo estoy detrás de una esquina, y la antorcha del otro lado, la luz de la antorcha no debería pasar la esquina y por lo tanto no generar sombra..
+
+poder arrimarme un poquito mas a los muros desde arriba.capaz incluso quedar "tapado, no lo descarto, como se manejan los juegos ahí generalmente?
+
+no veo el mercader.
+
+el primer bos perdió sus texturas, sacar el fallback.
+
+cuando hacemos cambio de motores por ej shaders o proyectiles, si queda bien el nuevo, borra el viejo o mándalo a carpeta para borrar

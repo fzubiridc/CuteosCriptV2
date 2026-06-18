@@ -28,12 +28,30 @@ func _build() -> void:
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
 
+	# Título dorado con sombra marrón y flotación (ref pixi: .title + @keyframes titlefloat).
+	# Va dentro de un Control simple (no-container) para poder tweenear su posición:
+	# el VBox sí re-posiciona a sus hijos directos en cada layout, el Control no.
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, 64)
+	box.add_child(wrap)
+
 	_title = Label.new()
 	_title.text = "LA CÁRCEL DEL CUTEO"
+	_title.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title.add_theme_font_size_override("font_size", 46)
 	_title.add_theme_color_override("font_color", GOLD)
-	box.add_child(_title)
+	_title.add_theme_color_override("font_shadow_color", Color("4a2a10"))
+	_title.add_theme_constant_override("shadow_offset_x", 3)
+	_title.add_theme_constant_override("shadow_offset_y", 3)
+	wrap.add_child(_title)
+
+	var tw := create_tween().set_loops()
+	tw.tween_property(_title, "position:y", -6.0, 1.75) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(_title, "position:y", 0.0, 1.75) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 	box.add_child(_label("un roguelike de fantasía medieval", GREY, 15))
 
