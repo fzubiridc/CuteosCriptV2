@@ -4,8 +4,6 @@ extends CanvasLayer
 
 const BAR_W := 220.0
 
-@onready var hp_fill: ColorRect = $HPFill
-@onready var mana_fill: ColorRect = $ManaFill
 @onready var xp_fill: ColorRect = $XPFill
 @onready var stats: Label = $StatsLabel
 @onready var boss_ui: Control = $BossUI
@@ -21,6 +19,10 @@ const BAR_W := 220.0
 @onready var death_panel: Control = $DeathPanel
 @onready var death_sub: Label = $DeathPanel/DSub
 @onready var death_title: Label = $DeathPanel/DTitle
+@onready var life_preview_fill: TextureRect = $LifeManaPreview/LifeFill
+@onready var mana_preview_fill: TextureRect = $LifeManaPreview/ManaFill
+@onready var life_preview_value: Label = $LifeManaPreview/LifeValue
+@onready var mana_preview_value: Label = $LifeManaPreview/ManaValue
 
 var _choices: Array = []
 var _shop_panel: Control
@@ -361,8 +363,12 @@ func _process(_delta: float) -> void:
 	var p = GameState.player
 	if p == null:
 		return
-	hp_fill.size.x = BAR_W * clampf(float(p.hp) / maxf(1.0, p.max_hp()), 0.0, 1.0)
-	mana_fill.size.x = BAR_W * clampf(p.mana / p.max_mana, 0.0, 1.0)
+	var life_ratio := clampf(float(p.hp) / maxf(1.0, p.max_hp()), 0.0, 1.0)
+	(life_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", life_ratio)
+	life_preview_value.text = "%d / %d" % [int(ceil(float(p.hp))), int(p.max_hp())]
+	var mana_ratio := clampf(p.mana / maxf(1.0, p.max_mana), 0.0, 1.0)
+	(mana_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", mana_ratio)
+	mana_preview_value.text = "%d / %d" % [int(round(p.mana)), int(p.max_mana)]
 	xp_fill.size.x = BAR_W * clampf(float(p.xp) / maxf(1.0, p.xp_to_next), 0.0, 1.0)
 	stats.text = "Nivel %d    Monedas %d    Pociones %d    Daño %d" % [p.level, p.coins, p.potions, p.attack_damage()]
 

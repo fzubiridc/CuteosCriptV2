@@ -7,11 +7,30 @@
 [ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
 [ext_resource type="Texture2D" path="res://assets/fx/light_radial.tres" id="4_tipki"]
 [ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
-[ext_resource type="Texture2D" path="res://assets/fx/vignette.tres" id="7_o6xl0"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
+[ext_resource type="Script" path="res://scripts/speed_debug.gd" id="10_speed"]
+[ext_resource type="Texture2D" path="res://assets/mobs/vida-mana-base.png" id="11_hud_shell"]
+[ext_resource type="Texture2D" path="res://assets/mobs/vida-barra.png" id="12_hud_life_fill"]
+[ext_resource type="Shader" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
+[ext_resource type="Texture2D" path="res://assets/mobs/mana-barra.png" id="14_hud_mana_fill"]
+[ext_resource type="FontFile" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 6)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hud_liquid"]
+shader = ExtResource("13_hud_liquid_shader")
+shader_parameter/fill_ratio = 1.0
+shader_parameter/wave_amplitude_px = 1.2
+shader_parameter/wave_frequency = 4.0
+shader_parameter/wave_speed = 3.2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hud_mana"]
+shader = ExtResource("13_hud_liquid_shader")
+shader_parameter/fill_ratio = 1.0
+shader_parameter/wave_amplitude_px = 1.05
+shader_parameter/wave_frequency = 4.3
+shader_parameter/wave_speed = 2.9
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
 emission_shape = 3
@@ -56,12 +75,13 @@ script = ExtResource("2_jyhfs")
 position = Vector2(160, 112)
 collision_layer = 2
 script = ExtResource("1_o5qli")
+walk_anim_speed = 1.0
 
 [node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
 position = Vector2(0, 6)
 shape = SubResource("RectangleShape2D_tefeu")
 
-[node name="Feet" type="Marker2D" parent="Player"]
+[node name="Feet" type="Marker2D" parent="Player" unique_id=688233296]
 position = Vector2(0, 4)
 
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
@@ -234,34 +254,6 @@ offset_right = 776.0
 offset_bottom = 624.0
 horizontal_alignment = 1
 
-[node name="HPBg" type="ColorRect" parent="HUD" unique_id=1397407077]
-offset_left = 8.0
-offset_top = 8.0
-offset_right = 228.0
-offset_bottom = 24.0
-color = Color(0.1, 0.1, 0.12, 0.85)
-
-[node name="HPFill" type="ColorRect" parent="HUD" unique_id=1487297624]
-offset_left = 8.0
-offset_top = 8.0
-offset_right = 228.0
-offset_bottom = 24.0
-color = Color(0.85, 0.25, 0.3, 1)
-
-[node name="ManaBg" type="ColorRect" parent="HUD" unique_id=744711287]
-offset_left = 8.0
-offset_top = 28.0
-offset_right = 228.0
-offset_bottom = 40.0
-color = Color(0.1, 0.1, 0.12, 0.85)
-
-[node name="ManaFill" type="ColorRect" parent="HUD" unique_id=1926372737]
-offset_left = 8.0
-offset_top = 28.0
-offset_right = 228.0
-offset_bottom = 40.0
-color = Color(0.3, 0.5, 0.95, 1)
-
 [node name="XPBg" type="ColorRect" parent="HUD" unique_id=1331780685]
 offset_left = 8.0
 offset_top = 44.0
@@ -275,6 +267,90 @@ offset_top = 44.0
 offset_right = 228.0
 offset_bottom = 52.0
 color = Color(0.9, 0.8, 0.3, 1)
+
+[node name="LifeManaPreview" type="Control" parent="HUD"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -272.0
+offset_right = 272.0
+offset_bottom = -16.0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="LifeFill" type="TextureRect" parent="HUD/LifeManaPreview"]
+material = SubResource("ShaderMaterial_hud_liquid")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("12_hud_life_fill")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ManaFill" type="TextureRect" parent="HUD/LifeManaPreview"]
+material = SubResource("ShaderMaterial_hud_mana")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("14_hud_mana_fill")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Shell" type="TextureRect" parent="HUD/LifeManaPreview"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("11_hud_shell")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="LifeValue" type="Label" parent="HUD/LifeManaPreview"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 128.0
+offset_right = 81.0
+offset_bottom = 149.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 4
+theme_override_fonts/font = ExtResource("15_hud_font")
+theme_override_font_sizes/font_size = 16
+text = "100 / 100"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ManaValue" type="Label" parent="HUD/LifeManaPreview"]
+layout_mode = 0
+offset_left = 175.0
+offset_top = 128.0
+offset_right = 249.0
+offset_bottom = 149.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 4
+theme_override_fonts/font = ExtResource("15_hud_font")
+theme_override_font_sizes/font_size = 16
+text = "100 / 100"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="PausePanel" type="Control" parent="HUD" unique_id=268725581]
 layout_mode = 3
@@ -356,3 +432,6 @@ environment = SubResource("Environment_tipki")
 
 [node name="LightingDebug" type="CanvasLayer" parent="." unique_id=352811338]
 script = ExtResource("9_85g3d")
+
+[node name="SpeedDebug" type="CanvasLayer" parent="."]
+script = ExtResource("10_speed")

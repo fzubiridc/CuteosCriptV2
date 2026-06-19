@@ -24,6 +24,7 @@ func clear_run() -> void:
 func record(run: Dictionary, player: Node, won: bool) -> void:
 	var r := get_records()
 	r["runs"] = int(r.get("runs", 0)) + 1
+	r["kills"] = int(r.get("kills", 0)) + int(run.get("kills", 0))
 	if won:
 		r["wins"] = int(r.get("wins", 0)) + 1
 	r["best_depth"] = maxi(int(r.get("best_depth", 0)), int(run.get("depth", 1)))
