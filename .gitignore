@@ -50,3 +50,9 @@ assets/mobs/spiders/arana_roja.png.import
 
 # Log temporal de export CLI
 export_log.txt
+
+# Backup local de assets del pixi (~69MB, solo para no perderlos; no versionar)
+_pixi_assets/
+
+# Tilesets fuente (CraftPix) — solo para dibujar/recortar; no versionar
+_tilesets_src/

@@ -2,9 +2,9 @@ extends CanvasLayer
 ## HUD: barras de vida/maná/XP, stats, barra de jefe, panel de mejora,
 ## inventario, pausa y pantalla de muerte.
 
-const BAR_W := 220.0
-
-@onready var xp_fill: ColorRect = $XPFill
+@onready var xp_fill: TextureRect = $XPBar/Fill
+@onready var xp_value: Label = $XPBar/XPValue
+@onready var level_value: Label = $XPBar/LevelValue
 @onready var stats: Label = $StatsLabel
 @onready var boss_ui: Control = $BossUI
 @onready var boss_bar: ProgressBar = $BossUI/BossBar
@@ -28,6 +28,8 @@ var _choices: Array = []
 var _shop_panel: Control
 var _shop_merchant = null
 var _shop_just_opened := false
+var _displayed_xp_ratio := 0.0
+var _xp_ratio_initialized := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -369,7 +371,18 @@ func _process(_delta: float) -> void:
 	var mana_ratio := clampf(p.mana / maxf(1.0, p.max_mana), 0.0, 1.0)
 	(mana_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", mana_ratio)
 	mana_preview_value.text = "%d / %d" % [int(round(p.mana)), int(p.max_mana)]
-	xp_fill.size.x = BAR_W * clampf(float(p.xp) / maxf(1.0, p.xp_to_next), 0.0, 1.0)
+	var xp_ratio := clampf(float(p.xp) / maxf(1.0, p.xp_to_next), 0.0, 1.0)
+	if not _xp_ratio_initialized:
+		_displayed_xp_ratio = xp_ratio
+		_xp_ratio_initialized = true
+	else:
+		var xp_smoothing := 1.0 - exp(-8.0 * _delta)
+		_displayed_xp_ratio = lerpf(_displayed_xp_ratio, xp_ratio, xp_smoothing)
+		if absf(_displayed_xp_ratio - xp_ratio) < 0.0005:
+			_displayed_xp_ratio = xp_ratio
+	(xp_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", _displayed_xp_ratio)
+	xp_value.text = "%d / %d" % [p.xp, p.xp_to_next]
+	level_value.text = str(p.level)
 	stats.text = "Nivel %d    Monedas %d    Pociones %d    Daño %d" % [p.level, p.coins, p.potions, p.attack_damage()]
 
 	if up_panel.visible or death_panel.visible:

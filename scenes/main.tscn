@@ -9,11 +9,15 @@
 [ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
 [ext_resource type="Script" path="res://scripts/speed_debug.gd" id="10_speed"]
-[ext_resource type="Texture2D" path="res://assets/mobs/vida-mana-base.png" id="11_hud_shell"]
-[ext_resource type="Texture2D" path="res://assets/mobs/vida-barra.png" id="12_hud_life_fill"]
+[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/vida-mana-base.png" id="11_hud_shell"]
+[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
 [ext_resource type="Shader" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
-[ext_resource type="Texture2D" path="res://assets/mobs/mana-barra.png" id="14_hud_mana_fill"]
+[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
 [ext_resource type="FontFile" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
+[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
+[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
+[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/tapas3.png" id="18_xp_caps"]
+[ext_resource type="Shader" path="res://shaders/hud_xp_fill.gdshader" id="19_xp_shader"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
 size = Vector2(10, 6)
@@ -31,6 +35,16 @@ shader_parameter/fill_ratio = 1.0
 shader_parameter/wave_amplitude_px = 1.05
 shader_parameter/wave_frequency = 4.3
 shader_parameter/wave_speed = 2.9
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_xp_fill"]
+shader = ExtResource("19_xp_shader")
+shader_parameter/fill_ratio = 0.0
+shader_parameter/fill_start = 0.195
+shader_parameter/fill_end = 0.768
+shader_parameter/shine_interval = 4.0
+shader_parameter/shine_duration = 0.85
+shader_parameter/shine_width = 0.025
+shader_parameter/shine_strength = 0.75
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
 emission_shape = 3
@@ -254,19 +268,90 @@ offset_right = 776.0
 offset_bottom = 624.0
 horizontal_alignment = 1
 
-[node name="XPBg" type="ColorRect" parent="HUD" unique_id=1331780685]
-offset_left = 8.0
-offset_top = 44.0
-offset_right = 228.0
-offset_bottom = 52.0
-color = Color(0.1, 0.1, 0.12, 0.85)
+[node name="XPBar" type="Control" parent="HUD"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -260.0
+offset_top = -173.0
+offset_right = 260.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
 
-[node name="XPFill" type="ColorRect" parent="HUD" unique_id=482951458]
-offset_left = 8.0
-offset_top = 44.0
-offset_right = 228.0
-offset_bottom = 52.0
-color = Color(0.9, 0.8, 0.3, 1)
+[node name="Base" type="TextureRect" parent="HUD/XPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("16_xp_base")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Fill" type="TextureRect" parent="HUD/XPBar"]
+material = SubResource("ShaderMaterial_xp_fill")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("17_xp_fill")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Caps" type="TextureRect" parent="HUD/XPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("18_xp_caps")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="LevelValue" type="Label" parent="HUD/XPBar"]
+layout_mode = 0
+offset_left = 34.0
+offset_top = 64.0
+offset_right = 96.0
+offset_bottom = 98.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = ExtResource("15_hud_font")
+theme_override_font_sizes/font_size = 28
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="XPValue" type="Label" parent="HUD/XPBar"]
+layout_mode = 0
+offset_left = 401.0
+offset_top = 67.0
+offset_right = 486.0
+offset_bottom = 97.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 4
+theme_override_fonts/font = ExtResource("15_hud_font")
+theme_override_font_sizes/font_size = 18
+text = "0 / 100"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="LifeManaPreview" type="Control" parent="HUD"]
 anchors_preset = 2
@@ -323,9 +408,9 @@ stretch_mode = 5
 [node name="LifeValue" type="Label" parent="HUD/LifeManaPreview"]
 layout_mode = 0
 offset_left = 7.0
-offset_top = 128.0
+offset_top = 133.0
 offset_right = 81.0
-offset_bottom = 149.0
+offset_bottom = 154.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
@@ -339,9 +424,9 @@ vertical_alignment = 1
 [node name="ManaValue" type="Label" parent="HUD/LifeManaPreview"]
 layout_mode = 0
 offset_left = 175.0
-offset_top = 128.0
+offset_top = 133.0
 offset_right = 249.0
-offset_bottom = 149.0
+offset_bottom = 154.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)

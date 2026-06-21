@@ -7,6 +7,23 @@ const ENEMY := preload("res://scenes/enemy.tscn")
 const BOSS := preload("res://scenes/boss.tscn")
 const MINIMAP := preload("res://scripts/minimap.gd")
 
+# Mapas fijos por piso: si existe maps/floor_<N>.tmj|.tmx (N = nº de piso global,
+# con o sin cero adelante), ese piso usa el mapa de Tiled; si no, va procedural.
+# Poné false para forzar todo procedural.
+const USE_FIXED_MAPS := true
+
+# Eclipse: usa las imágenes versión eclipse (fondo/montañas/árboles). false = noche.
+const ECLIPSE := true
+const NIGHT_DRAGON_TINT := Color(0.30, 0.40, 0.62)    # dragón: silueta azul (noche)
+const ECLIPSE_DRAGON_TINT := Color(0.55, 0.20, 0.20)  # dragón: silueta rojiza (eclipse)
+
+# Encuadre del fondo: yoff negativo SUBE la imagen → las ventanas muestran el
+# horizonte/valle (en vez del cielo de arriba). zoom da margen para no dejar huecos.
+# Fondo: alto completo de la imagen, fijo (costados recortados). zoom=1 → alto exacto.
+const BG_ZOOM := 1.0
+const BG_YOFF := 0.0
+const BG_PARALLAX_Y := 0.0
+
 @onready var dungeon: Dungeon = $Dungeon
 @onready var player: CharacterBody2D = $Player
 
@@ -15,6 +32,15 @@ var _exit_open := false
 
 func _ready() -> void:
 	GameState.boss_died.connect(_on_boss_died)
+	var suf := "_eclipse" if ECLIPSE else ""
+	var sky_img := "res://assets/bg/eclipse_vista.png" if ECLIPSE else "res://assets/bg/night_vista.png"
+	var sky := ParallaxBg.new().init(sky_img, -100, 0.0, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y)
+	add_child(sky)
+	var dragon := SkyDragon.new()
+	dragon.tint = ECLIPSE_DRAGON_TINT if ECLIPSE else NIGHT_DRAGON_TINT
+	sky.add_child(dragon)                                                 # dragón cerca de la luna
+	add_child(ParallaxBg.new().init("res://assets/bg/mountains%s.png" % suf, -99, 0.07, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y))    # montañas
+	add_child(ParallaxBg.new().init("res://assets/bg/forest_trees%s.png" % suf, -98, 0.20, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y)) # árboles
 	if SaveSystem.has_run():
 		var save := SaveSystem.load_run()
 		var r: Dictionary = save.get("run", {})
@@ -62,15 +88,22 @@ func _build_floor(seed_val: int = -1) -> void:
 		Rng.set_seed(seed_val)
 		GameState.run["seed"] = seed_val
 
-	dungeon.generate()
+	var fixed_path := _fixed_map_for_floor(int(GameState.run.get("depth", 1)))
+	if fixed_path != "":
+		dungeon.generate_from_tiled(fixed_path)
+	else:
+		dungeon.generate()
 	player.global_position = dungeon.get_spawn_point()
 	player.reset_physics_interpolation()
 
 	var zone: Dictionary = Data.ZONES[int(GameState.run.get("zone_idx", 0))]
 	var is_boss_floor: bool = int(GameState.run.get("floor_in_zone", 0)) >= int(zone.floors) - 1
-	_spawn_enemies(zone)
-	_spawn_chests()
-	_spawn_decor()
+	if fixed_path != "":
+		_spawn_fixed_markers(zone)
+	else:
+		_spawn_enemies(zone)
+		_spawn_chests()
+		_spawn_decor()
 	_make_exit()
 	if is_boss_floor:
 		_close_exit()
@@ -132,8 +165,12 @@ func _make_exit() -> void:
 	lt.energy = 1.6
 	lt.texture_scale = 0.5
 	_exit.add_child(lt)
-	var last: Rect2i = dungeon.rooms[dungeon.rooms.size() - 1]
-	_exit.global_position = dungeon.to_global(dungeon.map_to_local(last.get_center()))
+	var exit_cell: Vector2i = dungeon.get_exit_cell()
+	if exit_cell.x >= 0:
+		_exit.global_position = dungeon.to_global(dungeon.map_to_local(exit_cell))
+	else:
+		var last: Rect2i = dungeon.rooms[dungeon.rooms.size() - 1]
+		_exit.global_position = dungeon.to_global(dungeon.map_to_local(last.get_center()))
 	_exit.body_entered.connect(func(b: Node) -> void:
 		if b is Player:
 			next_floor.call_deferred())   # fuera del flush de física
@@ -297,6 +334,37 @@ func _spawn_enemies(zone: Dictionary) -> void:
 			e.home_pos = pos
 			e.home_rect = home_rect
 			e.reset_physics_interpolation()
+
+## Ruta del mapa fijo para el piso N (maps/floor_N.tmj|.tmx, con o sin cero
+## adelante), o "" si no hay → ese piso va procedural.
+func _fixed_map_for_floor(n: int) -> String:
+	if not USE_FIXED_MAPS:
+		return ""
+	for fname in ["floor_%d" % n, "floor_%02d" % n]:
+		for ext in [".tmj", ".tmx"]:
+			var path: String = "res://maps/" + fname + ext
+			if FileAccess.file_exists(path):
+				return path
+	return ""
+
+## Spawns desde los marcadores de un mapa fijo (capa "markers" de Tiled).
+func _spawn_fixed_markers(zone: Dictionary) -> void:
+	var pool: Array = zone.enemies
+	for cell in dungeon.enemy_cells:
+		var e := ENEMY.instantiate()
+		add_child(e)
+		e.setup_type(Rng.pick(pool), false)
+		var pos := dungeon.to_global(dungeon.map_to_local(cell))
+		e.global_position = pos
+		e.home_pos = pos
+		e.home_rect = Rect2(pos - Vector2(48, 48), Vector2(96, 96))
+		e.reset_physics_interpolation()
+	for cell in dungeon.chest_cells:
+		var ch := Chest.new()
+		ch.gold = false
+		add_child(ch)
+		ch.global_position = dungeon.to_global(dungeon.map_to_local(cell))
+		ch.reset_physics_interpolation()
 
 ## Celda al azar dentro de la sala (con 1 tile de margen para no pegarse al muro).
 func _rand_room_cell(room: Rect2i) -> Vector2i:

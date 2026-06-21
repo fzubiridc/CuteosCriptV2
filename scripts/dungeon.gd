@@ -29,6 +29,24 @@ const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 var grid: Array = []
 var rooms: Array[Rect2i] = []
 
+# --- Mapa FIJO (autoreado en Tiled) ---
+# gid del tileset de diseño (maps/design.tsx, firstgid=1): id+1.
+const T_FLOOR := 1
+const T_WALL := 2
+const T_SPAWN := 3
+const T_EXIT := 4
+const T_ENEMY := 5
+const T_CHEST := 6
+const T_TORCH := 7
+const T_WINDOW := 8
+const MAX_FIXED := 256   # tope duro de tamaño para mapas fijos (guard de perf)
+var spawn_cell: Vector2i = Vector2i(-1, -1)
+var exit_cell: Vector2i = Vector2i(-1, -1)
+var enemy_cells: Array[Vector2i] = []
+var chest_cells: Array[Vector2i] = []
+var torch_cells: Array[Vector2i] = []
+var window_cells: Array[Vector2i] = []
+
 # Caras foot-lit por píxel: por cada variante de muro, textura de ladrillo +
 # un ShaderMaterial (wall_face.gdshader) con su normal-map. Los sprites de cara
 # usan ese material; dungeon les pasa las luces como uniforms cada frame. Permite
@@ -45,16 +63,166 @@ static var _ao_r_tex: Texture2D     # gradiente AO oscuro-a-la-derecha (cache)
 signal regenerated
 
 func generate() -> void:
+	spawn_cell = Vector2i(-1, -1)
+	exit_cell = Vector2i(-1, -1)
+	window_cells.clear()
 	_ensure_tileset()
 	_gen_grid()
 	_paint()
 	_place_torches()
+	_place_windows()
 	regenerated.emit()
 
+## Genera un piso FIJO leído de un mapa de Tiled (.tmj) en vez de procedural.
+## Reusa el mismo pintado 2.5D + antorchas; el grid sale de la capa "floor" y
+## spawn/salida/enemigos/cofres de la capa "markers".
+func generate_from_tiled(path: String) -> void:
+	spawn_cell = Vector2i(-1, -1)
+	exit_cell = Vector2i(-1, -1)
+	enemy_cells.clear()
+	chest_cells.clear()
+	torch_cells.clear()
+	window_cells.clear()
+	_ensure_tileset()
+	if not _load_tiled(path):
+		push_error("Mapa Tiled inválido, fallback a procedural: " + path)
+		_gen_grid()
+	_paint()
+	if torch_cells.is_empty():
+		_place_torches()        # sin marcadores → auto (como procedural)
+	else:
+		_place_torches_fixed()  # antorchas en las celdas marcadas
+	_place_windows()
+	regenerated.emit()
+
+func _load_tiled(path: String) -> bool:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return false
+	var text := f.get_as_text()
+	f.close()
+	# .tmj = JSON, .tmx = XML. Detecta por extensión (o por el primer caracter).
+	var m: Dictionary
+	if path.to_lower().ends_with(".tmx") or text.strip_edges().begins_with("<"):
+		m = _parse_tmx(text)
+	else:
+		m = _parse_tmj(text)
+	if m.is_empty():
+		return false
+	var mw := int(m.get("width", 0))
+	var mh := int(m.get("height", 0))
+	if mw <= 0 or mh <= 0 or mw > MAX_FIXED or mh > MAX_FIXED:
+		push_error("Mapa Tiled fuera de rango: %dx%d (max %dx%d)" % [mw, mh, MAX_FIXED, MAX_FIXED])
+		return false
+	# El grid toma EXACTAMENTE el tamaño del mapa de Tiled (independiente del 64×64
+	# procedural). Arranca todo muro; carvamos el piso desde la capa "floor".
+	grid = []
+	for y in mh:
+		var row: Array = []
+		row.resize(mw)
+		row.fill(0)
+		grid.append(row)
+	enemy_cells.clear()
+	chest_cells.clear()
+	torch_cells.clear()
+
+	var floor_data: Array = m.get("floor", [])
+	var mark_data: Array = m.get("markers", [])
+	var minx := mw
+	var miny := mh
+	var maxx := 0
+	var maxy := 0
+	var any := false
+	for y in mh:
+		for x in mw:
+			var i := y * mw + x
+			if i < floor_data.size() and int(floor_data[i]) == T_FLOOR:
+				grid[y][x] = 1
+				any = true
+				minx = mini(minx, x)
+				miny = mini(miny, y)
+				maxx = maxi(maxx, x)
+				maxy = maxi(maxy, y)
+			if i < mark_data.size():
+				var mk := int(mark_data[i])
+				if mk == T_SPAWN: spawn_cell = Vector2i(x, y)
+				elif mk == T_EXIT: exit_cell = Vector2i(x, y)
+				elif mk == T_ENEMY: enemy_cells.append(Vector2i(x, y))
+				elif mk == T_CHEST: chest_cells.append(Vector2i(x, y))
+				elif mk == T_TORCH: torch_cells.append(Vector2i(x, y))
+				elif mk == T_WINDOW: window_cells.append(Vector2i(x, y))
+	if not any:
+		return false
+	# "Sala" sintética = bounding box del piso, para el código que itera rooms.
+	rooms = [Rect2i(minx, miny, maxx - minx + 1, maxy - miny + 1)]
+	if spawn_cell.x < 0:
+		spawn_cell = rooms[0].get_center()
+	return true
+
+## Normaliza un mapa de Tiled a { width, height, <capa>: [ints], ... }.
+## Soporta ambos formatos: .tmj (JSON) y .tmx (XML, capas en encoding CSV).
+func _parse_tmj(text: String) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	var out := {"width": int(parsed.get("width", 0)), "height": int(parsed.get("height", 0))}
+	for l in parsed.get("layers", []):
+		if l.get("type", "") == "tilelayer":
+			out[l.get("name", "")] = l.get("data", [])
+	return out
+
+func _parse_tmx(text: String) -> Dictionary:
+	var p := XMLParser.new()
+	if p.open_buffer(text.to_utf8_buffer()) != OK:
+		return {}
+	var out := {}
+	var cur_layer := ""
+	var in_data := false
+	while p.read() == OK:
+		match p.get_node_type():
+			XMLParser.NODE_ELEMENT:
+				var en := p.get_node_name()
+				if en == "map":
+					out["width"] = int(p.get_named_attribute_value_safe("width"))
+					out["height"] = int(p.get_named_attribute_value_safe("height"))
+				elif en == "layer":
+					cur_layer = p.get_named_attribute_value_safe("name")
+				elif en == "data":
+					var enc := p.get_named_attribute_value_safe("encoding")
+					if enc != "csv":
+						push_error("Capa '%s' con encoding '%s' no soportado: guardá las capas en CSV" % [cur_layer, enc])
+						in_data = false
+					else:
+						in_data = cur_layer != ""
+			XMLParser.NODE_TEXT:
+				if in_data and cur_layer != "":
+					out[cur_layer] = _csv_to_ints(p.get_node_data())
+			XMLParser.NODE_ELEMENT_END:
+				var en2 := p.get_node_name()
+				if en2 == "data":
+					in_data = false
+				elif en2 == "layer":
+					cur_layer = ""
+	return out
+
+func _csv_to_ints(s: String) -> Array:
+	var out: Array = []
+	for part in s.split(","):
+		var t := part.strip_edges()
+		if t != "":
+			out.append(int(t))
+	return out
+
 func get_spawn_point() -> Vector2:
+	if spawn_cell.x >= 0:
+		return to_global(map_to_local(spawn_cell))
 	if rooms.is_empty():
 		return Vector2.ZERO
 	return to_global(map_to_local(rooms[0].get_center()))
+
+## Celda de la salida en un mapa fijo, o (-1,-1) si es procedural (usar rooms).
+func get_exit_cell() -> Vector2i:
+	return exit_cell
 
 # ---------------------------------------------------------------------------
 # TileSet (atlas por variantes: 8 paredes + 6 pisos)
@@ -351,6 +519,8 @@ func _carve_v(y0: int, y1: int, x: int) -> void:
 # Antorchas
 # ---------------------------------------------------------------------------
 func _place_torches() -> void:
+	var gw: int = grid[0].size() if not grid.is_empty() else MAP_W
+	var gh := grid.size()
 	var parent := get_parent()
 	var holder := parent.get_node_or_null("Torches")
 	if holder == null:
@@ -361,9 +531,11 @@ func _place_torches() -> void:
 		for c in holder.get_children():
 			c.queue_free()
 	var torch_script := load("res://scripts/torch.gd")
+	var side_torch_script := load("res://scripts/side_torch.gd")
 	var idx := 0
-	const MAX_TORCHES := 26
-	for r in rooms:
+	const MAX_TORCHES := 32
+	for room_i in rooms.size():
+		var r := rooms[room_i]
 		if idx >= MAX_TORCHES:
 			break
 		var wall_row := r.position.y - 1
@@ -372,7 +544,7 @@ func _place_torches() -> void:
 		for x in [r.position.x + 2, r.position.x + r.size.x - 3]:
 			if idx >= MAX_TORCHES:
 				break
-			if x < 0 or x >= MAP_W or grid[wall_row][x] != 0:
+			if x < 0 or x >= gw or grid[wall_row][x] != 0:
 				continue
 			var t := PointLight2D.new()
 			t.set_script(torch_script)
@@ -384,7 +556,204 @@ func _place_torches() -> void:
 			t.position = to_global(map_to_local(Vector2i(x, wall_row))) + Vector2(0, 11)
 			holder.add_child(t)
 			idx += 1
+
+		# Una antorcha lateral en habitaciones alternas. El lado cambia por sala
+		# para que ambas variantes aparezcan sin saturar el mapa de luces. Si el
+		# lado elegido coincide con un pasillo abierto, prueba el muro opuesto.
+		if room_i % 2 == 0 and idx < MAX_TORCHES:
+			var preferred: StringName = &"left" if int(room_i / 2) % 2 == 0 else &"right"
+			var alternate: StringName = &"right" if preferred == &"left" else &"left"
+			var side_choices: Array[StringName] = [preferred, alternate]
+			for side in side_choices:
+				var wall_x: int = r.position.x - 1 if side == &"left" else r.position.x + r.size.x
+				var inner_x: int = wall_x + 1 if side == &"left" else wall_x - 1
+				var wall_y: int = r.position.y + r.size.y / 2
+				if wall_x < 0 or wall_x >= gw or wall_y < 0 or wall_y >= gh:
+					continue
+				if grid[wall_y][wall_x] != 0 or grid[wall_y][inner_x] != 1:
+					continue
+				var side_torch := PointLight2D.new()
+				side_torch.set_script(side_torch_script)
+				side_torch.wall_side = side
+				side_torch.seed_off = idx * 1.7
+				var inward := Vector2(11, 6) if side == &"left" else Vector2(-11, 6)
+				side_torch.position = to_global(map_to_local(Vector2i(wall_x, wall_y))) + inward
+				holder.add_child(side_torch)
+				idx += 1
+				break
 	LightField.mark_dirty()   # refrescar la lista de luces para el foot-light
+
+## Antorchas en las celdas marcadas (capa "markers" de Tiled). Reemplaza el
+## auto-placement cuando el mapa fijo define sus propias antorchas.
+func _place_torches_fixed() -> void:
+	var parent := get_parent()
+	var holder := parent.get_node_or_null("Torches")
+	if holder == null:
+		holder = Node2D.new()
+		holder.name = "Torches"
+		parent.add_child(holder)
+	else:
+		for c in holder.get_children():
+			c.queue_free()
+	var torch_script := load("res://scripts/torch.gd")
+	var idx := 0
+	for cell in torch_cells:
+		var t := PointLight2D.new()
+		t.set_script(torch_script)
+		t.seed_off = idx * 1.7
+		t.position = to_global(map_to_local(cell)) + Vector2(0, 11)
+		holder.add_child(t)
+		idx += 1
+	LightField.mark_dirty()
+
+# ---------------------------------------------------------------------------
+# Ventanas (cielo generado + marco transparente + luz de luna)
+# ---------------------------------------------------------------------------
+## Cielo nocturno generado EN CÓDIGO, panorámico y en 2 capas para parallax:
+## FAR = bandas noche→horizonte + estrellas + luna (scroll lento).
+## NEAR = siluetas de torres en el horizonte (scroll más rápido).
+## Cada textura se devuelve DUPLICADA (2× de ancho) para loop sin costura.
+const SKY_W := 192
+const SKY_H := 48
+
+static var _sky_far: Texture2D
+func _sky_far_texture() -> Texture2D:
+	if _sky_far != null:
+		return _sky_far
+	var img := Image.create_empty(SKY_W, SKY_H, false, Image.FORMAT_RGBA8)
+	for y in SKY_H:
+		var t := float(y) / float(SKY_H)
+		var c := Color(0.04, 0.05, 0.14).lerp(Color(0.12, 0.13, 0.26), t)
+		for x in SKY_W:
+			img.set_pixel(x, y, c)
+	var sr := RandomNumberGenerator.new()
+	sr.seed = 1337
+	for _i in 70:                                       # estrellas
+		var sx := sr.randi_range(0, SKY_W - 1)
+		var sy := sr.randi_range(0, int(SKY_H * 0.78))
+		var b := sr.randf_range(0.5, 1.0)
+		img.set_pixel(sx, sy, Color(b, b, minf(b * 1.1, 1.0), 1.0))
+	var mcx := 132                                      # luna
+	var mcy := 15
+	var mr := 9
+	for y in range(maxi(mcy - mr, 0), mini(mcy + mr + 1, SKY_H)):
+		for x in range(maxi(mcx - mr, 0), mini(mcx + mr + 1, SKY_W)):
+			var d := Vector2(x - mcx, y - mcy).length()
+			if d <= mr:
+				var g := clampf(1.0 - d / float(mr), 0.0, 1.0)
+				img.set_pixel(x, y, Color(0.40, 0.48, 0.66).lerp(Color(0.9, 0.92, 1.0), g))
+	_sky_far = ImageTexture.create_from_image(_doubled(img))
+	return _sky_far
+
+static var _sky_near: Texture2D
+func _sky_near_texture() -> Texture2D:
+	if _sky_near != null:
+		return _sky_near
+	var img := Image.create_empty(SKY_W, SKY_H, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var tower := Color(0.06, 0.05, 0.12)
+	var bases: Array[int] = [22, 58, 96, 138, 168]      # torres lejanas
+	var i := 0
+	for bx in bases:
+		var tw := 9 + (i % 3) * 2
+		var top := 22 + (i % 4) * 3
+		for y in range(top, SKY_H):
+			for x in range(bx, bx + tw):
+				if x >= 0 and x < SKY_W:
+					img.set_pixel(x, y, tower)
+		var apex := bx + int(tw / 2.0)                  # techo triangular
+		for dy in 6:
+			var yy := top - 6 + dy
+			for x in range(apex - dy, apex + dy + 1):
+				if x >= 0 and x < SKY_W and yy >= 0:
+					img.set_pixel(x, yy, tower)
+		i += 1
+	_sky_near = ImageTexture.create_from_image(_doubled(img))
+	return _sky_near
+
+## Devuelve la imagen duplicada horizontalmente (2×) → permite scrollear el
+## recorte sin salir de bounds ni ver costura (la 2ª mitad repite la 1ª).
+func _doubled(img: Image) -> Image:
+	var w := img.get_width()
+	var h := img.get_height()
+	var out := Image.create_empty(w * 2, h, false, Image.FORMAT_RGBA8)
+	out.blit_rect(img, Rect2i(0, 0, w, h), Vector2i(0, 0))
+	out.blit_rect(img, Rect2i(0, 0, w, h), Vector2i(w, 0))
+	return out
+
+## Marco de ventana generado EN CÓDIGO: borde + cruz de montantes (4 vidrios) +
+## alféizar. Los vidrios quedan transparentes → se ve el cielo de atrás.
+static var _win_tex: Texture2D
+func _window_frame_texture() -> Texture2D:
+	if _win_tex != null:
+		return _win_tex
+	var w := 24
+	var h := 32
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var frame := Color(0.16, 0.13, 0.10)         # marco oscuro
+	var fb := 3                                   # grosor del marco
+	for y in h:
+		for x in w:
+			if x < fb or x >= w - fb or y < fb or y >= h - fb:
+				img.set_pixel(x, y, frame)
+	for y in h:                                   # montante vertical
+		for x in range(w / 2 - 1, w / 2 + 1):
+			img.set_pixel(x, y, frame)
+	for x in w:                                   # montante horizontal
+		for y in range(h / 2 - 1, h / 2 + 1):
+			img.set_pixel(x, y, frame)
+	var sill := Color(0.30, 0.26, 0.22)           # alféizar abajo
+	for y in range(h - 3, h):
+		for x in w:
+			img.set_pixel(x, y, sill)
+	_win_tex = ImageTexture.create_from_image(img)
+	return _win_tex
+
+## En cada celda-ventana: parche de cielo (detrás) + marco transparente (delante,
+## deja ver el cielo por los vidrios) + una luz de luna fría que entra a la sala.
+func _place_windows() -> void:
+	var parent := get_parent()
+	var holder := parent.get_node_or_null("Windows")
+	if holder == null:
+		holder = Node2D.new()
+		holder.name = "Windows"
+		parent.add_child(holder)
+	else:
+		for c in holder.get_children():
+			c.queue_free()
+	if window_cells.is_empty():
+		return
+	var light_tex := load("res://assets/fx/light_pool.tres")
+	for cell in window_cells:
+		var pos := to_global(map_to_local(cell))
+		# La celda quedó como hueco (saltada en _paint) → se ve el fondo detrás.
+		# El marco va encima; sus vidrios transparentes dejan ver el paisaje.
+		var win := Sprite2D.new()
+		win.texture = _window_frame_texture()
+		win.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		win.position = pos
+		win.z_as_relative = false
+		win.z_index = -7
+		holder.add_child(win)
+		var body := StaticBody2D.new()         # colisión: el hueco es solo visual, no se pasa
+		body.collision_layer = 1
+		body.collision_mask = 0
+		var cs := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = Vector2(TILE, TILE)
+		cs.shape = box
+		body.add_child(cs)
+		body.position = pos
+		holder.add_child(body)
+		var lt := PointLight2D.new()
+		lt.texture = light_tex
+		lt.color = Color(0.55, 0.72, 1.0)      # luz de luna fría
+		lt.energy = 1.25
+		lt.texture_scale = 0.55
+		lt.position = pos + Vector2(0, 14)     # cae hacia adentro de la sala
+		holder.add_child(lt)
+	LightField.mark_dirty()
 
 # ---------------------------------------------------------------------------
 # Pintado
@@ -397,8 +766,12 @@ func _paint() -> void:
 	clear()
 	y_sort_enabled = false
 	z_index = -10
-	for y in MAP_H:
-		for x in MAP_W:
+	var gh := grid.size()
+	var gw: int = grid[0].size() if gh > 0 else 0
+	for y in gh:
+		for x in gw:
+			if window_cells.has(Vector2i(x, y)):
+				continue                       # hueco: deja ver el fondo por la ventana
 			var atlas: Vector2i
 			if grid[y][x] == 1:
 				var wall_above: bool = y - 1 >= 0 and grid[y - 1][x] == 0
@@ -407,9 +780,9 @@ func _paint() -> void:
 				# AO en las uniones laterales (oeste/este): overlay direccional.
 				if x - 1 >= 0 and grid[y][x - 1] == 0:
 					_spawn_ao_side(x, y, true)
-				if x + 1 < MAP_W and grid[y][x + 1] == 0:
+				if x + 1 < gw and grid[y][x + 1] == 0:
 					_spawn_ao_side(x, y, false)
-			elif y + 1 < MAP_H and grid[y + 1][x] == 1:
+			elif y + 1 < gh and grid[y + 1][x] == 1:
 				atlas = Vector2i(_variant(x, y, WALL_VARIANTS), ROW_FACE)
 				_spawn_face(x, y)   # cara foot-lit encima (el tile del tilemap aporta occluder+colisión)
 			else:
