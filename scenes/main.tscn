@@ -1,26 +1,30 @@
 [gd_scene format=3 uid="uid://0c4hpjy5i6r3"]
 
-[ext_resource type="Script" uid="uid://d2v5ubmun6nux" path="res://scripts/player.gd" id="1_o5qli"]
 [ext_resource type="Script" uid="uid://cki8ikejvyox8" path="res://scripts/main.gd" id="1_sugp2"]
 [ext_resource type="Script" uid="uid://bxblnlksw8oqb" path="res://scripts/dungeon.gd" id="2_jyhfs"]
+[ext_resource type="PackedScene" uid="uid://dmqjgvjgb1sgl" path="res://scenes/player.tscn" id="3_jkv2x"]
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
-[ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="4_tbgi4"]
-[ext_resource type="Texture2D" path="res://assets/fx/light_radial.tres" id="4_tipki"]
-[ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="5_anims"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
-[ext_resource type="Script" path="res://scripts/speed_debug.gd" id="10_speed"]
-[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/vida-mana-base.png" id="11_hud_shell"]
-[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
-[ext_resource type="Shader" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
-[ext_resource type="Texture2D" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
-[ext_resource type="FontFile" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
-[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
-[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
-[ext_resource type="Texture2D" path="res://assets/ui/exp_bar/tapas3.png" id="18_xp_caps"]
-[ext_resource type="Shader" path="res://shaders/hud_xp_fill.gdshader" id="19_xp_shader"]
+[ext_resource type="Script" uid="uid://i1evqkbxkm0l" path="res://scripts/speed_debug.gd" id="10_speed"]
+[ext_resource type="Texture2D" uid="uid://bvernyq5nt33p" path="res://assets/ui/hp_mana_bar/vida-mana-base.png" id="11_hud_shell"]
+[ext_resource type="Texture2D" uid="uid://gsgyqyn35cv2" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
+[ext_resource type="Shader" uid="uid://cpvvrr8yll4f4" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
+[ext_resource type="Texture2D" uid="uid://dbayja4kf0sbf" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
+[ext_resource type="FontFile" uid="uid://co1gbiwyk3hb1" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
+[ext_resource type="Texture2D" uid="uid://cpckfmus5bp0" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
+[ext_resource type="Texture2D" uid="uid://7x6se4h4nse3" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
+[ext_resource type="Texture2D" uid="uid://8hco5shwx1u6" path="res://assets/ui/exp_bar/tapas3.png" id="18_xp_caps"]
+[ext_resource type="Shader" uid="uid://cdw3sbqq23e6q" path="res://shaders/hud_xp_fill.gdshader" id="19_xp_shader"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
-size = Vector2(10, 6)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_xp_fill"]
+shader = ExtResource("19_xp_shader")
+shader_parameter/fill_ratio = 0.0
+shader_parameter/fill_start = 0.195
+shader_parameter/fill_end = 0.768
+shader_parameter/shine_interval = 4.0
+shader_parameter/shine_duration = 0.85
+shader_parameter/shine_width = 0.025
+shader_parameter/shine_strength = 0.75
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_hud_liquid"]
 shader = ExtResource("13_hud_liquid_shader")
@@ -35,30 +39,6 @@ shader_parameter/fill_ratio = 1.0
 shader_parameter/wave_amplitude_px = 1.05
 shader_parameter/wave_frequency = 4.3
 shader_parameter/wave_speed = 2.9
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_xp_fill"]
-shader = ExtResource("19_xp_shader")
-shader_parameter/fill_ratio = 0.0
-shader_parameter/fill_start = 0.195
-shader_parameter/fill_end = 0.768
-shader_parameter/shine_interval = 4.0
-shader_parameter/shine_duration = 0.85
-shader_parameter/shine_width = 0.025
-shader_parameter/shine_strength = 0.75
-
-[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
-emission_shape = 3
-emission_box_extents = Vector3(230, 140, 1)
-direction = Vector3(0, -1, 0)
-spread = 35.0
-initial_velocity_min = 2.0
-initial_velocity_max = 9.0
-angular_velocity_min = -20.0
-angular_velocity_max = 20.0
-gravity = Vector3(4, -6, 0)
-scale_min = 0.01
-scale_max = 0.03
-color = Color(0.7, 0.62, 0.85, 0.22)
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tefeu"]
 sky_top_color = Color(0.38, 0.45, 0.55, 1)
@@ -85,66 +65,8 @@ script = ExtResource("1_sugp2")
 position = Vector2(1.2846222, -0.092300415)
 script = ExtResource("2_jyhfs")
 
-[node name="Player" type="CharacterBody2D" parent="." unique_id=2112145056]
+[node name="Player" parent="." unique_id=1147600288 instance=ExtResource("3_jkv2x")]
 position = Vector2(160, 112)
-collision_layer = 2
-script = ExtResource("1_o5qli")
-walk_anim_speed = 1.0
-
-[node name="Shape" type="CollisionShape2D" parent="Player" unique_id=852063119]
-position = Vector2(0, 6)
-shape = SubResource("RectangleShape2D_tefeu")
-
-[node name="Feet" type="Marker2D" parent="Player" unique_id=688233296]
-position = Vector2(0, 4)
-
-[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1388611465]
-zoom = Vector2(3, 3)
-
-[node name="Motes" type="GPUParticles2D" parent="Player/Camera2D" unique_id=608948220]
-z_index = 50
-amount = 22
-texture = ExtResource("4_tipki")
-lifetime = 8.0
-preprocess = 5.0
-randomness = 1.0
-process_material = SubResource("ParticleProcessMaterial_tipki")
-
-[node name="Rig" type="Node2D" parent="Player" unique_id=979511126]
-scale = Vector2(0.4, 0.4)
-
-[node name="Body" type="AnimatedSprite2D" parent="Player/Rig" unique_id=332504085]
-position = Vector2(0, -14)
-sprite_frames = ExtResource("4_tbgi4")
-animation = &"idle_hold_east"
-
-[node name="Hand" type="Marker2D" parent="Player/Rig" unique_id=1895517757]
-position = Vector2(14.999998, -9.999999)
-gizmo_extents = 8.0
-
-[node name="Weapon" type="Sprite2D" parent="Player/Rig/Hand" unique_id=930137035]
-centered = false
-
-[node name="Tip" type="Marker2D" parent="Player/Rig/Hand/Weapon" unique_id=51219352]
-
-[node name="HandOverlay" type="Sprite2D" parent="Player/Rig/Hand" unique_id=522880698]
-
-[node name="StaffArm" type="Sprite2D" parent="Player/Rig" unique_id=520122344]
-z_index = 2
-position = Vector2(-4, -30)
-centered = false
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="Player" unique_id=1916177541]
-libraries/ = ExtResource("5_anims")
-
-[node name="Light" type="PointLight2D" parent="Player" unique_id=195600636]
-position = Vector2(1.0999756, 1.0999985)
-color = Color(1, 0.86, 0.62, 1)
-energy = 2.6
-shadow_enabled = true
-shadow_filter = 1
-texture_scale = 3.4
-height = 24.0
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=417060991]
 layer = 2
@@ -268,7 +190,8 @@ offset_right = 776.0
 offset_bottom = 624.0
 horizontal_alignment = 1
 
-[node name="XPBar" type="Control" parent="HUD"]
+[node name="XPBar" type="Control" parent="HUD" unique_id=1389526534]
+layout_mode = 3
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
@@ -281,7 +204,8 @@ grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="Base" type="TextureRect" parent="HUD/XPBar"]
+[node name="Base" type="TextureRect" parent="HUD/XPBar" unique_id=361158096]
+texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -289,12 +213,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("16_xp_base")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Fill" type="TextureRect" parent="HUD/XPBar"]
+[node name="Fill" type="TextureRect" parent="HUD/XPBar" unique_id=186820125]
+texture_filter = 1
 material = SubResource("ShaderMaterial_xp_fill")
 layout_mode = 1
 anchors_preset = 15
@@ -303,12 +227,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("17_xp_fill")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Caps" type="TextureRect" parent="HUD/XPBar"]
+[node name="Caps" type="TextureRect" parent="HUD/XPBar" unique_id=111356847]
+texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -316,18 +240,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("18_xp_caps")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="LevelValue" type="Label" parent="HUD/XPBar"]
+[node name="LevelValue" type="Label" parent="HUD/XPBar" unique_id=1330612703]
 layout_mode = 0
 offset_left = 34.0
 offset_top = 64.0
 offset_right = 96.0
 offset_bottom = 98.0
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 5
@@ -337,13 +259,12 @@ text = "1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="XPValue" type="Label" parent="HUD/XPBar"]
+[node name="XPValue" type="Label" parent="HUD/XPBar" unique_id=1869212276]
 layout_mode = 0
 offset_left = 401.0
 offset_top = 67.0
 offset_right = 486.0
 offset_bottom = 97.0
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
@@ -353,7 +274,8 @@ text = "0 / 100"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LifeManaPreview" type="Control" parent="HUD"]
+[node name="LifeManaPreview" type="Control" parent="HUD" unique_id=2087425624]
+layout_mode = 3
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
@@ -364,7 +286,8 @@ offset_bottom = -16.0
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="LifeFill" type="TextureRect" parent="HUD/LifeManaPreview"]
+[node name="LifeFill" type="TextureRect" parent="HUD/LifeManaPreview" unique_id=835188524]
+texture_filter = 1
 material = SubResource("ShaderMaterial_hud_liquid")
 layout_mode = 1
 anchors_preset = 15
@@ -373,12 +296,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("12_hud_life_fill")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="ManaFill" type="TextureRect" parent="HUD/LifeManaPreview"]
+[node name="ManaFill" type="TextureRect" parent="HUD/LifeManaPreview" unique_id=365240763]
+texture_filter = 1
 material = SubResource("ShaderMaterial_hud_mana")
 layout_mode = 1
 anchors_preset = 15
@@ -387,12 +310,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("14_hud_mana_fill")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Shell" type="TextureRect" parent="HUD/LifeManaPreview"]
+[node name="Shell" type="TextureRect" parent="HUD/LifeManaPreview" unique_id=1187235471]
+texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -400,18 +323,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture_filter = 1
 texture = ExtResource("11_hud_shell")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="LifeValue" type="Label" parent="HUD/LifeManaPreview"]
+[node name="LifeValue" type="Label" parent="HUD/LifeManaPreview" unique_id=148673656]
 layout_mode = 0
 offset_left = 7.0
 offset_top = 133.0
 offset_right = 81.0
 offset_bottom = 154.0
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
@@ -421,13 +342,12 @@ text = "100 / 100"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ManaValue" type="Label" parent="HUD/LifeManaPreview"]
+[node name="ManaValue" type="Label" parent="HUD/LifeManaPreview" unique_id=480315205]
 layout_mode = 0
 offset_left = 175.0
 offset_top = 133.0
 offset_right = 249.0
 offset_bottom = 154.0
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
@@ -518,5 +438,5 @@ environment = SubResource("Environment_tipki")
 [node name="LightingDebug" type="CanvasLayer" parent="." unique_id=352811338]
 script = ExtResource("9_85g3d")
 
-[node name="SpeedDebug" type="CanvasLayer" parent="."]
+[node name="SpeedDebug" type="CanvasLayer" parent="." unique_id=177030503]
 script = ExtResource("10_speed")

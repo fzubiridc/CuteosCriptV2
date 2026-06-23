@@ -5,7 +5,8 @@ class_name Player
 ## las 5 dirs base de walk_empty. El proyectil sale de Tip (punta del staff).
 
 const PROJECTILE := preload("res://scenes/projectile.tscn")
-const CAMERA_ZOOM := 4.0   # knob de zoom de cámara (3 = original, más = más cerca)
+@export var camera_zoom := 4.0   # knob de zoom de cámara (3 = original, más = más cerca)
+@export var rig_scale := 0.4     # escala visual del rig (0.4 = top-down; subir para iso)
 
 # Mapeo de octantes (de velocity.angle, 0=east, sentido horario)
 const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_west", "north", "north_east"]
@@ -88,7 +89,7 @@ func _ready() -> void:
 	_load_textures()
 	_refresh_weapon()
 	_play("idle", facing_dir)
-	cam.zoom = Vector2(CAMERA_ZOOM, CAMERA_ZOOM)   # knob de zoom (subir = más cerca)
+	cam.zoom = Vector2(camera_zoom, camera_zoom)   # knob de zoom (subir = más cerca)
 	_setup_light()
 	CastShadow.attach(self, body)          # sombra proyectada PRO + contacto (auto-ancla a los pies)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
@@ -296,7 +297,7 @@ func _play(anim_kind: String, dir: String) -> void:
 	# Mirror para w/sw/nw — usamos la animación E/SE/NE con Rig.scale.x negativa.
 	var actual_dir: String = FACING_MIRROR.get(dir, dir)
 	var mirror: bool = actual_dir != dir
-	rig.scale.x = -0.4 if mirror else 0.4
+	rig.scale = Vector2(-rig_scale if mirror else rig_scale, rig_scale)
 	# Las animaciones del AnimationPlayer se llaman "walk_<dir>" / "idle_<dir>"
 	# y por dentro setean el Body al sprite_frames correcto (idle_hold/walk_empty).
 	var anim_name := "%s_%s" % [anim_kind, actual_dir]

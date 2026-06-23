@@ -1,0 +1,83 @@
+[gd_scene format=3 uid="uid://dmqjgvjgb1sgl"]
+
+[ext_resource type="Script" uid="uid://d2v5ubmun6nux" path="res://scripts/player.gd" id="1_dqkch"]
+[ext_resource type="Texture2D" path="res://assets/fx/light_radial.tres" id="2_qlg0r"]
+[ext_resource type="SpriteFrames" uid="uid://dit32qwywp2ib" path="res://assets/hero/mage_frames.tres" id="3_tuyoq"]
+[ext_resource type="AnimationLibrary" uid="uid://bknw0h3830pcs" path="res://assets/hero/mage_anims.tres" id="4_fjrip"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tefeu"]
+size = Vector2(10, 6)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tipki"]
+emission_shape = 3
+emission_box_extents = Vector3(230, 140, 1)
+direction = Vector3(0, -1, 0)
+spread = 35.0
+initial_velocity_min = 2.0
+initial_velocity_max = 9.0
+angular_velocity_min = -20.0
+angular_velocity_max = 20.0
+gravity = Vector3(4, -6, 0)
+scale_min = 0.01
+scale_max = 0.03
+color = Color(0.7, 0.62, 0.85, 0.22)
+
+[node name="Player" type="CharacterBody2D" unique_id=1147600288]
+collision_layer = 2
+script = ExtResource("1_dqkch")
+walk_anim_speed = 1.0
+
+[node name="Shape" type="CollisionShape2D" parent="." unique_id=521578086]
+position = Vector2(0, 6)
+shape = SubResource("RectangleShape2D_tefeu")
+
+[node name="Feet" type="Marker2D" parent="." unique_id=264170952]
+position = Vector2(0, 4)
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=581649941]
+zoom = Vector2(3, 3)
+
+[node name="Motes" type="GPUParticles2D" parent="Camera2D" unique_id=1289873162]
+z_index = 50
+amount = 22
+texture = ExtResource("2_qlg0r")
+lifetime = 8.0
+preprocess = 5.0
+randomness = 1.0
+process_material = SubResource("ParticleProcessMaterial_tipki")
+
+[node name="Rig" type="Node2D" parent="." unique_id=1216929448]
+scale = Vector2(0.4, 0.4)
+
+[node name="Body" type="AnimatedSprite2D" parent="Rig" unique_id=1390438017]
+position = Vector2(0, -14)
+sprite_frames = ExtResource("3_tuyoq")
+animation = &"idle_hold_east"
+
+[node name="Hand" type="Marker2D" parent="Rig" unique_id=1204771708]
+position = Vector2(14.999998, -9.999999)
+gizmo_extents = 8.0
+
+[node name="Weapon" type="Sprite2D" parent="Rig/Hand" unique_id=973871995]
+centered = false
+
+[node name="Tip" type="Marker2D" parent="Rig/Hand/Weapon" unique_id=288807796]
+
+[node name="HandOverlay" type="Sprite2D" parent="Rig/Hand" unique_id=303509389]
+
+[node name="StaffArm" type="Sprite2D" parent="Rig" unique_id=1135709729]
+z_index = 2
+position = Vector2(-4, -30)
+centered = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1974258223]
+libraries/ = ExtResource("4_fjrip")
+
+[node name="Light" type="PointLight2D" parent="." unique_id=1888546320]
+position = Vector2(1.0999756, 1.0999985)
+color = Color(1, 0.86, 0.62, 1)
+energy = 2.6
+shadow_enabled = true
+shadow_filter = 1
+texture_scale = 3.4
+height = 24.0
