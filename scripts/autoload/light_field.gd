@@ -95,6 +95,11 @@ func _gather() -> void:
 		return
 	_amb_node = scene.get_node_or_null("Ambient") as CanvasModulate
 	var pl := scene.get_node_or_null("Player/Light")
+	if pl == null:
+		# iso: player anidado (World/Player). Buscar recursivo.
+		var _p := scene.find_child("Player", true, false)
+		if _p:
+			pl = _p.get_node_or_null("Light")
 	if pl:
 		_lights.append(pl)
 	var torches := scene.get_node_or_null("Torches")
