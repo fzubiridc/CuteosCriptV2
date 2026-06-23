@@ -3,6 +3,7 @@
 [ext_resource type="TileSet" uid="uid://d1r3xhobik0p6" path="res://assets/iso/iso_dungeon_v8.tres" id="1_wros0"]
 [ext_resource type="PackedScene" uid="uid://dmqjgvjgb1sgl" path="res://scenes/player.tscn" id="2_wros0"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="3_7bia3"]
+[ext_resource type="Script" uid="uid://dtwqxthlrbhns" path="res://scripts/iso_wall_occluder.gd" id="3_s6dle"]
 [ext_resource type="Script" uid="uid://1ywxladu7m1g" path="res://scripts/torch.gd" id="4_wjj8m"]
 
 [node name="IsoTest" type="Node2D" unique_id=1311120793]
@@ -27,8 +28,9 @@ y_sort_enabled = true
 texture_filter = 1
 position = Vector2(-33, -9)
 scale = Vector2(0.5, 0.5)
-tile_map_data = PackedByteArray("AAACAP7/AQAAAAAAAAACAP3/AQAAAAAAAAABAP7/AQAAAAAAAAADAP7/AQAAAAAAAAAEAAAAAQAAAAAAAAAEAPz/AQAAAAAAAAACAAAAAQAAAAAAABABAAAAAQAAAAAAABA=")
+tile_map_data = PackedByteArray("AAACAP7/AQAAAAAAAAACAP3/AQAAAAAAAAABAP7/AQAAAAAAAAADAP7/AQAAAAAAAAAEAAAAAQAAAAAAAAAEAPz/AQAAAAAAAAACAAAAAQAAAAAAABABAAAAAQAAAAAAABACAP//AQAAAAAAAAABAP3/AQAAAAAAAAACAPv/AQAAAAAAAAACAPr/AQAAAAAAAAABAPv/AQAAAAAAAAAEAP3/AQAAAAAAABAEAPv/AQAAAAAAABAFAP7/AQAAAAAAABADAPr/AQAAAAAAAAADAPz/AQAAAAAAAAAFAAQAAQAAAAAAAAAFAAMAAQAAAAAAAAAEAAUAAQAAAAAAAAADAAUAAQAAAAAAAAAEAAYAAQAAAAAAAAA=")
 tile_set = ExtResource("1_wros0")
+script = ExtResource("3_s6dle")
 
 [node name="Ambient" type="CanvasModulate" parent="." unique_id=1344331556]
 color = Color(0.32, 0.27, 0.32, 1)
@@ -39,7 +41,7 @@ script = ExtResource("3_7bia3")
 [node name="Torches" type="Node2D" parent="." unique_id=1403948530]
 
 [node name="Torch1" type="PointLight2D" parent="Torches" unique_id=1906292494]
-position = Vector2(45, -35)
+position = Vector2(95, 8)
 script = ExtResource("4_wjj8m")
 
 [node name="Torch2" type="PointLight2D" parent="Torches" unique_id=727897449]

@@ -14,11 +14,13 @@ texture = ExtResource("2_wall")
 texture_region_size = Vector2i(141, 184)
 0:0/0 = 0
 0:0/0/texture_origin = Vector2i(60, 86)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-128, 0, 0, -64, 10, -52, -118, 12)
+0:0/0/y_sort_origin = -64
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, -64, 7.2057495, -60.397125, -120.67368, 3.6631591, -128, 0)
 
 [resource]
 tile_shape = 1
 tile_size = Vector2i(256, 128)
+occlusion_layer_0/light_mask = 1
 physics_layer_0/collision_layer = 1
 sources/0 = SubResource("floor")
 sources/1 = SubResource("wall")

@@ -234,7 +234,11 @@ func _physics_process(delta: float) -> void:
 		velocity = dash_vel
 	else:
 		var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		velocity = dir * move_speed() + kb
+		# Espacio isométrico 2:1 — comprimir el eje Y a la mitad para que las
+		# diagonales sigan las aristas de los rombos, y normalizar para que la
+		# velocidad sea pareja en todas las direcciones (sin E/O más rápidas).
+		var iso := Vector2(dir.x, dir.y * 0.5)
+		velocity = iso.normalized() * move_speed() + kb
 	if dash_t > 0.0:                          # estela fantasma del pixi: 1 partícula/frame
 		_spawn_dash_particle()
 	kb = kb.move_toward(Vector2.ZERO, 800.0 * delta)
