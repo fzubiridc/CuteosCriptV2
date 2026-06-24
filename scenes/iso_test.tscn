@@ -24,6 +24,7 @@ y_sort_enabled = true
 
 [node name="Player" parent="World" unique_id=1807862212 instance=ExtResource("2_wros0")]
 camera_zoom = 3.0
+rig_scale = 0.5
 
 [node name="Walls" type="TileMapLayer" parent="World" unique_id=938331211]
 y_sort_enabled = true

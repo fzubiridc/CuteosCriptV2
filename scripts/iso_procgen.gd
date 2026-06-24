@@ -30,6 +30,7 @@ const TILE0 := Vector2i(0, 0)
 var _floor: TileMapLayer
 var _walls: TileMapLayer
 var _rooms: Array[Rect2i] = []
+var _astar := AStarGrid2D.new()
 
 func _ready() -> void:
 	_floor = get_node_or_null(floor_path) as TileMapLayer
@@ -40,9 +41,51 @@ func _ready() -> void:
 	if seed_value != 0:
 		seed(seed_value)
 	generate()
+	_build_nav()
 	_place_player()
 	if auto_screenshot:
 		_shoot()
+
+## Construye el AStarGrid2D del nivel: celdas de piso navegables, muros sólidos.
+## Lo expone a los mobs vía Enemy.path_grid (rutean esquivando paredes).
+func _build_nav() -> void:
+	var cells := _floor.get_used_cells()
+	if cells.is_empty():
+		return
+	var mn := cells[0]
+	var mx := cells[0]
+	for c in cells:
+		mn = mn.min(c)
+		mx = mx.max(c)
+	_astar.region = Rect2i(mn, mx - mn + Vector2i.ONE)
+	_astar.cell_size = Vector2.ONE
+	_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	_astar.update()
+	# Todo sólido → liberar el piso → re-solidificar los muros (obstáculos).
+	for y in range(_astar.region.position.y, _astar.region.end.y):
+		for x in range(_astar.region.position.x, _astar.region.end.x):
+			_astar.set_point_solid(Vector2i(x, y), true)
+	for c in cells:
+		_astar.set_point_solid(c, false)
+	for wc in _walls.get_used_cells():
+		if _astar.is_in_boundsv(wc):
+			_astar.set_point_solid(wc, true)
+	Enemy.path_grid = self
+	print("[procgen] nav AStarGrid %dx%d listo" % [_astar.region.size.x, _astar.region.size.y])
+
+## Devuelve el CENTRO-mundo de la próxima celda hacia el objetivo (o el objetivo
+## directo si está fuera de grilla / sin ruta → el caller hace fallback).
+func next_point(from_world: Vector2, to_world: Vector2) -> Vector2:
+	var fc := _floor.local_to_map(_floor.to_local(from_world))
+	var tc := _floor.local_to_map(_floor.to_local(to_world))
+	if not _astar.is_in_boundsv(fc) or not _astar.is_in_boundsv(tc):
+		return to_world
+	if _astar.is_point_solid(fc) or _astar.is_point_solid(tc):
+		return to_world
+	var path := _astar.get_id_path(fc, tc)
+	if path.size() < 2:
+		return to_world
+	return _floor.to_global(_floor.map_to_local(path[1]))
 
 func generate() -> void:
 	_floor.clear()

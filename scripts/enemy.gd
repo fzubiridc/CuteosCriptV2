@@ -40,6 +40,11 @@ var wander_t := 0.0
 var wander_target := Vector2.ZERO
 var wobble := 0.0
 
+## Proveedor de rutas por grilla (AStarGrid2D del nivel iso). Si está seteado
+## (lo pone iso_procgen), los mobs rutean por la grilla esquivando muros. En el
+## juego 2D queda null → usan el NavigationAgent2D de siempre.
+static var path_grid = null
+
 @onready var agent: NavigationAgent2D = $NavigationAgent2D
 @onready var visual: Polygon2D = $Visual
 @onready var sprite: AnimatedSprite2D = $Sprite
@@ -221,11 +226,14 @@ func _physics_process(delta: float) -> void:
 	else:
 		target_pos = _wander_point(delta)
 
-	agent.target_position = target_pos
-	var next := agent.get_next_path_position()
+	var next: Vector2
+	if is_instance_valid(path_grid):
+		next = path_grid.next_point(global_position, target_pos)   # A* por grilla (esquiva muros)
+	else:
+		agent.target_position = target_pos
+		next = agent.get_next_path_position()
 	var dir := next - global_position
-	# Fallback sin navmesh: si el agente no devuelve ruta útil (next ≈ posición
-	# actual), ir DIRECTO al objetivo. Con navmesh válido esto no se dispara.
+	# Fallback: si no hay ruta útil (next ≈ posición actual), ir DIRECTO al objetivo.
 	if dir.length() <= 1.0 and global_position.distance_to(target_pos) > 6.0:
 		dir = target_pos - global_position
 	if global_position.distance_to(target_pos) > 6.0 and dir.length() > 1.0:
