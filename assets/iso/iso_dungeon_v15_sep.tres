@@ -1,0 +1,21 @@
+[gd_resource type="TileSet" format=3 uid="uid://yn7c80kekhes"]
+
+[ext_resource type="Texture2D" uid="uid://cyv1vxx2u068c" path="res://assets/iso/floor_iso.png" id="1_floor"]
+
+[sub_resource type="TileSetAtlasSource" id="floor"]
+texture = ExtResource("1_floor")
+texture_region_size = Vector2i(256, 256)
+0:0/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="wall"]
+texture_region_size = Vector2i(296, 279)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 120)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-128, 0, 0, -51, 10, -41, -118, 10)
+
+[resource]
+tile_shape = 1
+tile_size = Vector2i(256, 102)
+physics_layer_0/collision_layer = 1
+sources/0 = SubResource("floor")
+sources/1 = SubResource("wall")

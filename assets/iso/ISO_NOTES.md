@@ -26,6 +26,17 @@
 - **Pedirle a PixelLab "2:1 angle" explícito** en el prompt → capaz respeta mejor el ángulo iso de fábrica (y se reduce/elimina el shear posterior). Probar mañana.
 - Pedir el muro con **margen/padding** (centrado, sin tocar bordes) para que no clipee las esquinas (el Creator es 256 fijo).
 
+## Prompts que FUNCIONARON (PixelLab)
+Regla: **menos es más** — prompts largos/estrictos lo confunden o empeoran la calidad.
+
+**Tile combinado muro+piso (junta natural)** — adjuntar referencia: `prueba 2` (composite manual muro+piso):
+```
+using the reference image, same tile, join the wall with the stone floor. maintain style and colours.
+Maintain exactly the same angles of the wall and floor borders. Maintain dimensions.
+You can add stones or ruble in the union to make it feel more natural.
+```
+→ dio una junta natural con piedritas/rubble en la unión, manteniendo ángulos y dimensiones. ✅
+
 ## Referencias
 - **Kenny's isometric dungeon pack** (CC0, gratis) — buen pack de referencia/relleno.
 - "Game Development Center" GitHub → **tile map starter kit**.
