@@ -10,7 +10,7 @@ const MINIMAP := preload("res://scripts/minimap.gd")
 # Mapas fijos por piso: si existe maps/floor_<N>.tmj|.tmx (N = nº de piso global,
 # con o sin cero adelante), ese piso usa el mapa de Tiled; si no, va procedural.
 # Poné false para forzar todo procedural.
-const USE_FIXED_MAPS := true
+const USE_FIXED_MAPS := false   # iso-merge fase 1: usar generate() procedural iso
 
 # Eclipse: usa las imágenes versión eclipse (fondo/montañas/árboles). false = noche.
 const ECLIPSE := true

@@ -29,6 +29,17 @@ const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 var grid: Array = []
 var rooms: Array[Rect2i] = []
 
+## ISO: renderiza el mismo grid como mundo isométrico (piso + muros traseros en
+## capa hija) con el tileset iso_pixel, en vez del 2.5D top-down. La generación
+## (_gen_grid) y la interfaz (rooms, map_to_local, *_cells) no cambian.
+const ISO := true
+const ISO_TILESET := preload("res://assets/iso/iso_pixel.tres")
+const ISO_FLOOR_SRC := 0
+const ISO_WALL_SE_SRC := 1
+const ISO_WALL_SW_SRC := 2
+var _iso_walls: TileMapLayer
+var _iso_astar := AStarGrid2D.new()
+
 # --- Mapa FIJO (autoreado en Tiled) ---
 # gid del tileset de diseño (maps/design.tsx, firstgid=1): id+1.
 const T_FLOOR := 1
@@ -66,6 +77,13 @@ func generate() -> void:
 	spawn_cell = Vector2i(-1, -1)
 	exit_cell = Vector2i(-1, -1)
 	window_cells.clear()
+	if ISO:
+		_ensure_iso()
+		_gen_grid()
+		_paint_iso()
+		_build_iso_nav()
+		regenerated.emit()
+		return
 	_ensure_tileset()
 	_gen_grid()
 	_paint()
@@ -761,6 +779,83 @@ func _place_windows() -> void:
 ## 2.5D en UNA SOLA capa (sin sub-capas → sin seam entre capas). El contraste
 ## piso / cara-de-ladrillo / tope-oscuro / AO da la profundidad; los topes son
 ## lit pero muy oscuros (0.10) en vez de unshaded.
+# ---------------------------------------------------------------------------
+# RENDER ISO (fase 1 del merge): reusa _gen_grid; pinta piso en esta capa y los
+# muros traseros (frente abierto) en una capa hija. map_to_local pasa a iso solo.
+# ---------------------------------------------------------------------------
+func _ensure_iso() -> void:
+	tile_set = ISO_TILESET
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	z_index = -10
+	y_sort_enabled = false
+	scale = Vector2(0.5, 0.5)   # provisional; se afina en fase 2 (escala/cámara)
+	if _iso_walls == null or not is_instance_valid(_iso_walls):
+		_iso_walls = TileMapLayer.new()
+		_iso_walls.name = "IsoWalls"
+		add_child(_iso_walls)
+	_iso_walls.tile_set = ISO_TILESET
+	_iso_walls.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_iso_walls.y_sort_enabled = true
+	_iso_walls.z_index = 1   # relativo a la capa (-10) → -9: sobre piso, bajo entidades
+
+func _paint_iso() -> void:
+	clear()
+	if _iso_walls:
+		_iso_walls.clear()
+	var gh := grid.size()
+	var gw: int = grid[0].size() if gh > 0 else 0
+	for y in gh:
+		for x in gw:
+			if grid[y][x] != 1:
+				continue
+			set_cell(Vector2i(x, y), ISO_FLOOR_SRC, Vector2i(0, 0))
+			# Muros traseros (frente abierto): vecino "de atrás" no-piso.
+			if y - 1 < 0 or grid[y - 1][x] != 1:
+				_iso_walls.set_cell(Vector2i(x, y), ISO_WALL_SE_SRC, Vector2i(0, 0))
+			elif x - 1 < 0 or grid[y][x - 1] != 1:
+				_iso_walls.set_cell(Vector2i(x, y), ISO_WALL_SW_SRC, Vector2i(0, 0))
+	update_internals()
+	if _iso_walls:
+		_iso_walls.update_internals()
+
+func _build_iso_nav() -> void:
+	var cells := get_used_cells()
+	if cells.is_empty():
+		return
+	var mn := cells[0]
+	var mx := cells[0]
+	for c in cells:
+		mn = mn.min(c)
+		mx = mx.max(c)
+	_iso_astar.region = Rect2i(mn, mx - mn + Vector2i.ONE)
+	_iso_astar.cell_size = Vector2.ONE
+	_iso_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	_iso_astar.update()
+	for yy in range(_iso_astar.region.position.y, _iso_astar.region.end.y):
+		for xx in range(_iso_astar.region.position.x, _iso_astar.region.end.x):
+			_iso_astar.set_point_solid(Vector2i(xx, yy), true)
+	for c in cells:
+		_iso_astar.set_point_solid(c, false)
+	if _iso_walls:
+		for wc in _iso_walls.get_used_cells():
+			if _iso_astar.is_in_boundsv(wc):
+				_iso_astar.set_point_solid(wc, true)
+	Enemy.path_grid = self
+
+## Contrato de pathfinding para los mobs (igual que iso_procgen.next_point).
+func next_point(from_world: Vector2, to_world: Vector2) -> Vector2:
+	var fc := local_to_map(to_local(from_world))
+	var tc := local_to_map(to_local(to_world))
+	if not _iso_astar.is_in_boundsv(fc) or not _iso_astar.is_in_boundsv(tc):
+		return to_world
+	if _iso_astar.is_point_solid(fc) or _iso_astar.is_point_solid(tc):
+		return to_world
+	var path := _iso_astar.get_id_path(fc, tc)
+	if path.size() < 2:
+		return to_world
+	return to_global(map_to_local(path[1]))
+
+
 func _paint() -> void:
 	_clear_faces()
 	clear()
