@@ -1,6 +1,7 @@
 [gd_scene format=4 uid="uid://bghvd14algokt"]
 
-[ext_resource type="TileSet" path="res://assets/iso/iso_dungeon_v20.tres" id="1_hqxm2"]
+[ext_resource type="TileSet" path="res://assets/iso/iso_pixel.tres" id="1_30462"]
+[ext_resource type="TileSet" uid="uid://bdnnt5xvcsrb0" path="res://assets/iso/iso_dungeon_v20.tres" id="1_hqxm2"]
 [ext_resource type="PackedScene" uid="uid://dmqjgvjgb1sgl" path="res://scenes/player.tscn" id="2_wros0"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="3_7bia3"]
 [ext_resource type="Script" uid="uid://dtwqxthlrbhns" path="res://scripts/iso_wall_occluder.gd" id="3_s6dle"]
@@ -15,8 +16,8 @@ y_sort_enabled = true
 texture_filter = 1
 position = Vector2(-118, 54)
 scale = Vector2(0.5, 0.5)
-tile_map_data = PackedByteArray("AAABAP//AAAAAAAAAAACAAAAAAAAAAAAAAACAAEAAAAAAAAAAAADAAIAAAAAAAAAAAABAP3/AAAAAAAAAAACAP7/AAAAAAAAAAACAP//AAAAAAAAAAADAAAAAAAAAAAAAAADAAEAAAAAAAAAAAACAPz/AAAAAAAAAAACAP3/AAAAAAAAAAADAP7/AAAAAAAAAAADAP//AAAAAAAAAAAEAAAAAAAAAAAAAAABAPr/AAAAAAAAAAAEAAEAAAAAAAAAAAAEAAIAAAAAAAAAAAADAAMAAAAAAAAAAAADAAQAAAAAAAAAAAACAAMAAAAAAAAAAAACAAIAAAAAAAAAAAABAAMAAAAAAAAAAAABAAIAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAP7/AAAAAAAAAAABAAEAAAAAAAAAAAADAPz/AAAAAAAAAAADAP3/AAAAAAAAAAAEAPz/AAAAAAAAAAADAPv/AAAAAAAAAAACAPv/AAAAAAAAAAACAPr/AAAAAAAAAAAEAP7/AAAAAAAAAAAEAP//AAAAAAAAAAADAPr/AAAAAAAAAAACAPn/AAAAAAAAAAABAPv/AAAAAAAAAAABAPz/AAAAAAAAAAAAAP3/AAAAAAAAAAACAAQAAAAAAAAAAAABAAAAAAAAAAAAAAABAP7/AAAAAAAAAAAAAAIAAAAAAAAAAAD/////AAAAAAAAAAD///7/AAAAAAAAAAAAAAMAAAAAAAAAAAABAAQAAAAAAAAAAAD//wEAAAAAAAAAAAD//wAAAAAAAAAAAAD///3/AAAAAAAAAAAAAPz/AAAAAAAAAAAFAP3/AAAAAAAAAAA=")
-tile_set = ExtResource("1_hqxm2")
+tile_map_data = PackedByteArray("AAAAAP3/AAAAAAAAAAABAP7/AAAAAAAAAAABAP//AAAAAAAAAAACAP7/AAAAAAAAAAABAP3/AAAAAAAAAAABAPz/AAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAP7/AAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAABAAEAAAAAAAAAAAACAAAAAAAAAAAAAAACAP//AAAAAAAAAAACAP3/AAAAAAAAAAACAPz/AAAAAAAAAAABAPv/AAAAAAAAAAAAAPv/AAAAAAAAAAAAAPz/AAAAAAAAAAAAAPr/AAAAAAAAAAABAPr/AAAAAAAAAAD///3/AAAAAAAAAAD///7/AAAAAAAAAAD///z/AAAAAAAAAAD///v/AAAAAAAAAAA=")
+tile_set = ExtResource("1_30462")
 
 [node name="World" type="Node2D" parent="." unique_id=477460720]
 y_sort_enabled = true
@@ -27,11 +28,18 @@ camera_zoom = 3.0
 [node name="Walls" type="TileMapLayer" parent="World" unique_id=938331211]
 y_sort_enabled = true
 texture_filter = 1
-position = Vector2(-27, -6)
+position = Vector2(-118, 54)
 scale = Vector2(0.5, 0.5)
-tile_map_data = PackedByteArray("AAABAAIAAQAAAAAAAAACAAMAAQAAAAAAAAD//wEAAQAAAAAAAAAAAAIAAQAAAAAAAAAAAAMAAQAAAAAAAAABAAQAAQAAAAAAAAABAAUAAQAAAAAAAAD+/wEAAQAAAAAAAAD//wIAAQAAAAAAAAD//wMAAQAAAAAAAAAAAP3/AQAAAAAAAAABAP7/AQAAAAAAAAAFAP7/AQAAAAAAAAAEAP//AQAAAAAAAAA=")
 tile_set = ExtResource("1_hqxm2")
 script = ExtResource("3_s6dle")
+cutout_enabled = false
+cutout_w = 37.0
+cutout_h = 44.0
+cutout_up_squash = 84.0
+cutout_angle_deg = -22.0
+cutout_soft = 0.3
+cutout_px = 1.0
+cutout_offset_y = 32.0
 
 [node name="MobSpawner" type="Node" parent="World" unique_id=1193951274]
 script = ExtResource("4_hqxm2")

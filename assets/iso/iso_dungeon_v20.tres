@@ -1,32 +1,31 @@
 [gd_resource type="TileSet" format=3 uid="uid://bdnnt5xvcsrb0"]
 
 [ext_resource type="Texture2D" uid="uid://cyv1vxx2u068c" path="res://assets/iso/floor_iso.png" id="1_floor"]
-[ext_resource type="Texture2D" uid="uid://c1we0kqrvhys6" path="res://assets/iso/wall_master.png" id="2_wall"]
+[ext_resource type="Texture2D" uid="uid://c1we0kqrvhys6" path="res://assets/iso/wall_master.png" id="3_a3fjn"]
 [ext_resource type="Texture2D" uid="uid://358jntxhyijc" path="res://assets/iso/wall_master_mirror.png" id="3_wallm"]
 
 [sub_resource type="TileSetAtlasSource" id="floor"]
 texture = ExtResource("1_floor")
 texture_region_size = Vector2i(256, 256)
+0:0/next_alternative_id = 2
 0:0/0 = 0
-
-[sub_resource type="TileSetAtlasSource" id="wall"]
-texture = ExtResource("2_wall")
-texture_region_size = Vector2i(142, 150)
-0:0/0 = 0
-0:0/0/texture_origin = Vector2i(0, 65)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-64, 0, 0, -26, 6, -20, -58, 6)
+0:0/0/texture_origin = Vector2i(0, -6)
 
 [sub_resource type="TileSetAtlasSource" id="wallm"]
 texture = ExtResource("3_wallm")
 texture_region_size = Vector2i(142, 150)
 0:0/0 = 0
-0:0/0/texture_origin = Vector2i(0, 65)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(64, 0, 0, -26, -6, -20, 58, 6)
+0:0/0/texture_origin = Vector2i(55, 67)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(53.689285, -50.66229, -64.841354, -2.5490494, -50.5, 3, 67.709045, -45.245567)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_jr2hx"]
+texture = ExtResource("3_a3fjn")
+texture_region_size = Vector2i(256, 102)
 
 [resource]
 tile_shape = 1
 tile_size = Vector2i(256, 102)
 physics_layer_0/collision_layer = 1
 sources/0 = SubResource("floor")
-sources/1 = SubResource("wall")
 sources/2 = SubResource("wallm")
+sources/3 = SubResource("TileSetAtlasSource_jr2hx")
