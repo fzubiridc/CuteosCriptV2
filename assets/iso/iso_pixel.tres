@@ -1,29 +1,28 @@
 [gd_resource type="TileSet" format=3 uid="uid://bg5a7ki0ir6pn"]
 
 [ext_resource type="Texture2D" uid="uid://4yjmmsrll7kh" path="res://assets/iso/sbs/floor_pixel.png" id="1_floor"]
-[ext_resource type="Texture2D" uid="uid://bag2o8mila7u4" path="res://assets/iso/sbs/wall_px_se.png" id="2_wallse"]
-[ext_resource type="Texture2D" uid="uid://ce4e2ugr0hs7b" path="res://assets/iso/sbs/wall_px_sw.png" id="3_wallsw"]
+[ext_resource type="Texture2D" uid="uid://dg4qud62mu4i3" path="res://assets/iso/walls/wall1/highwall.png" id="2_wallse"]
+[ext_resource type="Texture2D" uid="uid://q8nn6bm721l8" path="res://assets/iso/walls/wall1/highwall_mirror.png" id="3_wallsw"]
 
 [sub_resource type="TileSetAtlasSource" id="floor"]
 texture = ExtResource("1_floor")
 texture_region_size = Vector2i(256, 256)
 0:0/0 = 0
 0:0/0/texture_origin = Vector2i(0, -2)
-0:0/0/navigation_layer_0/polygon = PackedVector2Array(0, -64, 128, 0, 0, 64, -128, 0)
 
 [sub_resource type="TileSetAtlasSource" id="wallse"]
 texture = ExtResource("2_wallse")
-texture_region_size = Vector2i(256, 256)
+texture_region_size = Vector2i(144, 200)
 0:0/0 = 0
-0:0/0/texture_origin = Vector2i(64, 92)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-123.101006, 2.4494965, 0.47795105, -60.53984, -3.423294, -62.288353, -128, 0)
+0:0/0/texture_origin = Vector2i(52, 89)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-128, 0, -108.189095, 9.905454, 19.482285, -54.258858, 0, -64)
 
 [sub_resource type="TileSetAtlasSource" id="wallsw"]
 texture = ExtResource("3_wallsw")
-texture_region_size = Vector2i(256, 256)
+texture_region_size = Vector2i(144, 200)
 0:0/0 = 0
-0:0/0/texture_origin = Vector2i(-64, 94)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(128, 0, 123.355934, 2.322033, -3.0409424, -62.47953, 0, -64)
+0:0/0/texture_origin = Vector2i(-57, 90)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(128, 0, 111.50285, 8.248573, -15.65872, -56.17064, 0, -64)
 
 [resource]
 tile_shape = 1

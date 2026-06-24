@@ -224,6 +224,10 @@ func _physics_process(delta: float) -> void:
 	agent.target_position = target_pos
 	var next := agent.get_next_path_position()
 	var dir := next - global_position
+	# Fallback sin navmesh: si el agente no devuelve ruta útil (next ≈ posición
+	# actual), ir DIRECTO al objetivo. Con navmesh válido esto no se dispara.
+	if dir.length() <= 1.0 and global_position.distance_to(target_pos) > 6.0:
+		dir = target_pos - global_position
 	if global_position.distance_to(target_pos) > 6.0 and dir.length() > 1.0:
 		velocity = dir.normalized() * move_speed
 	else:

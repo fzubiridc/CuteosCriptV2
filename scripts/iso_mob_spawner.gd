@@ -35,6 +35,7 @@ func _spawn() -> void:
 		get_parent().add_child(e)
 		e.global_position = wpos
 		e.home_pos = wpos
+		e.home_rect = Rect2(wpos - Vector2(180, 180), Vector2(360, 360))
 		e.setup_type(MOB_TYPES[spawned % MOB_TYPES.size()])
 		spawned += 1
 	print("[mobspawner] %d mobs sobre el piso" % spawned)

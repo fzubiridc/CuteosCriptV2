@@ -30,7 +30,7 @@ y_sort_enabled = true
 texture_filter = 1
 position = Vector2(-118, 54)
 scale = Vector2(0.5, 0.5)
-tile_map_data = PackedByteArray("AAD///7/AQAAAAAAAAD/////AgAAAAAAAAA=")
+tile_map_data = PackedByteArray("AAD/////AQAAAAAAAAABAAIAAgAAAAAAAAA=")
 tile_set = ExtResource("1_30462")
 script = ExtResource("3_s6dle")
 cutout_enabled = false
