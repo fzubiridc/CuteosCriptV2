@@ -22,13 +22,13 @@ func _ready() -> void:
 
 	_spr = AnimatedSprite2D.new()
 	_spr.sprite_frames = _get_frames(gold)
-	_spr.animation = "chest"
-	_spr.frame = 0                  # cerrado
-	# iso: cofre de 64px → ~0.8; top-down: 32px → 0.55
-	var s := 0.8 if Dungeon.ISO else 0.55
-	_spr.scale = Vector2(s, s)
+	_spr.scale = Vector2(0.55, 0.55)   # iso 64px → ~35px (más chico); top-down 32px → ~18px
 	if Dungeon.ISO:
-		_spr.position = Vector2(0, -10)   # apoyar sobre la celda (centro del sprite arriba del piso)
+		_spr.position = Vector2(0, -8)   # apoyar sobre la celda
+		_spr.play("idle")                # siempre animado (cerrado, lento)
+	else:
+		_spr.animation = "chest"
+		_spr.frame = 0                   # cerrado (estático)
 	add_child(_spr)
 
 	_prompt = Label.new()
@@ -61,7 +61,7 @@ func _open() -> void:
 	_near = false
 	_prompt.visible = false
 	Audio.play("chest")
-	_spr.play("chest")   # 0 → 3 (no loop): animación de apertura
+	_spr.play("open" if Dungeon.ISO else "chest")   # secuencia de apertura (no loop)
 	var sc := get_tree().current_scene
 	var depth := int(GameState.run.get("depth", 1))
 	# Loot garantizado: monedas + un ítem (el dorado da más oro + ítem raro mínimo).
@@ -72,42 +72,37 @@ func _open() -> void:
 	GameState._drop_item(sc, global_position + GameState._roff(10.0), item)
 
 ## SpriteFrames del cofre (común/dorado), compartido. Fallback a carga cruda.
-const ISO_CHEST_FRAMES := 17   # chest_iso_sheet.png = 17 frames de 64px (cerrado→abierto)
-
+## Iso: dos animaciones de 17 frames (64px) → "idle" en loop (siempre animado,
+## lento) + "open" (secuencia de apertura). Top-down: la vieja "chest" (4 frames).
 static func _get_frames(g: bool) -> SpriteFrames:
 	var iso: bool = Dungeon.ISO
 	var key := ("iso_" if iso else "") + ("gold" if g else "common")
 	if _cache.has(key):
 		return _cache[key]
 	var sf := SpriteFrames.new()
-	sf.add_animation("chest")
-	sf.set_animation_loop("chest", false)
-	sf.set_animation_speed("chest", 14.0)
 	if iso:
-		# Cofre iso animado (un solo sheet por ahora; común y dorado comparten).
-		var sheet := _load_sheet("res://assets/iso/chests/chest_iso_sheet.png")
-		if sheet != null:
-			@warning_ignore("integer_division")
-			var fw := sheet.get_width() / ISO_CHEST_FRAMES
-			var fh := sheet.get_height()
-			for i in ISO_CHEST_FRAMES:
-				var at := AtlasTexture.new()
-				at.atlas = sheet
-				at.region = Rect2(i * fw, 0, fw, fh)
-				sf.add_frame("chest", at)
+		_add_strip(sf, "idle", "res://assets/iso/chests/chest_iso_idle.png", 17, true, 6.0)
+		_add_strip(sf, "open", "res://assets/iso/chests/chest_iso_open.png", 17, false, 11.0)
 	else:
-		var sheet := _load_sheet("res://assets/props/chest_%s.png" % key)
-		if sheet != null:
-			@warning_ignore("integer_division")
-			var fw := sheet.get_width() / 4
-			var fh := sheet.get_height()
-			for i in 4:
-				var at := AtlasTexture.new()
-				at.atlas = sheet
-				at.region = Rect2(i * fw, 0, fw, fh)
-				sf.add_frame("chest", at)
+		_add_strip(sf, "chest", "res://assets/props/chest_%s.png" % key, 4, false, 12.0)
 	_cache[key] = sf
 	return sf
+
+static func _add_strip(sf: SpriteFrames, anim: String, path: String, n: int, loop: bool, speed: float) -> void:
+	sf.add_animation(anim)
+	sf.set_animation_loop(anim, loop)
+	sf.set_animation_speed(anim, speed)
+	var sheet := _load_sheet(path)
+	if sheet == null:
+		return
+	@warning_ignore("integer_division")
+	var fw := sheet.get_width() / n
+	var fh := sheet.get_height()
+	for i in n:
+		var at := AtlasTexture.new()
+		at.atlas = sheet
+		at.region = Rect2(i * fw, 0, fw, fh)
+		sf.add_frame(anim, at)
 
 static func _load_sheet(path: String) -> Texture2D:
 	var tex := load(path) as Texture2D
