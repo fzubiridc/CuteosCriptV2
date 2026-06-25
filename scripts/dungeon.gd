@@ -39,6 +39,7 @@ const ISO_WALL_SE_SRC := 1
 const ISO_WALL_SW_SRC := 2
 var _iso_walls: TileMapLayer
 var _iso_astar := AStarGrid2D.new()
+var _iso_bounds: StaticBody2D   # barrera de colisión en el perímetro del piso
 
 # --- Mapa FIJO (autoreado en Tiled) ---
 # gid del tileset de diseño (maps/design.tsx, firstgid=1): id+1.
@@ -82,6 +83,7 @@ func generate() -> void:
 		_gen_grid()
 		_paint_iso()
 		_build_iso_nav()
+		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
 		_place_torches()   # antorchas de sala → luz + sombras proyectadas (map_to_local ya es iso)
 		regenerated.emit()
 		return
@@ -881,6 +883,40 @@ func next_point(from_world: Vector2, to_world: Vector2) -> Vector2:
 	if path.size() < 2:
 		return to_world
 	return to_global(map_to_local(path[1]))
+
+
+## Barrera de colisión en el perímetro del piso: por cada celda VACÍA (grid==0)
+## pegada a piso (cardinal), un CollisionShape que cubre la celda → el player no
+## puede salirse al vacío. Un solo StaticBody2D (capa 1, como los muros).
+func _build_iso_boundaries() -> void:
+	if _iso_bounds != null and is_instance_valid(_iso_bounds):
+		_iso_bounds.queue_free()
+	_iso_bounds = StaticBody2D.new()
+	_iso_bounds.collision_layer = 1
+	_iso_bounds.collision_mask = 0
+	add_child(_iso_bounds)
+	var gh := grid.size()
+	var gw: int = grid[0].size() if gh > 0 else 0
+	var cardinals := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for y in gh:
+		for x in gw:
+			if grid[y][x] != 0:
+				continue
+			var adj := false
+			for d in cardinals:
+				var nx: int = x + d.x
+				var ny: int = y + d.y
+				if nx >= 0 and nx < gw and ny >= 0 and ny < gh and grid[ny][nx] == 1:
+					adj = true
+					break
+			if not adj:
+				continue
+			var cs := CollisionShape2D.new()
+			var rect := RectangleShape2D.new()
+			rect.size = Vector2(256, 128)   # una celda (local; el scale 0.5 del padre lo achica)
+			cs.shape = rect
+			cs.position = map_to_local(Vector2i(x, y))
+			_iso_bounds.add_child(cs)
 
 
 func _paint() -> void:

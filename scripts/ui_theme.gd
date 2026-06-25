@@ -63,6 +63,10 @@ static func get_theme() -> Theme:
 	t.set_color("font_outline_color", "Label", Color(0, 0, 0, 0.9))
 	t.set_constant("outline_size", "Label", 4)
 
+	# Tooltip al hover (item) → fuente más chica que el default 20 (se veía enorme).
+	t.set_font_size("font_size", "TooltipLabel", 14)
+	t.set_font("font", "TooltipLabel", font_body())
+
 	_cached = t
 	return t
 
