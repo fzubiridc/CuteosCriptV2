@@ -31,7 +31,7 @@ var hp := 30
 var kb := Vector2.ZERO   # empuje (knockback) que decae cada frame
 var _shadow: CastShadow   # sombra de contacto (para apagar su _process al dormir)
 var _sleeping := false    # mob lejano "dormido" (gating de performance)
-const WAKE_RANGE := 300.0 # distancia al jugador para activarse (más allá: duerme)
+const WAKE_RANGE := 650.0 # distancia al jugador para activarse (más allá: duerme). Iso zoom-out: cubre la pantalla.
 var aggro := false
 var hit_cd := 0.0
 var flash_t := 0.0

@@ -400,7 +400,11 @@ func _try_attack() -> void:
 	if Rng.unit() * 100.0 < crit_chance(): dmg *= 2
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
-	p.z_height = clampf(spawn.y - tipg.y, 2.0, 12.0)   # altura visual del orbe (acotada)
+	# Altura visual del orbe hasta la punta del staff. El tope escala con el rig
+	# (rig más grande = punta más alta) para que el bolt salga DE la punta, no abajo.
+	p.z_height = clampf(spawn.y - tipg.y, 2.0, 12.0 + rig_scale * 32.0)
+	if Dungeon.ISO:
+		p.scale = Vector2(1.6, 1.6)   # orbe más grande para el zoom-out iso
 	p.setup(spawn, aim, dmg, true, float(w.get("proj_spd", 260)))
 	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
 
