@@ -97,11 +97,17 @@ offset_bottom = 29.0
 horizontal_alignment = 1
 
 [node name="StatsLabel" type="Label" parent="HUD" unique_id=1569438729]
-offset_left = 8.0
-offset_top = 56.0
-offset_right = 9.0
-offset_bottom = 79.0
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -400.0
+offset_top = -30.0
+offset_right = -12.0
+offset_bottom = -12.0
 theme_override_font_sizes/font_size = 14
+horizontal_alignment = 2
 
 [node name="UpgradePanel" type="Control" parent="HUD" unique_id=2024596473]
 visible = false
@@ -204,6 +210,7 @@ offset_top = -173.0
 offset_right = 260.0
 grow_horizontal = 2
 grow_vertical = 0
+scale = Vector2(0.82, 0.82)
 mouse_filter = 2
 
 [node name="Base" type="TextureRect" parent="HUD/XPBar" unique_id=361158096]
@@ -281,10 +288,10 @@ layout_mode = 3
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -272.0
-offset_right = 272.0
-offset_bottom = -16.0
+offset_left = 8.0
+offset_top = -192.0
+offset_right = 192.0
+offset_bottom = -8.0
 grow_vertical = 0
 mouse_filter = 2
 
