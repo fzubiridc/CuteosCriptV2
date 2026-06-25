@@ -40,6 +40,7 @@ const ISO_WALL_SW_SRC := 2
 var _iso_walls: TileMapLayer
 var _iso_astar := AStarGrid2D.new()
 var _iso_bounds: StaticBody2D   # barrera de colisión en el perímetro del piso
+var _iso_wall_mat: ShaderMaterial   # material foot-lit + cutout de los muros iso
 
 # --- Mapa FIJO (autoreado en Tiled) ---
 # gid del tileset de diseño (maps/design.tsx, firstgid=1): id+1.
@@ -799,8 +800,18 @@ func _ensure_iso() -> void:
 	_iso_walls.tile_set = ISO_TILESET
 	_iso_walls.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_iso_walls.y_sort_enabled = true
-	_iso_walls.z_index = 1   # relativo a la capa (-10) → -9: sobre piso, bajo entidades
+	_iso_walls.z_as_relative = false
+	_iso_walls.z_index = 1   # ABSOLUTO, arriba del player/entidades (z=0) → los muros TAPAN
 	_install_iso_occluders()
+	# Material foot-lit + cutout dithered (como iso_test): donde el player queda
+	# detrás del muro, se abre un huequito para verlo igual.
+	_iso_wall_mat = ShaderMaterial.new()
+	_iso_wall_mat.shader = FACE_SHADER
+	var flat := Image.create(1, 1, false, Image.FORMAT_RGB8)
+	flat.set_pixel(0, 0, Color(0.5, 0.5, 1.0))
+	_iso_wall_mat.set_shader_parameter("normal_tex", ImageTexture.create_from_image(flat))
+	_iso_wall_mat.set_shader_parameter("relief_floor", 1.0)
+	_iso_walls.material = _iso_wall_mat
 
 ## Instala OccluderPolygon2D en los tiles de muro (SE+SW) desde su colisión →
 ## los muros proyectan sombra sobre el piso (como en iso_test). Godot 4.6 no
@@ -979,6 +990,8 @@ func _clear_faces() -> void:
 
 ## Pasa las luces (empaquetadas por LightField) al shader de las caras cada frame.
 func _process(_delta: float) -> void:
+	if ISO and _iso_wall_mat != null:
+		_update_iso_wall_mat()
 	if _face_mats.is_empty():
 		return
 	var p := LightField.current_packed()
@@ -989,3 +1002,23 @@ func _process(_delta: float) -> void:
 		mat.set_shader_parameter("relief_floor", relief)
 		mat.set_shader_parameter("light_boost", boost)
 		mat.set_shader_parameter("cap", 1.4 * boost)
+
+## Alimenta luz (foot-lit) + cutout (sigue al player) al material de muros iso.
+func _update_iso_wall_mat() -> void:
+	LightField.apply_lights(_iso_wall_mat, LightField.current_packed())
+	var boost: float = LightCfg.get_v("wall_light")
+	_iso_wall_mat.set_shader_parameter("relief_floor", LightCfg.get_v("wall_relief"))
+	_iso_wall_mat.set_shader_parameter("light_boost", boost)
+	_iso_wall_mat.set_shader_parameter("cap", 1.4 * boost)
+	var pl = GameState.player
+	if pl != null and is_instance_valid(pl):
+		_iso_wall_mat.set_shader_parameter("cutout_on", true)
+		_iso_wall_mat.set_shader_parameter("cutout_pos", pl.global_position - Vector2(0, 40.0))
+		_iso_wall_mat.set_shader_parameter("cutout_w", 55.0)
+		_iso_wall_mat.set_shader_parameter("cutout_h", 95.0)
+		_iso_wall_mat.set_shader_parameter("cutout_up_squash", 4.0)
+		_iso_wall_mat.set_shader_parameter("cutout_rot", deg_to_rad(22.0))
+		_iso_wall_mat.set_shader_parameter("cutout_soft", 0.4)
+		_iso_wall_mat.set_shader_parameter("cutout_px", 2.0)
+	else:
+		_iso_wall_mat.set_shader_parameter("cutout_on", false)
