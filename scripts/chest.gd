@@ -22,11 +22,18 @@ func _ready() -> void:
 
 	_spr = AnimatedSprite2D.new()
 	_spr.sprite_frames = _get_frames(gold)
-	_spr.scale = Vector2(0.55, 0.55)   # iso 64px → ~35px (más chico); top-down 32px → ~18px
 	if Dungeon.ISO:
-		_spr.position = Vector2(0, -8)   # apoyar sobre la celda
-		_spr.play("idle")                # siempre animado (cerrado, lento)
+		if gold:
+			_spr.scale = Vector2(0.55, 0.55)   # mágico 64px
+			_spr.position = Vector2(0, -8)
+			_spr.play("idle")                  # siempre animado (cerrado)
+		else:
+			_spr.scale = Vector2(0.42, 0.42)   # clásico 132×172
+			_spr.position = Vector2(0, -22)
+			_spr.animation = "open"
+			_spr.frame = 0                     # cerrado estático (frame 0 de la apertura)
 	else:
+		_spr.scale = Vector2(0.55, 0.55)
 		_spr.animation = "chest"
 		_spr.frame = 0                   # cerrado (estático)
 	add_child(_spr)
@@ -62,8 +69,11 @@ func _open() -> void:
 	_prompt.visible = false
 	Audio.play("chest")
 	if Dungeon.ISO:
-		_spr.play("open")   # apertura → al terminar, queda en "open_idle" (loop glow)
-		_spr.animation_finished.connect(func() -> void: _spr.play("open_idle"), CONNECT_ONE_SHOT)
+		_spr.play("open")   # apertura
+		if gold:
+			# mágico: al terminar la apertura, queda en "open_idle" (loop glow)
+			_spr.animation_finished.connect(func() -> void: _spr.play("open_idle"), CONNECT_ONE_SHOT)
+		# clásico: queda automáticamente en el último frame (abierto, sin loop)
 	else:
 		_spr.play("chest")
 	var sc := get_tree().current_scene
@@ -85,9 +95,14 @@ static func _get_frames(g: bool) -> SpriteFrames:
 		return _cache[key]
 	var sf := SpriteFrames.new()
 	if iso:
-		_add_strip(sf, "idle", "res://assets/iso/chests/chest_iso_idle.png", 17, true, 6.0)
-		_add_strip(sf, "open", "res://assets/iso/chests/chest_iso_open.png", 17, false, 11.0)
-		_add_strip(sf, "open_idle", "res://assets/iso/chests/chest_iso_openidle.png", 17, true, 7.0)
+		if g:
+			# Mágico (dorado/raro): shimmer cerrado → apertura → glow abierto (loop).
+			_add_strip(sf, "idle", "res://assets/iso/chests/chest_iso_idle.png", 17, true, 6.0)
+			_add_strip(sf, "open", "res://assets/iso/chests/chest_iso_open.png", 17, false, 11.0)
+			_add_strip(sf, "open_idle", "res://assets/iso/chests/chest_iso_openidle.png", 17, true, 7.0)
+		else:
+			# Clásico (común, primeros niveles): cerrado estático → apertura → queda abierto.
+			_add_strip(sf, "open", "res://assets/iso/chests/chest_classic_open.png", 17, false, 12.0)
 	else:
 		_add_strip(sf, "chest", "res://assets/props/chest_%s.png" % key, 4, false, 12.0)
 	_cache[key] = sf
