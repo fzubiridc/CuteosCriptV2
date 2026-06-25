@@ -101,6 +101,11 @@ func _build_ui() -> void:
 	_mini_tex = _make_map_rect(_mini_box)
 	_mini_exit = _make_dot(_mini_tex, C_EXIT, 3)
 	_mini_player = _make_dot(_mini_tex, C_PLAYER, 4)
+	# Recorte circular + anillo ornamental dorado (todo en el shader, sin asset).
+	var circ := ShaderMaterial.new()
+	circ.shader = preload("res://shaders/minimap_circle.gdshader")
+	bg.material = circ
+	_mini_tex.material = circ
 
 	# --- Mapa completo (tecla M) ---
 	_full_root = Control.new()
