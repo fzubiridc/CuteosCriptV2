@@ -82,6 +82,7 @@ func generate() -> void:
 		_gen_grid()
 		_paint_iso()
 		_build_iso_nav()
+		_place_torches()   # antorchas de sala → luz + sombras proyectadas (map_to_local ya es iso)
 		regenerated.emit()
 		return
 	_ensure_tileset()
@@ -797,6 +798,32 @@ func _ensure_iso() -> void:
 	_iso_walls.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_iso_walls.y_sort_enabled = true
 	_iso_walls.z_index = 1   # relativo a la capa (-10) → -9: sobre piso, bajo entidades
+	_install_iso_occluders()
+
+## Instala OccluderPolygon2D en los tiles de muro (SE+SW) desde su colisión →
+## los muros proyectan sombra sobre el piso (como en iso_test). Godot 4.6 no
+## persiste el occluder per-tile en el .tres, por eso se setea en runtime.
+func _install_iso_occluders() -> void:
+	var ts := ISO_TILESET
+	if ts.get_occlusion_layers_count() == 0:
+		ts.add_occlusion_layer()
+	ts.set_occlusion_layer_light_mask(0, 1)
+	for sid in [ISO_WALL_SE_SRC, ISO_WALL_SW_SRC]:
+		var src := ts.get_source(sid) as TileSetAtlasSource
+		if src == null:
+			continue
+		var td := src.get_tile_data(Vector2i(0, 0), 0)
+		if td == null or td.get_collision_polygons_count(0) == 0:
+			continue
+		var pts := td.get_collision_polygon_points(0, 0)
+		if pts.is_empty():
+			continue
+		var occ := OccluderPolygon2D.new()
+		occ.closed = true
+		occ.cull_mode = OccluderPolygon2D.CULL_DISABLED
+		occ.polygon = pts
+		td.set_occluder_polygons_count(0, 1)
+		td.set_occluder_polygon(0, 0, occ)
 
 func _paint_iso() -> void:
 	clear()

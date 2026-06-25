@@ -58,6 +58,7 @@ func _ready() -> void:
 	_contact.texture = _get_blob()
 	_contact.centered = true            # centrado en los pies (no sale de ellos)
 	_contact.light_mask = 0
+	_contact.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR   # blob suave, no pixelado
 	_contact.material = _unshaded()
 	add_child(_contact)
 
