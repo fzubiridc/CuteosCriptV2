@@ -203,10 +203,11 @@ func _spawn_merchant() -> void:
 
 # --- Cofres ---
 func _spawn_chests() -> void:
-	if dungeon.rooms.size() < 2:
+	if dungeon.rooms.is_empty():
 		return
-	for i in Rng.range_i(1, 2):
-		var room: Rect2i = dungeon.rooms[Rng.range_i(1, dungeon.rooms.size() - 1)]
+	# iso-merge (test): un cofre por sala para verlos fácil; bajar después.
+	for ri in dungeon.rooms.size():
+		var room: Rect2i = dungeon.rooms[ri]
 		var ch := Chest.new()
 		ch.gold = Rng.chance(0.22)
 		add_child(ch)
