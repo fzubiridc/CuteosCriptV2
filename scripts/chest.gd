@@ -24,7 +24,11 @@ func _ready() -> void:
 	_spr.sprite_frames = _get_frames(gold)
 	_spr.animation = "chest"
 	_spr.frame = 0                  # cerrado
-	_spr.scale = Vector2(0.55, 0.55)  # 32px → ~18px
+	# iso: cofre de 64px → ~0.8; top-down: 32px → 0.55
+	var s := 0.8 if Dungeon.ISO else 0.55
+	_spr.scale = Vector2(s, s)
+	if Dungeon.ISO:
+		_spr.position = Vector2(0, -10)   # apoyar sobre la celda (centro del sprite arriba del piso)
 	add_child(_spr)
 
 	_prompt = Label.new()
@@ -68,24 +72,40 @@ func _open() -> void:
 	GameState._drop_item(sc, global_position + GameState._roff(10.0), item)
 
 ## SpriteFrames del cofre (común/dorado), compartido. Fallback a carga cruda.
+const ISO_CHEST_FRAMES := 17   # chest_iso_sheet.png = 17 frames de 64px (cerrado→abierto)
+
 static func _get_frames(g: bool) -> SpriteFrames:
-	var key := "gold" if g else "common"
+	var iso: bool = Dungeon.ISO
+	var key := ("iso_" if iso else "") + ("gold" if g else "common")
 	if _cache.has(key):
 		return _cache[key]
-	var sheet := _load_sheet("res://assets/props/chest_%s.png" % key)
 	var sf := SpriteFrames.new()
 	sf.add_animation("chest")
 	sf.set_animation_loop("chest", false)
-	sf.set_animation_speed("chest", 12.0)
-	if sheet != null:
-		@warning_ignore("integer_division")
-		var fw := sheet.get_width() / 4
-		var fh := sheet.get_height()
-		for i in 4:
-			var at := AtlasTexture.new()
-			at.atlas = sheet
-			at.region = Rect2(i * fw, 0, fw, fh)
-			sf.add_frame("chest", at)
+	sf.set_animation_speed("chest", 14.0)
+	if iso:
+		# Cofre iso animado (un solo sheet por ahora; común y dorado comparten).
+		var sheet := _load_sheet("res://assets/iso/chests/chest_iso_sheet.png")
+		if sheet != null:
+			@warning_ignore("integer_division")
+			var fw := sheet.get_width() / ISO_CHEST_FRAMES
+			var fh := sheet.get_height()
+			for i in ISO_CHEST_FRAMES:
+				var at := AtlasTexture.new()
+				at.atlas = sheet
+				at.region = Rect2(i * fw, 0, fw, fh)
+				sf.add_frame("chest", at)
+	else:
+		var sheet := _load_sheet("res://assets/props/chest_%s.png" % key)
+		if sheet != null:
+			@warning_ignore("integer_division")
+			var fw := sheet.get_width() / 4
+			var fh := sheet.get_height()
+			for i in 4:
+				var at := AtlasTexture.new()
+				at.atlas = sheet
+				at.region = Rect2(i * fw, 0, fw, fh)
+				sf.add_frame("chest", at)
 	_cache[key] = sf
 	return sf
 

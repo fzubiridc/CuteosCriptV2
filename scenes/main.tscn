@@ -67,6 +67,8 @@ script = ExtResource("2_jyhfs")
 
 [node name="Player" parent="." unique_id=1147600288 instance=ExtResource("3_jkv2x")]
 position = Vector2(160, 112)
+camera_zoom = 2.0
+rig_scale = 0.8
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=417060991]
 layer = 2
