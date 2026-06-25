@@ -28,8 +28,8 @@ func _ready() -> void:
 			_spr.position = Vector2(0, -8)
 			_spr.play("idle")                  # siempre animado (cerrado)
 		else:
-			_spr.scale = Vector2(0.14, 0.14)   # clásico 132×172 (~1/3)
-			_spr.position = Vector2(0, -7)
+			_spr.scale = Vector2(0.24, 0.24)   # clásico 132×172
+			_spr.position = Vector2(0, -11)
 			_spr.animation = "open"
 			_spr.frame = 0                     # cerrado estático (frame 0 de la apertura)
 	else:
@@ -37,6 +37,27 @@ func _ready() -> void:
 		_spr.animation = "chest"
 		_spr.frame = 0                   # cerrado (estático)
 	add_child(_spr)
+
+	if Dungeon.ISO:
+		# (3) Colisión física: el player NO atraviesa el cofre (capa 1 = muros).
+		var body := StaticBody2D.new()
+		body.collision_layer = 1
+		body.collision_mask = 0
+		var bsh := CollisionShape2D.new()
+		var bc := CircleShape2D.new()
+		bc.radius = 7.0
+		bsh.shape = bc
+		body.add_child(bsh)
+		add_child(body)
+		# (11) Luz propia tenue → se ve de lejos.
+		var lt := PointLight2D.new()
+		lt.texture = load("res://assets/fx/light_pool.tres")
+		lt.color = Color(1.0, 0.82, 0.45) if not gold else Color(0.55, 0.7, 1.0)
+		lt.energy = 0.6
+		lt.texture_scale = 0.35
+		lt.shadow_enabled = false
+		lt.position = Vector2(0, -6)
+		add_child(lt)
 
 	_prompt = Label.new()
 	_prompt.text = "[E] Abrir"

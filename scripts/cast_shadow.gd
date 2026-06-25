@@ -47,8 +47,10 @@ static func _get_blob() -> Texture2D:
 	for y in s:
 		for x in s:
 			var d := Vector2(x, y).distance_to(c) / maxd
-			var a := clampf(1.0 - d, 0.0, 1.0)
-			a = a * a                      # falloff suave (difuso)
+			# Núcleo sólido (oscuro) hasta ~55% del radio, borde suave después →
+			# sombra de contacto bien marcada debajo, no un puntito difuso.
+			var a := clampf((1.0 - d) / 0.45, 0.0, 1.0)
+			a = pow(a, 0.7)
 			img.set_pixel(x, y, Color(1, 1, 1, a))
 	_blob_tex = ImageTexture.create_from_image(img)
 	return _blob_tex
