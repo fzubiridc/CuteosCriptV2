@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://gsgyqyn35cv2" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
 [ext_resource type="Shader" uid="uid://cpvvrr8yll4f4" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
 [ext_resource type="Texture2D" uid="uid://dbayja4kf0sbf" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
+[ext_resource type="Script" path="res://scripts/dash_indicator.gd" id="14_jbj1t"]
 [ext_resource type="FontFile" uid="uid://co1gbiwyk3hb1" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
 [ext_resource type="Texture2D" uid="uid://cpckfmus5bp0" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
 [ext_resource type="Texture2D" uid="uid://7x6se4h4nse3" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
@@ -435,6 +436,19 @@ offset_top = 320.0
 offset_right = 696.0
 offset_bottom = 376.0
 text = "Reiniciar"
+
+[node name="DashCooldown" type="Control" parent="HUD" unique_id=1332793607]
+layout_mode = 3
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -74.0
+offset_right = -252.0
+offset_bottom = -26.0
+script = ExtResource("14_jbj1t")
 
 [node name="Ambient" type="CanvasModulate" parent="." unique_id=2006469636]
 color = Color(0.32, 0.33, 0.42, 1)
