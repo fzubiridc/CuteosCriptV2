@@ -28,8 +28,8 @@ func _ready() -> void:
 			_spr.position = Vector2(0, -8)
 			_spr.play("idle")                  # siempre animado (cerrado)
 		else:
-			_spr.scale = Vector2(0.42, 0.42)   # clásico 132×172
-			_spr.position = Vector2(0, -22)
+			_spr.scale = Vector2(0.14, 0.14)   # clásico 132×172 (~1/3)
+			_spr.position = Vector2(0, -7)
 			_spr.animation = "open"
 			_spr.frame = 0                     # cerrado estático (frame 0 de la apertura)
 	else:
