@@ -61,7 +61,11 @@ func _open() -> void:
 	_near = false
 	_prompt.visible = false
 	Audio.play("chest")
-	_spr.play("open" if Dungeon.ISO else "chest")   # secuencia de apertura (no loop)
+	if Dungeon.ISO:
+		_spr.play("open")   # apertura → al terminar, queda en "open_idle" (loop glow)
+		_spr.animation_finished.connect(func() -> void: _spr.play("open_idle"), CONNECT_ONE_SHOT)
+	else:
+		_spr.play("chest")
 	var sc := get_tree().current_scene
 	var depth := int(GameState.run.get("depth", 1))
 	# Loot garantizado: monedas + un ítem (el dorado da más oro + ítem raro mínimo).
@@ -83,6 +87,7 @@ static func _get_frames(g: bool) -> SpriteFrames:
 	if iso:
 		_add_strip(sf, "idle", "res://assets/iso/chests/chest_iso_idle.png", 17, true, 6.0)
 		_add_strip(sf, "open", "res://assets/iso/chests/chest_iso_open.png", 17, false, 11.0)
+		_add_strip(sf, "open_idle", "res://assets/iso/chests/chest_iso_openidle.png", 17, true, 7.0)
 	else:
 		_add_strip(sf, "chest", "res://assets/props/chest_%s.png" % key, 4, false, 12.0)
 	_cache[key] = sf
