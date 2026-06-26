@@ -15,23 +15,11 @@ const WALL_ATLAS := Vector2i(0, 0)
 const OCC_LAYER := 0
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
-## Cutout: el muro abre una cúpula dithered donde el player queda detrás.
-@export var cutout_enabled := true
-@export var cutout_w := 45.0            # medio-ancho del hueco (world units)
-@export var cutout_h := 85.0            # alto de la cúpula hacia abajo, cabeza→pies (world units)
-@export var cutout_up_squash := 4.0     # cuánto se cierra por encima de la cabeza (más alto = no sube a muros de atrás)
-@export var cutout_angle_deg := 22.0    # rota el hueco para alinear el squash a la cara del muro iso (±)
-@export var cutout_soft := 0.4          # ancho del anillo dithered (fracción 0..1)
-@export var cutout_px := 2.0            # tamaño de celda del dither (más alto = más gordo)
-@export var cutout_offset_y := 62.0     # subir el ancla del pie a la CABEZA
-
 var _mat: ShaderMaterial
-var _player: Node2D
 
 func _ready() -> void:
 	_install_occluder()
 	_setup_face_material()
-	_player = get_node_or_null("../Player") as Node2D
 
 func _setup_face_material() -> void:
 	_mat = ShaderMaterial.new()
@@ -50,18 +38,6 @@ func _process(_dt: float) -> void:
 	_mat.set_shader_parameter("relief_floor", LightCfg.get_v("wall_relief"))
 	_mat.set_shader_parameter("light_boost", boost)
 	_mat.set_shader_parameter("cap", 1.4 * boost)
-
-	# Cutout dithered siguiendo al player.
-	var on := cutout_enabled and is_instance_valid(_player)
-	_mat.set_shader_parameter("cutout_on", on)
-	if on:
-		_mat.set_shader_parameter("cutout_pos", _player.global_position - Vector2(0, cutout_offset_y))
-		_mat.set_shader_parameter("cutout_w", cutout_w)
-		_mat.set_shader_parameter("cutout_h", cutout_h)
-		_mat.set_shader_parameter("cutout_up_squash", cutout_up_squash)
-		_mat.set_shader_parameter("cutout_rot", deg_to_rad(cutout_angle_deg))
-		_mat.set_shader_parameter("cutout_soft", cutout_soft)
-		_mat.set_shader_parameter("cutout_px", cutout_px)
 
 func _install_occluder() -> void:
 	var ts := tile_set

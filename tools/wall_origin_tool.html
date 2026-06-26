@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wall Origin Tool — Cárcel del Cuteo (iso)</title>
+<style>
+  :root{
+    --bg:#14121a; --panel:#1d1a25; --panel2:#262130; --line:#3a3447;
+    --txt:#e7e2f0; --dim:#9a8fb0; --accent:#7bd4ff; --accent2:#ffd47b; --good:#9fe39f;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  header{padding:8px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex:0 0 auto}
+  header h1{font-size:14px;margin:0;font-weight:600;letter-spacing:.3px}
+  header .hint{color:var(--dim);font-size:12px}
+  main{flex:1;display:flex;min-height:0}
+  .col{display:flex;flex-direction:column;min-height:0}
+  #left{width:210px;border-right:1px solid var(--line);overflow:auto;flex:0 0 auto}
+  #center{flex:1;min-width:0;position:relative;background:#0e0c14}
+  #right{width:300px;border-left:1px solid var(--line);overflow:auto;flex:0 0 auto;padding:12px}
+  .sec{padding:10px 12px;border-bottom:1px solid var(--line)}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:0 0 8px}
+  .piece{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;border-radius:6px;cursor:pointer;margin-bottom:3px;border:1px solid transparent}
+  .piece:hover{background:var(--panel2)}
+  .piece.sel{background:var(--panel2);border-color:var(--accent)}
+  .piece .nm{font-weight:600}
+  .piece .ed{color:var(--dim);font-size:11px}
+  .piece .ov{color:var(--accent);font-variant-numeric:tabular-nums;font-size:11px}
+  .toolbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:5;pointer-events:none}
+  .toolbar>*{pointer-events:auto}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 9px;display:flex;gap:6px;align-items:center;font-size:12px}
+  .chip label{color:var(--dim);cursor:pointer;user-select:none}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;font-family:inherit}
+  button:hover{border-color:var(--accent)}
+  button.primary{border-color:var(--accent);color:var(--accent)}
+  canvas{display:block;width:100%;height:100%}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .row label{width:60px;color:var(--dim)}
+  input[type=number]{width:80px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:5px 7px;font-family:inherit;font-variant-numeric:tabular-nums}
+  textarea{width:100%;height:150px;background:#0e0c14;border:1px solid var(--line);color:var(--good);border-radius:6px;padding:8px;font-family:Consolas,monospace;font-size:11.5px;resize:vertical}
+  .kbd{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-family:Consolas,monospace;font-size:11px;color:var(--accent2)}
+  .muted{color:var(--dim);font-size:11.5px;line-height:1.55}
+  .bigval{font-size:18px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧱 Wall Origin Tool</h1>
+  <span class="hint">Arrastrá la imagen sobre el rombo · <span class="kbd">flechas</span> nudge 1px · <span class="kbd">Shift</span>+flechas 10px · rueda = zoom</span>
+</header>
+<main>
+  <div id="left" class="col">
+    <div class="sec">
+      <h2>Piezas (8)</h2>
+      <div id="pieceList"></div>
+    </div>
+    <div class="sec">
+      <h2>Referencia</h2>
+      <div class="muted">El rombo gris es la celda de piso (256×128). La <b style="color:var(--accent)">arista celeste</b> es donde apoya la base de esta pieza. Alineá el pie del muro con esa arista.</div>
+    </div>
+  </div>
+
+  <div id="center" class="col">
+    <div class="toolbar">
+      <div class="chip"><input type="checkbox" id="cbNeighbors" checked><label for="cbNeighbors">Vecinos</label></div>
+      <div class="chip"><input type="checkbox" id="cbGrid" checked><label for="cbGrid">Aristas</label></div>
+      <div class="chip"><input type="checkbox" id="cbImg" checked><label for="cbImg">Imagen</label></div>
+      <div class="chip"><label>α</label><input type="range" id="alpha" min="0.2" max="1" step="0.05" value="0.92" style="width:70px"></div>
+      <button id="btnReset">Centrar vista</button>
+      <button id="btnResetOrigin">Reset origin pieza</button>
+    </div>
+    <canvas id="cv"></canvas>
+  </div>
+
+  <div id="right" class="col">
+    <div style="margin-bottom:14px">
+      <div class="muted" style="margin-bottom:4px">Pieza: <b id="curName" style="color:var(--txt)">—</b></div>
+      <div class="bigval">origin = (<span id="curX">0</span>, <span id="curY">0</span>)</div>
+    </div>
+    <div class="row"><label>origin.x</label><input type="number" id="inX" step="1"><span class="muted">+x ⇒ ←</span></div>
+    <div class="row"><label>origin.y</label><input type="number" id="inY" step="1"><span class="muted">+y ⇒ ↑</span></div>
+
+    <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Exportar (pasámelo a mí)</h2>
+    <div class="row" style="gap:6px">
+      <button class="primary" id="btnCopyJson">Copiar JSON</button>
+      <button id="btnCopyTres">Copiar bloque .tres</button>
+    </div>
+    <textarea id="out" readonly></textarea>
+
+    <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Importar estado</h2>
+    <textarea id="imp" placeholder='Pegá un JSON {"wall_nw":[52,89],...} y apretá Aplicar' style="height:80px;color:var(--accent2)"></textarea>
+    <div class="row" style="margin-top:6px"><button id="btnImport">Aplicar import</button></div>
+
+    <div class="muted" style="margin-top:14px">Si una imagen no carga (ruta), arrastrá el PNG correspondiente sobre el canvas con la pieza seleccionada.</div>
+  </div>
+</main>
+
+<script>
+//==== Datos de las 8 piezas (seeds = valores actuales del .tres) ====
+const IMG_DIR='../assets/iso/walls/wall1/';
+const DEFAULTS=[
+  {key:'wall_nw',      src:1, file:'highwall.png',     w:144,h:200, o:[52,89],  edges:['NW']},
+  {key:'wall_ne',      src:2, file:'wall_ne.png',      w:144,h:200, o:[-57,89], edges:['NE']},
+  {key:'wall_se',      src:3, file:'highwall.png',     w:144,h:200, o:[52,25],  edges:['SE']},
+  {key:'wall_sw',      src:4, file:'wall_ne.png',      w:144,h:200, o:[-57,25], edges:['SW']},
+  {key:'corner_top',   src:5, file:'corner_nw_ne.png', w:257,h:200, o:[128,89], edges:['NW','NE']},
+  {key:'corner_bottom',src:6, file:'corner_se_sw.png', w:256,h:200, o:[128,25], edges:['SE','SW']},
+  {key:'corner_left',  src:7, file:'corner_nw_sw.png', w:144,h:256, o:[52,57],  edges:['NW','SW']},
+  {key:'corner_right', src:8, file:'corner_ne_se.png', w:144,h:256, o:[-57,57], edges:['NE','SE']},
+];
+
+//==== Geometría iso (coords de mundo relativas al centro de celda) ====
+const V={T:[0,-64],R:[128,0],B:[0,64],L:[-128,0]};
+const EDGE_VERTS={NW:['L','T'],NE:['T','R'],SE:['R','B'],SW:['B','L']};
+const NEIGH={NW:[-128,-64],NE:[128,-64],SE:[128,64],SW:[-128,64]};
+
+//==== Estado ====
+const STORE='cuteos_wall_origins_v1';
+let pieces=DEFAULTS.map(p=>({...p,o:[...p.o]}));
+(function load(){ try{const s=JSON.parse(localStorage.getItem(STORE)||'{}');
+  pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.o=[s[p.key][0]|0, s[p.key][1]|0]; });}catch(e){} })();
+let sel=0;
+let Z=1.7, pan=[0,0];
+const imgs={}; // key -> HTMLImageElement (loaded)
+
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+function fit(){ const r=cv.parentElement.getBoundingClientRect();
+  cv.width=r.width; cv.height=r.height; draw(); }
+window.addEventListener('resize',fit);
+
+//==== Carga de imágenes ====
+function loadImg(p){ const im=new Image(); im.onload=()=>{imgs[p.key]=im; draw();};
+  im.onerror=()=>{imgs[p.key]=null;}; im.src=IMG_DIR+p.file; }
+pieces.forEach(loadImg);
+
+//==== Helpers de proyección ====
+function cc(){ return [cv.width/2+pan[0], cv.height/2+pan[1]]; }
+function w2s(p){ const c=cc(); return [c[0]+Z*p[0], c[1]+Z*p[1]]; }
+function diamondPts(center){ return [V.T,V.R,V.B,V.L].map(v=>w2s([center[0]+v[0],center[1]+v[1]])); }
+function poly(pts,close=true){ ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])); if(close)ctx.closePath(); }
+
+//==== Bounding box en pantalla de la imagen de la pieza actual ====
+function imgRect(p){ const center=w2s([-p.o[0],-p.o[1]]);
+  return {x:center[0]-Z*p.w/2, y:center[1]-Z*p.h/2, w:Z*p.w, h:Z*p.h}; }
+
+//==== Dibujo ====
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#0e0c14'; ctx.fillRect(0,0,cv.width,cv.height);
+  const p=pieces[sel];
+
+  // vecinos
+  if(document.getElementById('cbNeighbors').checked){
+    for(const k in NEIGH){ poly(diamondPts(NEIGH[k]));
+      ctx.fillStyle='rgba(120,110,150,0.06)'; ctx.fill();
+      ctx.strokeStyle='rgba(120,110,150,0.28)'; ctx.lineWidth=1; ctx.stroke();
+      const m=w2s([NEIGH[k][0],NEIGH[k][1]]);
+      ctx.fillStyle='rgba(150,140,180,0.45)'; ctx.font='11px monospace';
+      ctx.textAlign='center'; ctx.fillText('celda '+k, m[0], m[1]+3);
+    }
+  }
+
+  // celda central
+  poly(diamondPts([0,0]));
+  ctx.fillStyle='rgba(180,170,210,0.10)'; ctx.fill();
+  ctx.strokeStyle='rgba(180,170,210,0.5)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // aristas
+  if(document.getElementById('cbGrid').checked){
+    for(const e in EDGE_VERTS){
+      const a=w2s(V[EDGE_VERTS[e][0]]), b=w2s(V[EDGE_VERTS[e][1]]);
+      const active=p.edges.includes(e);
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+      ctx.strokeStyle=active?'#7bd4ff':'rgba(180,170,210,0.35)';
+      ctx.lineWidth=active?4:1.5; ctx.stroke();
+      const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      ctx.fillStyle=active?'#7bd4ff':'rgba(180,170,210,0.6)';
+      ctx.font=(active?'bold ':'')+'12px monospace'; ctx.textAlign='center';
+      ctx.fillText(e, mid[0]+(e.includes('W')?-16:16), mid[1]);
+    }
+  }
+
+  // imagen del muro
+  if(document.getElementById('cbImg').checked && imgs[p.key]){
+    const r=imgRect(p);
+    ctx.globalAlpha=parseFloat(document.getElementById('alpha').value);
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(imgs[p.key], r.x, r.y, r.w, r.h);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(255,212,123,0.55)'; ctx.lineWidth=1;
+    ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
+  }
+
+  // centro de celda (ancla)
+  const o=w2s([0,0]);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(o[0]-7,o[1]); ctx.lineTo(o[0]+7,o[1]);
+  ctx.moveTo(o[0],o[1]-7); ctx.lineTo(o[0],o[1]+7); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='10px monospace'; ctx.textAlign='left';
+  ctx.fillText('centro celda (ancla)', o[0]+10, o[1]-6);
+}
+
+//==== Interacción canvas ====
+let drag=null;
+cv.addEventListener('mousedown',e=>{
+  const mx=e.offsetX,my=e.offsetY; const p=pieces[sel]; const r=imgRect(p);
+  const onImg=document.getElementById('cbImg').checked && mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h;
+  drag={mode:onImg?'img':'pan', sx:mx, sy:my, so:[...p.o], sp:[...pan]};
+});
+window.addEventListener('mousemove',e=>{
+  if(!drag) return; const rect=cv.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  if(drag.mode==='img'){ const p=pieces[sel];
+    // mover imagen ⇒ origin = origin0 - delta/Z  (imagen = centro - origin)
+    p.o=[ Math.round(drag.so[0]-(mx-drag.sx)/Z), Math.round(drag.so[1]-(my-drag.sy)/Z) ];
+    syncUI();
+  } else { pan=[drag.sp[0]+(mx-drag.sx), drag.sp[1]+(my-drag.sy)]; }
+  draw();
+});
+window.addEventListener('mouseup',()=>{ if(drag&&drag.mode==='img') save(); drag=null; });
+cv.addEventListener('wheel',e=>{ e.preventDefault();
+  const f=e.deltaY<0?1.1:1/1.1; Z=Math.max(0.4,Math.min(6,Z*f)); draw();
+},{passive:false});
+
+//==== Teclado (nudge) — mueve la IMAGEN en la dirección de la flecha ====
+window.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const p=pieces[sel]; const step=e.shiftKey?10:1; let used=true;
+  if(e.key==='ArrowRight') p.o[0]-=step;       // imagen → derecha
+  else if(e.key==='ArrowLeft') p.o[0]+=step;   // imagen → izquierda
+  else if(e.key==='ArrowDown') p.o[1]-=step;   // imagen → abajo
+  else if(e.key==='ArrowUp') p.o[1]+=step;     // imagen → arriba
+  else used=false;
+  if(used){ e.preventDefault(); syncUI(); draw(); save(); }
+});
+
+//==== Drag & drop de PNG (fallback si la ruta no carga) ====
+cv.addEventListener('dragover',e=>e.preventDefault());
+cv.addEventListener('drop',e=>{ e.preventDefault();
+  const f=e.dataTransfer.files[0]; if(!f) return;
+  const im=new Image(); im.onload=()=>{ const p=pieces[sel]; imgs[p.key]=im;
+    p.w=im.naturalWidth; p.h=im.naturalHeight; draw(); };
+  im.src=URL.createObjectURL(f);
+});
+
+//==== UI ====
+function buildList(){ const el=document.getElementById('pieceList'); el.innerHTML='';
+  pieces.forEach((p,i)=>{ const d=document.createElement('div');
+    d.className='piece'+(i===sel?' sel':''); d.onclick=()=>{sel=i;syncUI();draw();};
+    d.innerHTML=`<span><span class="nm">${p.key}</span><br><span class="ed">${p.edges.join('+')} · ${p.w}×${p.h}</span></span><span class="ov" id="ov_${p.key}">${p.o[0]},${p.o[1]}</span>`;
+    el.appendChild(d); });
+}
+function syncUI(){
+  const p=pieces[sel];
+  document.querySelectorAll('.piece').forEach((d,i)=>d.classList.toggle('sel',i===sel));
+  document.getElementById('curName').textContent=p.key;
+  document.getElementById('curX').textContent=p.o[0];
+  document.getElementById('curY').textContent=p.o[1];
+  document.getElementById('inX').value=p.o[0];
+  document.getElementById('inY').value=p.o[1];
+  pieces.forEach(q=>{const ov=document.getElementById('ov_'+q.key); if(ov) ov.textContent=q.o[0]+','+q.o[1];});
+  buildOut();
+}
+function buildOut(){
+  const j={}; pieces.forEach(p=>j[p.key]=[p.o[0],p.o[1]]);
+  const tres=pieces.map(p=>`# src ${p.src} ${p.key}\n0:0/0/texture_origin = Vector2i(${p.o[0]}, ${p.o[1]})`).join('\n');
+  document.getElementById('out').value=JSON.stringify(j);
+  document.getElementById('out').dataset.tres=tres;
+}
+document.getElementById('inX').addEventListener('input',e=>{pieces[sel].o[0]=parseInt(e.target.value)||0;syncUI();draw();save();});
+document.getElementById('inY').addEventListener('input',e=>{pieces[sel].o[1]=parseInt(e.target.value)||0;syncUI();draw();save();});
+['cbNeighbors','cbGrid','cbImg','alpha'].forEach(id=>document.getElementById(id).addEventListener('input',draw));
+document.getElementById('btnReset').onclick=()=>{Z=1.7;pan=[0,0];draw();};
+document.getElementById('btnResetOrigin').onclick=()=>{const d=DEFAULTS[sel];pieces[sel].o=[...d.o];syncUI();draw();save();};
+document.getElementById('btnCopyJson').onclick=()=>{navigator.clipboard.writeText(document.getElementById('out').value);flash('btnCopyJson','¡Copiado!');};
+document.getElementById('btnCopyTres').onclick=()=>{navigator.clipboard.writeText(document.getElementById('out').dataset.tres);flash('btnCopyTres','¡Copiado!');};
+document.getElementById('btnImport').onclick=()=>{ try{const s=JSON.parse(document.getElementById('imp').value);
+  pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.o=[s[p.key][0]|0,s[p.key][1]|0]; });
+  syncUI();draw();save();flash('btnImport','OK'); }catch(e){flash('btnImport','JSON inválido');} };
+function flash(id,t){const b=document.getElementById(id);const o=b.textContent;b.textContent=t;setTimeout(()=>b.textContent=o,1100);}
+function save(){ const j={}; pieces.forEach(p=>j[p.key]=p.o); localStorage.setItem(STORE,JSON.stringify(j)); buildOut(); }
+
+buildList(); syncUI(); fit();
+</script>
+</body>
+</html>

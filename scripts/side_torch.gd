@@ -15,6 +15,8 @@ var wall_side: StringName = &"left"
 var seed_off := 0.0
 var _base_energy := 2.25
 var _sprite: AnimatedSprite2D
+## Separa el centro físico de la luz de su montaje visual en el muro.
+var light_offset := Vector2.ZERO
 
 func _ready() -> void:
 	texture = load("res://assets/fx/light_pool.tres")
@@ -25,7 +27,7 @@ func _ready() -> void:
 	_sprite.sprite_frames = _get_frames(wall_side)
 	_sprite.scale = Vector2(0.30, 0.30)
 	# La luz está 6 px más abajo que antes, pero el sprite conserva su montaje.
-	_sprite.position = Vector2(0, -1)
+	_sprite.position = Vector2(0, -1) - light_offset
 	_sprite.z_index = 6
 	var mat := CanvasItemMaterial.new()
 	mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED

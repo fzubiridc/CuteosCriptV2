@@ -151,14 +151,14 @@ func _apply_layout() -> void:
 	_title.offset_top = -fh / 2.0 - 30; _title.offset_bottom = -fh / 2.0 - 6
 
 func _make_map_rect(parent: Control) -> TextureRect:
-	var tr := TextureRect.new()
-	tr.texture = _tex
-	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
-	tr.stretch_mode = TextureRect.STRETCH_SCALE
-	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # pixeles nítidos
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(tr)
-	return tr
+	var rect := TextureRect.new()
+	rect.texture = _tex
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # pixeles nítidos
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(rect)
+	return rect
 
 func _make_dot(parent: Control, color: Color, sz: float) -> ColorRect:
 	var d := ColorRect.new()
@@ -235,5 +235,5 @@ func _place_markers(cell: Vector2i) -> void:
 func _in_bounds(c: Vector2i) -> bool:
 	return c.x >= 0 and c.y >= 0 and c.x < _mw and c.y < _mh
 
-func _set_dot(dot: ColorRect, cell: Vector2i, scale: int) -> void:
-	dot.position = Vector2(cell.x * scale, cell.y * scale) + Vector2(scale, scale) * 0.5 - dot.size * 0.5
+func _set_dot(dot: ColorRect, cell: Vector2i, cell_px: int) -> void:
+	dot.position = Vector2(cell.x * cell_px, cell.y * cell_px) + Vector2(cell_px, cell_px) * 0.5 - dot.size * 0.5

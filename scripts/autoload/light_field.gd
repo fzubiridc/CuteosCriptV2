@@ -38,8 +38,10 @@ func pack_lights() -> Dictionary:
 	var radius := PackedFloat32Array()
 	var height := PackedFloat32Array()
 	for L in get_lights():
+		if not is_instance_valid(L):
+			continue                       # luz liberada en un regen → no castear un objeto freed (el cast en sí erroraba)
 		var lp := L as PointLight2D
-		if lp == null or not is_instance_valid(lp) or not lp.enabled:
+		if lp == null or not lp.enabled:
 			continue
 		var rad := lp.texture_scale * 128.0
 		if rad <= 0.0:

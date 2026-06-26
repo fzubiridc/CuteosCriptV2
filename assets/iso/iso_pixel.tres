@@ -1,8 +1,12 @@
 [gd_resource type="TileSet" format=3 uid="uid://bg5a7ki0ir6pn"]
 
 [ext_resource type="Texture2D" uid="uid://4yjmmsrll7kh" path="res://assets/iso/sbs/floor_pixel.png" id="1_floor"]
-[ext_resource type="Texture2D" uid="uid://dg4qud62mu4i3" path="res://assets/iso/walls/wall1/highwall.png" id="2_wallse"]
-[ext_resource type="Texture2D" uid="uid://q8nn6bm721l8" path="res://assets/iso/walls/wall1/highwall_mirror.png" id="3_wallsw"]
+[ext_resource type="Texture2D" uid="uid://dg4qud62mu4i3" path="res://assets/iso/walls/wall1/highwall.png" id="2_high"]
+[ext_resource type="Texture2D" uid="uid://dh0ne1tabjb2j" path="res://assets/iso/walls/wall1/wall_ne.png" id="3_wallne"]
+[ext_resource type="Texture2D" uid="uid://cup6b36q7u4yd" path="res://assets/iso/walls/wall1/corner_nw_ne.png" id="4_cnwne"]
+[ext_resource type="Texture2D" uid="uid://d2f11gaann4j7" path="res://assets/iso/walls/wall1/corner_se_sw.png" id="5_csesw"]
+[ext_resource type="Texture2D" uid="uid://csh6v5udwt1hp" path="res://assets/iso/walls/wall1/corner_nw_sw.png" id="6_cnwsw"]
+[ext_resource type="Texture2D" uid="uid://by7f8duln16lj" path="res://assets/iso/walls/wall1/corner_ne_se.png" id="7_cnese"]
 
 [sub_resource type="TileSetAtlasSource" id="floor"]
 texture = ExtResource("1_floor")
@@ -10,19 +14,58 @@ texture_region_size = Vector2i(256, 256)
 0:0/0 = 0
 0:0/0/texture_origin = Vector2i(0, -2)
 
-[sub_resource type="TileSetAtlasSource" id="wallse"]
-texture = ExtResource("2_wallse")
+[sub_resource type="TileSetAtlasSource" id="wall_nw"]
+texture = ExtResource("2_high")
 texture_region_size = Vector2i(144, 200)
 0:0/0 = 0
-0:0/0/texture_origin = Vector2i(52, 89)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-128, 0, -108.189095, 9.905454, 19.482285, -54.258858, 0, -64)
+0:0/0/texture_origin = Vector2i(56, 91)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, -64, -128, 0, -112.26756, 7.8662186, 14.766556, -56.616722)
 
-[sub_resource type="TileSetAtlasSource" id="wallsw"]
-texture = ExtResource("3_wallsw")
+[sub_resource type="TileSetAtlasSource" id="wall_ne"]
+texture = ExtResource("3_wallne")
 texture_region_size = Vector2i(144, 200)
 0:0/0 = 0
-0:0/0/texture_origin = Vector2i(-57, 90)
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(128, 0, 111.50285, 8.248573, -15.65872, -56.17064, 0, -64)
+0:0/0/texture_origin = Vector2i(-56, 92)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(128, 0, 0, -64, -14.856085, -56.571957, 112.81529, 7.592354)
+
+[sub_resource type="TileSetAtlasSource" id="wall_se"]
+texture = ExtResource("2_high")
+texture_region_size = Vector2i(144, 200)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(-56, 35)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(128, 0, 112.39501, -7.8024926, -15.91362, 56.04319, 0, 64, 0, 64)
+
+[sub_resource type="TileSetAtlasSource" id="wall_sw"]
+texture = ExtResource("3_wallne")
+texture_region_size = Vector2i(144, 200)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(57, 35)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(13.108411, 57.445793, -112.73275, -7.633625, -128, 0, 0, 64)
+
+[sub_resource type="TileSetAtlasSource" id="corner_top"]
+texture = ExtResource("4_cnwne")
+texture_region_size = Vector2i(257, 200)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 91)
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-128, 0, -112.183304, 7.9083495, 0.13166809, -48.71627, 112.39397, 7.8030167, 128, 0, 0, -64)
+
+[sub_resource type="TileSetAtlasSource" id="corner_bottom"]
+texture = ExtResource("5_csesw")
+texture_region_size = Vector2i(256, 200)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 35)
+
+[sub_resource type="TileSetAtlasSource" id="corner_left"]
+texture = ExtResource("6_cnwsw")
+texture_region_size = Vector2i(144, 256)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(57, 63)
+
+[sub_resource type="TileSetAtlasSource" id="corner_right"]
+texture = ExtResource("7_cnese")
+texture_region_size = Vector2i(144, 256)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(-57, 63)
 
 [resource]
 tile_shape = 1
@@ -30,5 +73,11 @@ tile_size = Vector2i(256, 128)
 physics_layer_0/collision_layer = 1
 navigation_layer_0/layers = 1
 sources/0 = SubResource("floor")
-sources/1 = SubResource("wallse")
-sources/2 = SubResource("wallsw")
+sources/1 = SubResource("wall_nw")
+sources/2 = SubResource("wall_ne")
+sources/3 = SubResource("wall_se")
+sources/4 = SubResource("wall_sw")
+sources/5 = SubResource("corner_top")
+sources/6 = SubResource("corner_bottom")
+sources/7 = SubResource("corner_left")
+sources/8 = SubResource("corner_right")

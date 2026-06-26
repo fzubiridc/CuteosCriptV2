@@ -1,6 +1,6 @@
 extends Node
-## Fuente única de verdad de los "knobs" de iluminación (como el panel tecla K
-## del renderer Pixi). Persiste en user://light_knobs.json. El panel de debug
+## Fuente única de verdad de los "knobs" de iluminación (panel tecla L en el juego).
+## Persiste en user://light_knobs.json. El panel de debug
 ## (lighting_debug.gd) edita estos valores; player/antorchas/proyectiles los leen.
 ## Emite `changed` para actualización en vivo.
 
@@ -29,6 +29,13 @@ const DEFS := {
 	"torch_glow": {"min": 1.0, "max": 3.0, "def": 1.6, "label": "Antorcha brillo llama", "group": "Antorchas"},
 	"wall_relief": {"min": 0.4, "max": 1.0, "def": 1.0, "label": "Muro: luz en plano (1=igual que piso)", "group": "Antorchas"},
 	"wall_light": {"min": 1.0, "max": 4.0, "def": 2.0, "label": "Muro: fuerza de luz (boost+cap)", "group": "Antorchas"},
+	# --- Direccionalidad de cara de muro iso (que la cara apague la luz del lado opuesto) ---
+	"wall_face_z":     {"min": 0.0, "max": 2.0, "def": 0.6, "label": "Cara: lift de altura (bajo=back más oscuro)", "group": "Muros (luz)"},
+	"wall_face_floor": {"min": 0.0, "max": 1.0, "def": 0.2, "label": "Cara: luz mín. de cara trasera (1=sin direccional)", "group": "Muros (luz)"},
+	# --- Antorchas: posición/montaje sobre el borde de muro iso (tuning en vivo) ---
+	"torch_flame_x":     {"min": -60.0,  "max": 60.0,  "def": 0.0,   "label": "Antorcha llama X", "group": "Antorchas (posición)"},
+	"torch_flame_y":     {"min": -110.0, "max": 20.0,  "def": -40.0, "label": "Antorcha llama Y (− sube)", "group": "Antorchas (posición)"},
+	"torch_light_inset": {"min": 0.0,    "max": 120.0, "def": 44.0,  "label": "Antorcha luz hacia la sala", "group": "Antorchas (posición)"},
 	# --- Post-proceso (shader de pantalla) ---
 	"exposure": {"min": 0.3, "max": 3.0, "def": 1.0, "label": "Exposición/Brillo (1=normal)", "group": "Post"},
 	"saturation": {"min": 0.0, "max": 2.0, "def": 1.0, "label": "Saturación (1=normal)", "group": "Post"},
@@ -45,6 +52,7 @@ const DEFS := {
 	"cast_blur_grow": {"min": 0.0, "max": 8.0, "def": 1.36, "label": "Proy. difusión hacia punta", "group": "Sombras"},
 	"cast_tip_fade": {"min": 0.2, "max": 4.0, "def": 0.542, "label": "Proy. pérdida hacia punta", "group": "Sombras"},
 	"cast_base_fade": {"min": 0.0, "max": 0.6, "def": 0.0, "label": "Proy. difumin. en la base", "group": "Sombras"},
+	"cast_width_grow": {"min": 0.0, "max": 3.0, "def": 0.0, "label": "Proy. ensanche hacia la punta", "group": "Sombras"},
 	# Sombra de contacto (circular, fija debajo — no depende de antorchas)
 	"contact_size": {"min": 0.2, "max": 3.0, "def": 1.656, "label": "Contacto tamaño", "group": "Sombras"},
 	"contact_alpha": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Contacto opacidad", "group": "Sombras"},

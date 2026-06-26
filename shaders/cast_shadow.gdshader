@@ -12,6 +12,7 @@ uniform float tip_fade = 1.3;    // curva de pérdida hacia la punta (mayor = ca
 uniform float base_fade = 0.18;  // fracción del largo, desde los pies, que arranca difuminada
 uniform float blur = 1.6;        // radio base de difusión (texels)
 uniform float blur_grow = 3.0;   // cuánto crece el blur hacia la punta
+uniform float width_grow = 0.0;  // cuánto se ENSANCHA la silueta en abanico hacia la punta
 
 float samp(sampler2D tex, vec2 uv, vec2 px, float r) {
 	// Blur en disco: centro + 2 anillos de 8 muestras (interior r*0.5, exterior r)
@@ -36,6 +37,10 @@ void fragment() {
 	float env_base = 1.0 - smoothstep(1.0 - base_fade, 1.0, along);
 	float fade = pow(along, tip_fade) * env_base;
 	float r = blur * (1.0 + blur_grow * (1.0 - along));        // más blur hacia la punta
-	float a = samp(TEXTURE, UV, px, r);
+	// Ensanche en abanico: magnifica la silueta horizontalmente hacia la punta (along→0).
+	// spread=1 en los pies, 1+width_grow en la punta. Samplea hacia el centro → más ancha sin clipear.
+	float spread = 1.0 + width_grow * (1.0 - along);
+	vec2 uv2 = vec2((UV.x - 0.5) / spread + 0.5, UV.y);
+	float a = samp(TEXTURE, uv2, px, r);
 	COLOR = vec4(0.0, 0.0, 0.0, a * fade * strength);
 }

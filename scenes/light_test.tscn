@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c2776v8bit5eq"]
+
+[ext_resource type="Script" path="res://scripts/light_test.gd" id="1_lighttest"]
+
+[node name="LightTest" type="Node2D"]
+script = ExtResource("1_lighttest")

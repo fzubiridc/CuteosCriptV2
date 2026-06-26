@@ -39,10 +39,14 @@ func _frame() -> void:
 	if _spr == null or _spr.texture == null:
 		return
 	var vp := get_viewport().get_visible_rect().size
-	# Escala por ALTO: se ve el alto COMPLETO de la imagen; los costados se recortan.
-	var fit_h := vp.y / float(_spr.texture.get_height())
-	_spr.scale = Vector2.ONE * (fit_h * _zoom)
-	_spr.position = vp * 0.5 + Vector2(0, _yoff)
+	var ts := _spr.texture.get_size()
+	# COVER: llena la pantalla por el lado que falte (sin huecos a los costados); el
+	# sobrante se recorta. El fondo es cuadrado y la pantalla 16:9 → fit por ancho.
+	var fit := maxf(vp.x / ts.x, vp.y / ts.y) * _zoom
+	_spr.scale = Vector2.ONE * fit
+	# Anclado ARRIBA: muestra cielo + luna/eclipse; el valle inferior (que igual tapa
+	# la mazmorra) queda fuera. yoff < 0 baja el encuadre para ver más valle.
+	_spr.position = Vector2(vp.x * 0.5, ts.y * fit * 0.5 + _yoff)
 
 func _process(_dt: float) -> void:
 	var cam := get_viewport().get_camera_2d()

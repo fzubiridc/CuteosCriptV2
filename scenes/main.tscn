@@ -10,7 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://gsgyqyn35cv2" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
 [ext_resource type="Shader" uid="uid://cpvvrr8yll4f4" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
 [ext_resource type="Texture2D" uid="uid://dbayja4kf0sbf" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
-[ext_resource type="Script" path="res://scripts/dash_indicator.gd" id="14_jbj1t"]
+[ext_resource type="Script" uid="uid://df7ssk8fb2fd3" path="res://scripts/dash_indicator.gd" id="14_jbj1t"]
 [ext_resource type="FontFile" uid="uid://co1gbiwyk3hb1" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
 [ext_resource type="Texture2D" uid="uid://cpckfmus5bp0" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
 [ext_resource type="Texture2D" uid="uid://7x6se4h4nse3" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
@@ -65,6 +65,7 @@ script = ExtResource("1_sugp2")
 [node name="Dungeon" type="TileMapLayer" parent="." unique_id=1328865758]
 position = Vector2(1.2846222, -0.092300415)
 script = ExtResource("2_jyhfs")
+use_test_map = true
 
 [node name="Player" parent="." unique_id=1147600288 instance=ExtResource("3_jkv2x")]
 position = Vector2(160, 112)
@@ -448,6 +449,8 @@ offset_left = -300.0
 offset_top = -74.0
 offset_right = -252.0
 offset_bottom = -26.0
+grow_horizontal = 2
+grow_vertical = 0
 script = ExtResource("14_jbj1t")
 
 [node name="Ambient" type="CanvasModulate" parent="." unique_id=2006469636]

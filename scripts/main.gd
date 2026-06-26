@@ -32,15 +32,13 @@ var _exit_open := false
 
 func _ready() -> void:
 	GameState.boss_died.connect(_on_boss_died)
-	var suf := "_eclipse" if ECLIPSE else ""
 	var sky_img := "res://assets/bg/eclipse_vista.png" if ECLIPSE else "res://assets/bg/night_vista.png"
 	var sky := ParallaxBg.new().init(sky_img, -100, 0.0, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y)
 	add_child(sky)
 	var dragon := SkyDragon.new()
 	dragon.tint = ECLIPSE_DRAGON_TINT if ECLIPSE else NIGHT_DRAGON_TINT
 	sky.add_child(dragon)                                                 # dragón cerca de la luna
-	add_child(ParallaxBg.new().init("res://assets/bg/mountains%s.png" % suf, -99, 0.07, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y))    # montañas
-	add_child(ParallaxBg.new().init("res://assets/bg/forest_trees%s.png" % suf, -98, 0.20, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y)) # árboles
+	# Montañas/árboles: REMOVIDAS — el nuevo fondo (night/eclipse_vista) ya trae el valle pintado.
 	if SaveSystem.has_run():
 		var save := SaveSystem.load_run()
 		var r: Dictionary = save.get("run", {})
@@ -57,6 +55,27 @@ func _ready() -> void:
 	var mm := MINIMAP.new()                      # minimapa + mapa (M), con niebla
 	add_child(mm)
 	mm.setup(dungeon, player)
+	_add_debug_regen_button()
+
+## Botón DEBUG en pantalla: regenera el piso actual con seed aleatorio (mapa nuevo) sin pasar por
+## el menú y SIN perder la run (mantiene depth/zona/nivel/monedas). Reemplaza la tecla (F9 la
+## intercepta el editor y frena el reproductor). Quitar cuando no se necesite iterar layout.
+func _add_debug_regen_button() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	var btn := Button.new()
+	btn.text = "⟳ Regenerar mapa (debug)"
+	btn.position = Vector2(16, 60)
+	btn.focus_mode = Control.FOCUS_NONE          # que no robe el foco del teclado (movimiento WASD)
+	btn.pressed.connect(_debug_regen)
+	layer.add_child(btn)
+
+func _debug_regen() -> void:
+	if GameState.mode != GameState.Mode.PLAY:
+		return
+	_build_floor()                               # seed_val=-1 → Rng.randomize_seed() → layout nuevo
+	SaveSystem.save_run(GameState.run, player)
 
 var _autosave_t := 0.0
 
@@ -324,7 +343,8 @@ func _spawn_enemies(zone: Dictionary) -> void:
 	for i in range(1, dungeon.rooms.size()):
 		var room: Rect2i = dungeon.rooms[i]
 		# Varios mobs por sala, escalado por área (salas grandes → más), esparcidos.
-		var n := clampi(int(round(room.size.x * room.size.y / 26.0 * dens)), 2, 5)
+		# Densidad subida: divisor más bajo + tope más alto = muchos más mobs por sala.
+		var n := clampi(int(round(room.size.x * room.size.y / 14.0 * dens)), 4, 10)
 		var home_rect := Rect2(Vector2(room.position) * Dungeon.TILE, Vector2(room.size) * Dungeon.TILE)
 		for j in n:
 			var e := ENEMY.instantiate()
@@ -369,6 +389,11 @@ func _spawn_fixed_markers(zone: Dictionary) -> void:
 
 ## Celda al azar dentro de la sala (con 1 tile de margen para no pegarse al muro).
 func _rand_room_cell(room: Rect2i) -> Vector2i:
-	var x := Rng.range_i(room.position.x + 1, maxi(room.position.x + 1, room.position.x + room.size.x - 2))
-	var y := Rng.range_i(room.position.y + 1, maxi(room.position.y + 1, room.position.y + room.size.y - 2))
-	return Vector2i(x, y)
+	# Muestrea el bbox y EXIGE piso real (con salas iso el bbox incluye vacío/muros → no
+	# spawnear mobs dentro de paredes). Fallback al centro tras varios intentos.
+	for _t in 24:
+		var x := Rng.range_i(room.position.x, room.position.x + room.size.x - 1)
+		var y := Rng.range_i(room.position.y, room.position.y + room.size.y - 1)
+		if y >= 0 and y < dungeon.grid.size() and x >= 0 and x < dungeon.grid[y].size() and dungeon.grid[y][x] == 1:
+			return Vector2i(x, y)
+	return room.get_center()

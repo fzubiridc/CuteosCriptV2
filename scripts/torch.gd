@@ -11,6 +11,10 @@ static var _shared: SpriteFrames
 var seed_off := 0.0
 var _base_energy := 2.25
 var _sprite: AnimatedSprite2D
+## Separa el centro físico de la luz de su montaje visual sobre el muro.
+## Dungeon define ambos vía set_mount() antes de add_child() y al tunear en vivo.
+var light_offset := Vector2.ZERO   # la luz (root) se mete hacia la sala por este vector
+var flame_mount := Vector2(0, -17) # offset visual de la llama sobre la cara del muro
 
 const WARM := Color(1.0, 0.60, 0.24)   # 0xff9a3c, máxima calidez
 
@@ -22,7 +26,7 @@ func _ready() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _get_frames()
 	_sprite.scale = Vector2(0.3, 0.3)
-	_sprite.position = Vector2(0, -17)   # sube el sprite sobre la cara (la luz está ~11px más abajo, en la sala)
+	_sprite.position = flame_mount - light_offset
 	_sprite.z_index = 6
 	var mat := CanvasItemMaterial.new()
 	mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
@@ -32,6 +36,13 @@ func _ready() -> void:
 	_sprite.frame = int(seed_off) % FRAMES   # desfasar el ciclo entre antorchas
 	_apply_cfg()
 	LightCfg.changed.connect(_apply_cfg)
+
+## Dungeon setea el montaje (llama sobre la cara, luz metida a la sala). Habilita el tuning en vivo.
+func set_mount(flame: Vector2, light: Vector2) -> void:
+	flame_mount = flame
+	light_offset = light
+	if _sprite:
+		_sprite.position = flame_mount - light_offset
 
 ## SpriteFrames compartido (se arma una vez para todas las antorchas).
 static func _get_frames() -> SpriteFrames:

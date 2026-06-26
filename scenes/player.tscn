@@ -46,7 +46,7 @@ preprocess = 5.0
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_tipki")
 
-[node name="Rig" type="Node2D" parent="." unique_id=1216929448]
+[node name="Rig" type="CanvasGroup" parent="." unique_id=1216929448]
 scale = Vector2(0.4, 0.4)
 
 [node name="Body" type="AnimatedSprite2D" parent="Rig" unique_id=1390438017]

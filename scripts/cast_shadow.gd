@@ -183,6 +183,7 @@ func _process(_dt: float) -> void:
 	var cblur_grow: float = LightCfg.get_v("cast_blur_grow")
 	var ctip: float = LightCfg.get_v("cast_tip_fade")
 	var cbase: float = LightCfg.get_v("cast_base_fade")
+	var cwgrow: float = LightCfg.get_v("cast_width_grow")
 
 	for i in _pool.size():
 		var s := _pool[i]
@@ -207,3 +208,4 @@ func _process(_dt: float) -> void:
 		mat.set_shader_parameter("blur_grow", cblur_grow)
 		mat.set_shader_parameter("tip_fade", ctip)
 		mat.set_shader_parameter("base_fade", cbase)
+		mat.set_shader_parameter("width_grow", cwgrow)
