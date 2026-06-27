@@ -25,13 +25,9 @@ var rooms: Array[Rect2i] = []
 ## cell_seen[y][x]=true: la celda fue vista alguna vez (persistente). _visible_now: set de
 ## celdas en el radio del player AHORA (se limpia cada update). Estilo Diablo 2: "explorado" se
 ## recuerda (minimapa), pero la info viva solo se ve en el radio actual.
-const VIS_RADIUS := 6   # tiles vistos alrededor del player (coincide con el minimapa)
+## La niebla/reveal en sí vive en DungeonFog (scripts/dungeon_fog.gd); cell_seen queda acá porque
+## es la fuente de verdad que leen otros sistemas (minimapa, visibility_manager).
 var cell_seen: Array = []
-var _visible_now: Dictionary = {}
-## Última celda del player con la que se recalculó la visibilidad. Si el player no cambió de
-## celda, _update_visibility saltea el barrido del disco (~169 celdas/frame). Sentinela INT_MIN
-## → la primera llamada siempre computa; _init_visibility lo resetea por piso (regen).
-var _last_vis_cell: Vector2i = Vector2i(-2147483648, -2147483648)
 ## Lista de adyacencia del grafo de salas (índices de `rooms`). La llena
 ## `_connect_rooms()` (MST + loops). Disponible para roles por BFS.
 var _room_graph: Array = []
@@ -112,18 +108,13 @@ var _corner_sprites: Array = []  # Fase 2: piezas extra de celdas con 3 bordes (
 # Fase 3: reveal por habitación (reemplaza el viejo cutout). Cada celda de piso pertenece
 # a una sala (rect de procgen); al entrar, la fachada trasera de esa sala baja a semitransparente
 # como CONJUNTO (sin dither, sin per-tile flicker). Estilo Baldur's Gate 3 / Divinity OS2.
-const REVEAL_ALPHA := 0.22   # opacidad de la fachada DELANTERA revelada (15-30%), conserva textura/volumen
-const ROOM_HYST := 6         # frames que el player debe estar en la sala antes de revelar (anti-flicker)
+# El estado del reveal (sprites/tweens/sala activa) y los consts (REVEAL_ALPHA/ROOM_HYST) viven en
+# DungeonFog; _room_of/_room_front/_front_src quedan acá porque los producen/consumen otros sistemas.
 var _room_of: Dictionary = {}        # cell → room_id (rect de sala; corredores = -1)
 var _room_front: Dictionary = {}     # room_id → Array de entradas de fachada delantera (ver _paint_walls):
 									 #   {kind=0, cell} = tile-muro (se swapea a sprite al revelar)
 									 #   {kind=1, holder} = sprite overlay ya existente (solo tween de alpha)
 var _front_src: Dictionary = {}      # cell → source de la pared delantera (para restaurar el tile)
-var _reveal_sprites: Dictionary = {} # cell → Node2D (tile-muro swapeado a sprite mientras está revelado)
-var _reveal_tw: Dictionary = {}      # cell → Tween activo del fade (para cancelarlo en swaps rápidos)
-var _active_room: int = -1
-var _pending_room: int = -99
-var _room_hold: int = 0
 
 # Celdas de marcadores (spawn/salida + listas de entidades). spawn_cell/exit_cell las exponen
 # get_spawn_point()/get_exit_cell() (las leen main.gd y minimap.gd); window_cells se resetea por piso.
@@ -157,7 +148,8 @@ func generate() -> void:
 		_ensure_decor()
 		_decor.place_torches()     # antorchas de sala → luz + sombras proyectadas
 		_decor.place_campfires()   # fogatas cada tanto en el centro de algunas salas (no en la de spawn)
-		_init_visibility()   # niebla (cell_seen) lista para este piso
+		_ensure_fog()
+		_fog.init_visibility()   # niebla (cell_seen) lista para este piso
 		regenerated.emit()
 		return
 
@@ -206,6 +198,34 @@ func _ensure_decor() -> void:
 func spawn_wall_torch(interior_cell: Vector2i, side: int) -> Node:
 	_ensure_decor()
 	return _decor.spawn_wall_torch(interior_cell, side)
+
+# ---------------------------------------------------------------------------
+# Niebla de guerra + reveal por habitación → DungeonFog (scripts/dungeon_fog.gd). Lazy, igual que _gen.
+# cell_seen (fuente de verdad) y _room_of/_room_front/_front_src siguen viviendo en este nodo: la niebla
+# las USA como d.*, pero las producen/leen otros sistemas (procgen, minimapa, visibility_manager).
+# ---------------------------------------------------------------------------
+var _fog: DungeonFog
+
+func _ensure_fog() -> void:
+	if _fog == null:
+		_fog = DungeonFog.new(self)
+
+## API pública preservada (la usan enemy.gd, minimap.gd, visibility_manager.gd): wrappers a DungeonFog.
+func is_cell_visible(world_pos: Vector2) -> bool:
+	_ensure_fog()
+	return _fog.is_cell_visible(world_pos)
+
+func is_cell_seen(world_pos: Vector2) -> bool:
+	_ensure_fog()
+	return _fog.is_cell_seen(world_pos)
+
+func is_seen_cell(c: Vector2i) -> bool:
+	_ensure_fog()
+	return _fog.is_seen_cell(c)
+
+func world_to_cell(world_pos: Vector2) -> Vector2i:
+	_ensure_fog()
+	return _fog.world_to_cell(world_pos)
 
 # ---------------------------------------------------------------------------
 # RENDER ISO (fase 1 del merge): reusa _gen_grid; pinta piso en esta capa y los
@@ -482,20 +502,21 @@ func _paint_iso() -> void:
 			s.queue_free()
 	# Matar primero los tweens de reveal activos: si no, su callback (restore) corre sobre
 	# sprites ya liberados acá abajo / sobre _iso_walls en pleno regen → crash en regen rápida.
-	for tw in _reveal_tw.values():
+	_ensure_fog()
+	for tw in _fog._reveal_tw.values():
 		if tw != null and tw.is_valid():
 			tw.kill()
-	for h in _reveal_sprites.values():
+	for h in _fog._reveal_sprites.values():
 		if is_instance_valid(h):
 			h.queue_free()
 	_corner_sprites = []
 	_room_front = {}
 	_front_src = {}
-	_reveal_sprites = {}
-	_reveal_tw = {}
-	_active_room = -1
-	_pending_room = -99
-	_room_hold = 0
+	_fog._reveal_sprites = {}
+	_fog._reveal_tw = {}
+	_fog._active_room = -1
+	_fog._pending_room = -99
+	_fog._room_hold = 0
 	_wall_cells = {}
 	var gh := grid.size()
 	var gw: int = grid[0].size() if gh > 0 else 0
@@ -766,13 +787,13 @@ func _process(_delta: float) -> void:
 	# FIX: niebla/reveal DESACOPLADOS del material de muro. Antes colgaban dentro de
 	# _update_iso_wall_mat → si el material fuera null, se congelaban sin error. Ahora corren
 	# directo acá con su propio guard de player, independientes de que exista el material de muro.
-	if ISO:
+	if ISO and _fog:
 		# pl SIN tipo explícito a propósito: GameState.player es `Node` (no Node2D); tiparlo Node2D
-		# acá sería un downcast estático que no compila. _update_room_reveal(pl: Node2D) lo valida en runtime.
+		# acá sería un downcast estático que no compila. update_room_reveal(pl: Node2D) lo valida en runtime.
 		var pl = GameState.player
 		if pl != null and is_instance_valid(pl):
-			_update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
-			_update_room_reveal(pl)
+			_fog.update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
+			_fog.update_room_reveal(pl)
 	if _decor: _decor.tune_torches_live()
 
 ## Alimenta luz (foot-lit) al material de las caras de muro iso cada frame.
@@ -790,124 +811,3 @@ func _update_iso_wall_mat(packed: Dictionary) -> void:
 		_iso_wall_mat_solid.set_shader_parameter("light_boost", boost)
 		_iso_wall_mat_solid.set_shader_parameter("cap", LightCfg.LIGHT_CAP * boost)   # cap de luz (antes literal 1.4)
 		_iso_wall_mat_solid.set_shader_parameter("light_falloff", LightCfg.get_v("light_falloff"))
-
-## Reveal por habitación: al entrar a una sala (con histéresis), su fachada trasera baja a
-## semitransparente como CONJUNTO; al salir, vuelve a sólida. Sin dither, sin per-tile flicker.
-func _update_room_reveal(pl: Node2D) -> void:
-	if _iso_walls == null:
-		return
-	var pc := local_to_map(to_local(pl.global_position))
-	var rid: int = _room_of.get(pc, -1)
-	if rid != _pending_room:
-		_pending_room = rid
-		_room_hold = 0
-		return
-	_room_hold += 1
-	if _room_hold < ROOM_HYST or rid == _active_room:
-		return
-	_set_room_faded(_active_room, false)   # restaurar la sala que dejás
-	_active_room = rid
-	_set_room_faded(rid, true)             # revelar la sala en la que entrás
-
-# ---------------------------------------------------------------------------
-# Niebla de guerra / visibilidad por celda (fuente de verdad; ver vars arriba)
-# ---------------------------------------------------------------------------
-## Dimensiona cell_seen al grid actual (todo no-visto) y limpia el set visible. Por piso.
-func _init_visibility() -> void:
-	cell_seen = []
-	var gh := grid.size()
-	var gw: int = grid[0].size() if gh > 0 else 0
-	for y in gh:
-		var row: Array = []
-		row.resize(gw)
-		row.fill(false)
-		cell_seen.append(row)
-	_visible_now = {}
-	_last_vis_cell = Vector2i(-2147483648, -2147483648)   # invalida el gate por piso → recomputa aunque respawnee en la misma celda
-
-## Marca el disco de radio VIS_RADIUS alrededor de la celda del player: visible AHORA + seen sticky.
-func _update_visibility(pc: Vector2i) -> void:
-	# Gate por celda: si el player no cambió de celda, _visible_now/cell_seen ya están al día
-	# del frame anterior → no rebarrer ~169 celdas. Solo recalcula al cruzar de celda.
-	if pc == _last_vis_cell:
-		return
-	_last_vis_cell = pc
-	_visible_now.clear()   # reusar el dict cada frame (evita alocar uno nuevo + churn de GC)
-	var gh := cell_seen.size()
-	if gh == 0:
-		return
-	var r2 := VIS_RADIUS * VIS_RADIUS
-	for dy in range(-VIS_RADIUS, VIS_RADIUS + 1):
-		for dx in range(-VIS_RADIUS, VIS_RADIUS + 1):
-			if dx * dx + dy * dy > r2:
-				continue
-			var x := pc.x + dx
-			var y := pc.y + dy
-			if y < 0 or y >= gh or x < 0 or x >= cell_seen[y].size():
-				continue
-			_visible_now[Vector2i(x, y)] = true
-			cell_seen[y][x] = true
-
-## Celda (grilla) de una posición de mundo. OJO: usa el to_local del Dungeon (scale 0.5).
-func world_to_cell(world_pos: Vector2) -> Vector2i:
-	return local_to_map(to_local(world_pos))
-
-## ¿La celda fue vista alguna vez? (sticky). Acepta celda directa.
-func is_seen_cell(c: Vector2i) -> bool:
-	return c.y >= 0 and c.y < cell_seen.size() and c.x >= 0 and c.x < cell_seen[c.y].size() and cell_seen[c.y][c.x]
-
-func is_cell_seen(world_pos: Vector2) -> bool:
-	return is_seen_cell(world_to_cell(world_pos))
-
-## ¿La celda está en el radio del player AHORA?
-func is_cell_visible(world_pos: Vector2) -> bool:
-	return _visible_now.has(world_to_cell(world_pos))
-
-## Aplica/quita el fade a la fachada DELANTERA (S/E) de una sala, como CONJUNTO, con tween.
-## Un tile NO se transparenta individual → al revelar, cada tile-fachada se SWAPEA a un Sprite2D
-## (mismo y-sort/pixel) y se le baja el alpha; al salir, vuelve el alpha a 1 y se restaura el tile.
-## Las fachadas que ya eran overlay (celdas de 3 bordes) solo tweenan su alpha.
-func _set_room_faded(rid: int, faded: bool) -> void:
-	if rid < 0:
-		return
-	var target: float = REVEAL_ALPHA if faded else 1.0
-	var touched := false
-	for e in _room_front.get(rid, []):
-		if int(e.kind) == 1:                       # overlay ya-sprite: solo tween
-			if is_instance_valid(e.holder):
-				_tween_alpha(e.holder, target)
-			continue
-		var cell: Vector2i = e.cell                # tile-fachada: swap tile↔sprite
-		if faded:
-			if not _reveal_sprites.has(cell):
-				_iso_walls.erase_cell(cell)
-				_reveal_sprites[cell] = _spawn_wall_sprite(cell, _front_src[cell], false)
-				touched = true
-			_reveal_fade(cell, REVEAL_ALPHA, false)
-		elif _reveal_sprites.has(cell):
-			_reveal_fade(cell, 1.0, true)          # tween a opaco y, al terminar, restaurar tile
-	if touched:
-		_iso_walls.update_internals()
-
-## Tween de alpha de un sprite de reveal. Cancela cualquier tween previo de ESA celda (swaps
-## rápidos entrar/salir). restore=true: al terminar, libera el sprite y repone el tile.
-func _reveal_fade(cell: Vector2i, to_a: float, restore: bool) -> void:
-	if _reveal_tw.has(cell) and _reveal_tw[cell] != null and _reveal_tw[cell].is_valid():
-		_reveal_tw[cell].kill()
-	var h: Node2D = _reveal_sprites[cell]
-	var tw := create_tween()
-	tw.tween_property(h, "modulate:a", to_a, 0.18).set_trans(Tween.TRANS_SINE)
-	if restore:
-		var src: int = _front_src[cell]
-		tw.tween_callback(func() -> void:
-			if is_instance_valid(h):
-				h.queue_free()
-			_reveal_sprites.erase(cell)
-			_reveal_tw.erase(cell)
-			_iso_walls.set_cell(cell, src, Vector2i(0, 0))
-			_iso_walls.update_internals())
-	_reveal_tw[cell] = tw
-
-func _tween_alpha(node: Node2D, to_a: float) -> void:
-	var tw := create_tween()
-	tw.tween_property(node, "modulate:a", to_a, 0.18).set_trans(Tween.TRANS_SINE)
