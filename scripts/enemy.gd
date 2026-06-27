@@ -51,7 +51,15 @@ var atk_exit := 0.0            # rango para SALIR de combate (atk_enter < atk_ex
 var slot_dist := 26.0          # radio del anillo de cerco alrededor del player (no apilarse)
 var _slot_ang := 0.0           # ángulo fijo de mi slot
 const MELEE_PAD := 6.0
-var _glow: PointLight2D = null  # aura propia (hija): se ve un poco más allá de la luz del player
+var _glow: PointLight2D = null  # aura propia (hija): ilumina el piso Y al propio mob (foot-light)
+# Self-light: el sprite del mob se dibuja con entity_material (luz por píxel, mismo shader
+# que los muros). Sin una luz propia con ALTURA, el aura del piso casi no lo aclara y el mob
+# se ve negro de lejos (a diferencia del player, cuya Light tiene height ~24 → se autoilumina
+# siempre). Estos pisos garantizan que el aura ilumine bien al sprite aunque los knobs del
+# piso (mob_glow_*) estén bajos; no bajan lo que el usuario suba, solo ponen un mínimo.
+const GLOW_HEIGHT := 22.0      # altura de la luz propia (≈ player_height) → ilumina el cuerpo, no solo el piso
+const GLOW_MIN_ENERGY := 1.3   # energía efectiva mínima del aura para autoiluminar el sprite
+const GLOW_MIN_RADIUS := 0.62  # texture_scale mínimo → alcanza toda la altura del sprite
 # Cache de knobs del aura (antes se leían por frame en _physics_process). Se refrescan
 # SOLO cuando LightCfg emite "changed" (ver _apply_light_cfg), igual que torch.gd.
 var _k_glow_energy := 0.9
@@ -84,12 +92,16 @@ func _ready() -> void:
 ## Refresca el cache de knobs del aura. Se llama en _ready y luego SOLO cuando
 ## LightCfg emite "changed" → _physics_process deja de hacer get_v() por frame.
 func _apply_light_cfg() -> void:
-	_k_glow_energy = LightCfg.get_v("mob_glow_energy")
-	_k_glow_radius = LightCfg.get_v("mob_glow_radius")
+	# El aura sirve para DOS cosas: pintar el charco del piso (lo gobierna el knob) y autoiluminar
+	# al propio mob. Para lo segundo aplicamos un piso (maxf) → el sprite se ve bien aunque el knob
+	# del piso esté bajo, sin pisar lo que el usuario suba.
+	_k_glow_energy = maxf(LightCfg.get_v("mob_glow_energy"), GLOW_MIN_ENERGY)
+	_k_glow_radius = maxf(LightCfg.get_v("mob_glow_radius"), GLOW_MIN_RADIUS)
 	_k_reveal_dist = LightCfg.get_v("mob_reveal_dist")   # cacheado: lo usa el auto-revelado por frame
 	if _glow != null:
 		_glow.energy = _k_glow_energy
 		_glow.texture_scale = _k_glow_radius
+		_glow.height = GLOW_HEIGHT
 
 func setup_type(key: String, is_elite := false) -> void:
 	type_key = key
@@ -175,6 +187,7 @@ func _apply_visual() -> void:
 		add_child(_glow)
 	_glow.energy = _k_glow_energy            # cacheados (refrescados vía LightCfg.changed)
 	_glow.texture_scale = _k_glow_radius
+	_glow.height = GLOW_HEIGHT               # altura → el shader por píxel ilumina el cuerpo del mob, no solo el piso
 
 func _idle_tint() -> Color:
 	return Color(1.0, 0.92, 0.6) if elite else Color.WHITE
@@ -343,6 +356,8 @@ func _update_aggro(ppos: Vector2, to_player: float) -> void:
 			_reset_combat()   # soltar el cupo del director al perder aggro
 	elif home_rect.has_point(ppos) or to_player < float(Data.BALANCE.aggro_radius) * TILE * 0.55:
 		aggro = true
+		if type_key == "golem_chico":
+			Audio.play_at("growl", self, -2.0)   # gruñido POSICIONAL: más fuerte cuanto más cerca
 
 func _wander_point(delta: float) -> Vector2:
 	wander_t -= delta
@@ -438,7 +453,7 @@ func _melee_think(delta: float, ppos: Vector2, to_player: float, player) -> Vect
 		return global_position
 	return slot                         # persigue su SLOT, no el centro → no se apilan
 
-func take_damage(amount: int, knockback := Vector2.ZERO) -> void:
+func take_damage(amount: int, knockback := Vector2.ZERO, is_crit := false, dmg_color := Color(1, 0.9, 0.5)) -> void:
 	hp -= amount
 	kb += knockback
 	aggro = true
@@ -451,7 +466,7 @@ func take_damage(amount: int, knockback := Vector2.ZERO) -> void:
 		visual.color = Color(1, 1, 1)
 	# Anti-spoiler: el número de daño solo aparece si la celda está en tu radio (no delata mobs en la sombra).
 	if path_grid == null or not is_instance_valid(path_grid) or path_grid.is_cell_visible(global_position):
-		GameState.floater(global_position, str(amount), Color(1, 0.9, 0.5))
+		GameState.floater(global_position, str(amount), dmg_color, is_crit)
 	if hp <= 0:
 		_die()
 

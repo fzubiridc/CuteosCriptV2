@@ -74,6 +74,7 @@ func _enter() -> void:
 	if Time.get_ticks_msec() < _cd_until_ms or not _player_near():
 		return
 	_cd_until_ms = Time.get_ticks_msec() + 700   # anti doble-disparo (y no reentrar a la de vuelta)
+	Audio.play("door", -3.0)   # sfx de puerta al atravesar
 	var pl := GameState.player as Node2D
 	if pl == null:
 		return

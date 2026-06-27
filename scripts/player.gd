@@ -279,6 +279,7 @@ func _refresh_weapon() -> void:
 	# Tip es hijo del Weapon: su posición es relativa al grip (que es el origen local).
 	tip.position = Vector2(float(focus.x) - float(grip.x), float(focus.y) - float(grip.y))
 	_load_staff_anim(idx)
+	_load_staff_bolt(idx)
 
 ## Animación propia de la vara: si existe assets/hero/staffs/staffN_anim/frame_000.png…,
 ## los carga y _tick_staff_anim cicla weapon.texture sobre ellos. Mismas dims que la estática
@@ -288,6 +289,11 @@ var _staff_anim_t := 0.0
 var _staff_anim_playing := false          # la anim de la vara solo corre MIENTRAS atacás
 var _staff_static_tex: Texture2D = null   # textura estática a la que se vuelve al terminar
 var _staff_anim_fps := 18.0               # fps de la vara activa (Data.STAFF_ANIM_FPS, default 18)
+# Bolt propio de la vara (staffN_bolt/travel|impact): si la vara tiene estas carpetas, el
+# proyectil usa estos frames (fuego, etc.) en vez del orbe azul. Vacío → orbe azul.
+var _bolt_travel_frames: Array = []
+var _bolt_impact_frames: Array = []
+var _bolt_scale_mul := 1.0                 # escala del bolt de la vara activa (Data.STAFF_BOLT_SCALE, default 1.0 = tamaño auto)
 
 func _load_staff_anim(idx: int) -> void:
 	_staff_anim_frames.clear()
@@ -298,6 +304,23 @@ func _load_staff_anim(idx: int) -> void:
 	var i := 0
 	while ResourceLoader.exists("res://assets/hero/staffs/staff%d_anim/frame_%03d.png" % [idx + 1, i]):
 		_staff_anim_frames.append(_load_runtime_tex("res://assets/hero/staffs/staff%d_anim/frame_%03d.png" % [idx + 1, i]))
+		i += 1
+
+## Carga el bolt propio de la vara (assets/hero/staffs/staffN_bolt/travel|impact/frame_000.png…).
+## Si la carpeta existe, el proyectil usa estos frames; si no, queda el orbe azul. N = idx + 1.
+func _load_staff_bolt(idx: int) -> void:
+	_bolt_travel_frames.clear()
+	_bolt_impact_frames.clear()
+	_bolt_scale_mul = float(Data.STAFF_BOLT_SCALE.get(idx, 1.0))   # 1.0 = tamaño auto (default)
+	if idx < 0:
+		return
+	var i := 0
+	while ResourceLoader.exists("res://assets/hero/staffs/staff%d_bolt/travel/frame_%03d.png" % [idx + 1, i]):
+		_bolt_travel_frames.append(_load_runtime_tex("res://assets/hero/staffs/staff%d_bolt/travel/frame_%03d.png" % [idx + 1, i]))
+		i += 1
+	i = 0
+	while ResourceLoader.exists("res://assets/hero/staffs/staff%d_bolt/impact/frame_%03d.png" % [idx + 1, i]):
+		_bolt_impact_frames.append(_load_runtime_tex("res://assets/hero/staffs/staff%d_bolt/impact/frame_%03d.png" % [idx + 1, i]))
 		i += 1
 
 func _tick_staff_anim(delta: float) -> void:
@@ -493,8 +516,9 @@ func _try_attack() -> void:
 	var to_target := target - spawn
 	var dir := to_target.normalized() if to_target.length() > 0.001 else aim
 	var land := maxf(to_target.length(), MIN_BOLT_RANGE)
+	var is_crit := Rng.unit() * 100.0 < crit_chance()
 	var dmg := attack_damage()
-	if Rng.unit() * 100.0 < crit_chance(): dmg *= 2
+	if is_crit: dmg *= 2
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
 	# Altura visual inicial = gap real pies→punta (SIN tope: el viejo clamp 12+rig_scale*32
@@ -505,6 +529,9 @@ func _try_attack() -> void:
 		p.scale = Vector2(1.6, 1.6)   # orbe más grande para el zoom-out iso
 	p.setup(spawn, dir, dmg, true, float(w.get("proj_spd", 260)))
 	p.set_arc(z0, land)               # baja de z0 (punta) a 0 (objetivo del piso)
+	p.is_crit = is_crit               # número de daño dorado si crittea
+	if not _bolt_travel_frames.is_empty():   # vara con bolt propio (fuego, etc.) → reemplaza el orbe azul
+		p.set_bolt_frames(_bolt_travel_frames, _bolt_impact_frames, _bolt_scale_mul)   # escala por vara (rigtool)
 	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
 
 # --- Ataque de área (E) -----------------------------------------------------

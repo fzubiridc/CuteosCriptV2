@@ -18,6 +18,7 @@ const USE_DOORS := true
 const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmentos de muro). Off en producción.
 
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
+const CAMPFIRE_SCENE := preload("res://scenes/campfire.tscn")   # fogata de leña (sprite anim + luz + sfx); se instancia en _place_campfires
 
 var grid: Array = []
 var rooms: Array[Rect2i] = []
@@ -154,6 +155,7 @@ func generate() -> void:
 		_build_iso_nav()
 		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
 		_place_torches()   # antorchas de sala → luz + sombras proyectadas (map_to_local ya es iso)
+		_place_campfires()   # fogatas cada tanto en el centro de algunas salas (no en la de spawn)
 		_init_visibility()   # niebla (cell_seen) lista para este piso
 		regenerated.emit()
 		return
@@ -632,6 +634,40 @@ func _place_torches() -> void:
 				idx += 1
 				break
 	LightField.mark_dirty()   # refrescar la lista de luces para el foot-light
+
+# ---------------------------------------------------------------------------
+# Fogatas
+# ---------------------------------------------------------------------------
+## Coloca fogatas (campfire.tscn) en el CENTRO de algunas salas, "cada tanto" (~1 de cada 3) para no
+## saturar. La fogata se autoubica en el piso (Node2D) → solo seteo position y seed_off (desfasa la
+## llama/sfx). Holder propio "Campfires" bajo el padre, que se LIMPIA al regenerar el piso (igual que
+## "Torches"). Salta la sala de spawn (no aparecer sobre el player) y centra en celda CAMINABLE
+## (_room_center_cell devuelve piso real, no muro/puerta).
+func _place_campfires() -> void:
+	var parent := get_parent()
+	var holder := parent.get_node_or_null("Campfires")
+	if holder == null:
+		holder = Node2D.new()
+		holder.name = "Campfires"
+		parent.add_child(holder)
+	else:
+		for c in holder.get_children():
+			c.queue_free()
+	# Sala de spawn por celda (robusto en procgen y mapas fijos): la que contiene spawn_cell.
+	var spawn_room: int = _room_of.get(spawn_cell, -1)
+	var placed := 0
+	for room_i in rooms.size():
+		if room_i == spawn_room:
+			continue
+		if room_i % 3 != 0:   # densidad moderada: ~1 de cada 3 salas
+			continue
+		var cell := _room_center_cell(room_i)   # celda de piso real, centrada en la sala
+		var fire := CAMPFIRE_SCENE.instantiate()
+		fire.seed_off = placed * 1.7   # desfasa parpadeo/sfx entre fogatas (set antes de add_child)
+		fire.position = to_global(map_to_local(cell))   # a ras de piso, posición iso
+		holder.add_child(fire)
+		placed += 1
+	LightField.mark_dirty()   # las fogatas aportan luz → refrescar el foot-light
 
 # ---------------------------------------------------------------------------
 # RENDER ISO (fase 1 del merge): reusa _gen_grid; pinta piso en esta capa y los

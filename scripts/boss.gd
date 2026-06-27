@@ -246,11 +246,11 @@ func _fire(dir: Vector2) -> void:
 	get_parent().add_child(p)
 	p.setup(global_position, dir, damage, false, proj_spd)
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, _knockback := Vector2.ZERO, is_crit := false, dmg_color := Color(1, 0.8, 0.4)) -> void:
 	hp -= amount
 	flash_t = 0.08
 	_set_tint(Color(2.2, 2.2, 2.2) if use_sprite else Color(1, 1, 1))
-	GameState.floater(global_position, str(amount), Color(1, 0.8, 0.4))
+	GameState.floater(global_position, str(amount), dmg_color, is_crit)
 	GameState.boss_hp_changed.emit(hp, max_hp)
 	if not enraged and hp <= max_hp * 0.5:
 		enraged = true

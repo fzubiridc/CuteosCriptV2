@@ -42,13 +42,13 @@ func set_mode(m: Mode) -> void:
 	mode_changed.emit(m)
 
 ## Crea un número flotante en el mundo (daño, avisos).
-func floater(pos: Vector2, text: String, color: Color = Color.WHITE) -> void:
+func floater(pos: Vector2, text: String, color: Color = Color.WHITE, is_crit := false) -> void:
 	var scene := get_tree().current_scene
 	if scene == null:
 		return
 	var f := FLOATER.instantiate()
 	scene.add_child(f)
-	f.setup(pos, text, color)
+	f.setup(pos, text, color, is_crit)
 
 ## Suelta loot al morir una criatura. xp_amount = orbe de XP garantizado.
 func drop_loot(pos: Vector2, xp_amount: int, is_boss := false) -> void:

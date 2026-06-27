@@ -74,7 +74,7 @@ func _ready() -> void:
 	_light.texture_scale = _ra / 70.0
 	_light.scale = Vector2(1.0, _flat * 0.6)
 	add_child(_light)
-	Audio.play("cast", -6.0)   # zumbido de carga (reusa el sfx 'cast')
+	Audio.play("aoe_impact", -2.0)   # único sfx del AoE: suena al lanzarlo (cubre el buildup)
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -94,7 +94,6 @@ func _process(delta: float) -> void:
 
 func _explode() -> void:
 	_exploded = true
-	Audio.play("boom", -3.0)
 	# --- daño: enemigos vivos dentro del ÓVALO (test de elipse sobre sus pies) ---
 	# Enemy → grupo "enemies" (lo agrega enemy.gd; incluye también a los minions del jefe).
 	# El Boss NO está en ese grupo (es hijo directo de la escena), así que lo buscamos aparte.
@@ -104,14 +103,16 @@ func _explode() -> void:
 		var d: Vector2 = e.global_position - global_position
 		if (d.x * d.x) / (_ra * _ra) + (d.y * d.y) / (_rb * _rb) <= 1.0:
 			var push: Vector2 = d.normalized() * _kb if d.length() > 0.01 else Vector2.ZERO
-			e.take_damage(_dmg, push)
+			e.take_damage(_dmg, push, false, Color(1.0, 0.42, 0.1))   # número naranja (fuego)
+			BurnFx.apply(e)   # el AoE es fuego → prende a cada mob alcanzado
 	# Jefe: no está en "enemies"; lo ubicamos entre los hijos de la escena (igual que main.gd).
 	for e in get_tree().current_scene.get_children():
 		if not (e is Boss):
 			continue
 		var d: Vector2 = e.global_position - global_position
 		if (d.x * d.x) / (_ra * _ra) + (d.y * d.y) / (_rb * _rb) <= 1.0:
-			e.take_damage(_dmg)   # el jefe no recibe knockback
+			e.take_damage(_dmg, Vector2.ZERO, false, Color(1.0, 0.42, 0.1))   # naranja (fuego)
+			BurnFx.apply(e)       # también lo prende
 	# --- glow del impacto: destello cálido + flash de luz + shake ---
 	_glyph.modulate = Color(1.0, 0.95, 0.85, 1.0)
 	for fl in _flames:

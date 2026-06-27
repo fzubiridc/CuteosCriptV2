@@ -119,6 +119,12 @@ const MODS := [
 ## Lo gestiona rig_sync.py desde el rigtool (campo animfps). Vacío = todas usan el default.
 const STAFF_ANIM_FPS := {}
 
+## Escala del bolt (proyectil) por vara (índice 0-based → multiplicador; default 1.0 si falta).
+## 1.0 = exactamente el tamaño auto de hoy (no cambia nada); >1 más grande, <1 más chico.
+## Lo gestiona rig_sync.py desde el rigtool (campo boltscale). Vacío = todas usan 1.0
+## (leer SIEMPRE con .get(idx, 1.0) para no fallar con el dict vacío).
+const STAFF_BOLT_SCALE := {}
+
 const STAFF_RIG := [
 	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 49},  # staff1
 	{"grip": {"x": 31, "y": 43}, "focus": {"x": 31, "y": 8},  "rot_deg": 0,   "spx": 64},

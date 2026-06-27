@@ -41,6 +41,12 @@ CONFIG_KEY = "walktest:v2"
 DEF_ANIMFPS = 18
 ANIMFPS_RE = re.compile(r"const\s+STAFF_ANIM_FPS\s*:=\s*\{[^}]*\}")
 
+# escala del bolt (proyectil) por vara: default 1.0 (= tamaño auto, sin cambio).
+# Las varas con boltscale != 1.0 se sincronizan a `const STAFF_BOLT_SCALE := {...}`
+# en data.gd (mismo patron que STAFF_ANIM_FPS). 1.0 = exactamente como hoy.
+DEF_BOLTSCALE = 1.0
+BOLTSCALE_RE = re.compile(r"const\s+STAFF_BOLT_SCALE\s*:=\s*\{[^}]*\}")
+
 # --------------------------------------------------------------------------
 # Default del rigtool (defStaff). Si un staff del config es IGUAL a esto,
 # se considera "sin riggear" y NO se pisa el valor que ya tiene data.gd.
@@ -325,6 +331,51 @@ def replace_animfps_block(text, fps_map):
     return text[:m.start()] + new_block + text[m.end():], True
 
 
+def build_boltscale_map(cfg_staffs):
+    """{indice0: factor} para las varas con boltscale != 1.0 (las demas usan default).
+
+    El factor es un MULTIPLICADOR sobre el tamano auto del bolt (ver projectile.gd).
+    """
+    out = {}
+    for i, s in enumerate(cfg_staffs):
+        try:
+            sc = float(s.get("boltscale", DEF_BOLTSCALE))
+        except (TypeError, ValueError):
+            continue
+        if sc > 0.0 and abs(sc - DEF_BOLTSCALE) > 1e-6:
+            out[i] = sc
+    return out
+
+
+def fmt_scale(v):
+    """Float compacto para GDScript: '1.5' no '1.5000000', y '2.0' no '2'."""
+    s = ("%.4f" % v).rstrip("0")
+    if s.endswith("."):
+        s += "0"
+    return s
+
+
+def render_boltscale(scale_map):
+    """Renderiza `const STAFF_BOLT_SCALE := {0: 1.5, 2: 0.8}` (o `{}` si vacio)."""
+    if not scale_map:
+        return "const STAFF_BOLT_SCALE := {}"
+    items = ", ".join(
+        "%d: %s" % (k, fmt_scale(v)) for k, v in sorted(scale_map.items())
+    )
+    return "const STAFF_BOLT_SCALE := {%s}" % items
+
+
+def replace_boltscale_block(text, scale_map):
+    """Reemplaza el const STAFF_BOLT_SCALE en `text`. Devuelve (texto, cambio)."""
+    new_block = render_boltscale(scale_map)
+    m = BOLTSCALE_RE.search(text)
+    if not m:
+        return text, False  # no existe el const: no lo creamos
+    if m.group(0) == new_block:
+        return text, False
+    return text[:m.start()] + new_block + text[m.end():], True
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Sincroniza STAFF_RIG desde el rigtool hacia data.gd "
@@ -360,6 +411,9 @@ def main():
     # ...y sincronizamos STAFF_ANIM_FPS (fps de anim por vara != 18).
     fps_map = build_animfps_map(cfg_staffs)
     new_text, _ = replace_animfps_block(new_text, fps_map)
+    # ...y STAFF_BOLT_SCALE (escala del bolt por vara != 1.0).
+    scale_map = build_boltscale_map(cfg_staffs)
+    new_text, _ = replace_boltscale_block(new_text, scale_map)
 
     identico = (new_text == original)
 
@@ -375,6 +429,9 @@ def main():
         print("  " + a)
     if fps_map:
         print("anim fps != 18: %s" % {k + 1: v for k, v in sorted(fps_map.items())})
+    if scale_map:
+        print("bolt escala != 1.0: %s" % {
+            k + 1: fmt_scale(v) for k, v in sorted(scale_map.items())})
     print("")
 
     if args.dry_run:

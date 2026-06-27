@@ -333,6 +333,7 @@
         <label>escala</label><input id="wspx" type="number" value="64" style="width:56px">
         <label>rotación°</label><input id="wrot" type="number" value="0" step="5" style="width:56px">
         <label>anim fps</label><input id="wanimfps" type="number" value="18" min="1" style="width:56px">
+        <label title="multiplicador sobre el tamaño auto del bolt (1.0 = como está)">bolt escala</label><input id="wboltscale" type="number" value="1" min="0.05" step="0.05" style="width:56px">
         <span class="muted">activa: <b id="wactivelbl">1</b></span>
       </div>
       <div class="row">
@@ -865,7 +866,7 @@ let VZ=1, panX=0, panY=0, vdrag=null, vspace=false;  // zoom/pan del visor
 const MIRROR={ 'west':'east', 'north-west':'north-east', 'south-west':'south-east' };  // dir espejada → dir fuente
 let mirrored=false;  // la dirección global actual se obtiene espejando la fuente
 // estado persistente (v2: 3 capas)
-function defStaff(){ return {grip:{x:32,y:46}, focus:{x:32,y:8}, spx:64, rot:0, animfps:18}; }
+function defStaff(){ return {grip:{x:32,y:46}, focus:{x:32,y:8}, spx:64, rot:0, animfps:18, boltscale:1}; }
 let ST={ staff:STAFF_SRC.map(defStaff), handByDir:{}, rotByDir:{}, handOn:true, hands:{}, depth:true, active:0 };
 function readHandLib(d){ try{ return JSON.parse(localStorage.getItem('handlib:'+window.SEL.char+'/'+d)); }catch(e){ return null; } }
 function handCfg(){
@@ -890,7 +891,7 @@ function save(){ try{ localStorage.setItem(lsKey(), JSON.stringify(ST)); }catch(
 function restore(){ try{ const j=JSON.parse(localStorage.getItem(lsKey())); if(j) ST=Object.assign(ST,j); }catch(e){}
   if(!ST.staff) ST.staff=[];
   while(ST.staff.length<STAFF_SRC.length) ST.staff.push(defStaff());
-  ST.staff.forEach(s=>{ if(s.rot===undefined)s.rot=0; if(!s.grip)s.grip={x:32,y:46}; if(!s.focus)s.focus={x:s.grip.x,y:Math.max(0,s.grip.y-38)}; if(!s.spx)s.spx=64; if(s.animfps===undefined)s.animfps=18; });
+  ST.staff.forEach(s=>{ if(s.rot===undefined)s.rot=0; if(!s.grip)s.grip={x:32,y:46}; if(!s.focus)s.focus={x:s.grip.x,y:Math.max(0,s.grip.y-38)}; if(!s.spx)s.spx=64; if(s.animfps===undefined)s.animfps=18; if(s.boltscale===undefined)s.boltscale=1; });
   if(ST.hand){ ST.handOn=ST.hand.on!==false; delete ST.hand; }   // migrar formato viejo (mano global única)
   if(ST.handOn===undefined) ST.handOn=true; if(!ST.hands) ST.hands={}; if(!ST.rotByDir) ST.rotByDir={};
   Object.values(ST.hands).forEach(h=>{ if(h.upload===undefined)h.upload=null; if(h.scale===undefined)h.scale=1; if(h.flip===undefined)h.flip=false; });
@@ -1050,7 +1051,7 @@ function go(d){ setPlaying(false); cur=(cur+d+NF)%NF; render(); }
 
 function setTool(t){ tool=t; $('wtoolHand').classList.toggle('on',t==='hand'); }
 function setStaffTool(t){ staffTool=t; $('wstaffGrip').classList.toggle('on',t==='grip'); $('wstaffFocus').classList.toggle('on',t==='focus'); }
-function setActive(i){ active=i; ST.active=i; $('wspx').value=ST.staff[i].spx; $('wrot').value=ST.staff[i].rot||0; $('wanimfps').value=ST.staff[i].animfps||18; save(); render(); loadStaffAnim(); loadBoltAnim('travel'); loadBoltAnim('impact'); }
+function setActive(i){ active=i; ST.active=i; $('wspx').value=ST.staff[i].spx; $('wrot').value=ST.staff[i].rot||0; $('wanimfps').value=ST.staff[i].animfps||18; $('wboltscale').value=ST.staff[i].boltscale||1; save(); render(); loadStaffAnim(); loadBoltAnim('travel'); loadBoltAnim('impact'); }
 
 function buildStaffThumbs(){
   const box=$('wstaffs'); box.innerHTML='';
@@ -1096,6 +1097,7 @@ $('wcopyall').onclick=()=>{ const h=handsForDir(); const c=h[cur]; for(let i=0;i
 $('wspx').oninput=e=>{ ST.staff[active].spx=Math.max(4,+e.target.value); save(); render(); };
 $('wrot').oninput=e=>{ ST.staff[active].rot=+e.target.value||0; save(); render(); drawAnimView(); };
 $('wanimfps').oninput=e=>{ ST.staff[active].animfps=Math.max(1,+e.target.value||18); save(); };
+$('wboltscale').oninput=e=>{ ST.staff[active].boltscale=Math.max(0.05,+e.target.value||1); save(); };  // multiplicador sobre el tamaño auto del bolt (1.0 = como está)
 function syncHandUI(){ const h=handCfg(); $('whandsrc').value=h.src; $('whandax').value=h.ax; $('whanday').value=h.ay; $('whandflip').checked=!!h.flip; $('whandscale').value=h.scale||1; $('whandon').checked=ST.handOn; $('whandupl').textContent=h.upload?'(usando archivo subido)':''; }
 $('whandon').onchange=e=>{ ST.handOn=e.target.checked; save(); render(); };
 $('whandflip').onchange=e=>{ handCfg().flip=e.target.checked; save(); render(); };
@@ -1317,6 +1319,7 @@ mirrored=!!MIRROR[window.SEL.dir]; dir=MIRROR[window.SEL.dir]||window.SEL.dir;
 BASEDIR='assets/v2_test/'+window.SEL.char+'/'+$('wanim').value;
 $('wdepth').textContent='vara: '+(depthFront?'adelante':'atrás');
 $('wspx').value=ST.staff[active].spx; $('wrot').value=ST.staff[active].rot||0;
+$('wanimfps').value=ST.staff[active].animfps||18; $('wboltscale').value=ST.staff[active].boltscale||1;
 syncHandUI();
 recalcView();
 loadStaffs(); loadFrames(); loadHand(); buildOut();

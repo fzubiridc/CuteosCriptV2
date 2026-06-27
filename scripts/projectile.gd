@@ -14,6 +14,7 @@ const FRIENDLY_COL := Color(0.55, 0.9, 1.0)   # azul del orbe del jugador: viaje
 
 var velocity := Vector2.ZERO
 var damage := 12
+var is_crit := false   # lo setea el jugador al crittear → número de daño dorado
 var life := 1.2
 var friendly := true
 var z_height := 0.0
@@ -33,6 +34,12 @@ var _arc := false
 var _z0 := 0.0
 var _traveled := 0.0
 var _land := 1.0
+
+# Bolt propio de la vara (frames pasados por el jugador): si están, reemplazan al orbe azul
+# (travel ciclado en vuelo, impact en la explosión). Vacío → orbe `power`/`powerboom` celeste.
+var _bolt_travel: Array = []
+var _bolt_impact: Array = []
+var _bolt_scale := 0.3
 
 # Anti doble-impacto: si el raycast de muro y body_entered caen en el MISMO frame, el FX/daño
 # se dispararían dos veces. Al primer impacto seteamos _dead y ambos handlers cortan.
@@ -135,6 +142,36 @@ func set_arc(z0: float, land_dist: float) -> void:
 	_land = maxf(land_dist, 1.0)
 	z_height = z0
 
+## El jugador pasa frames de bolt propios de la vara (fuego, etc.) → reemplazan el orbe azul:
+## travel se cicla en vuelo, impact es la explosión. Escala normalizada a ~40px de ancho, por un
+## MULTIPLICADOR por vara (scale_mul, de Data.STAFF_BOLT_SCALE): 1.0 = tamaño auto tal cual (default),
+## >1 más grande, <1 más chico. Lo gestiona el rigtool (campo boltscale) → rig_sync.py → data.gd.
+func set_bolt_frames(travel: Array, impact: Array, scale_mul := 1.0) -> void:
+	_bolt_travel = travel
+	_bolt_impact = impact
+	if travel.is_empty():
+		return
+	var w: float = (travel[0] as Texture2D).get_width()
+	_bolt_scale = ((40.0 / w) if w > 0.0 else 0.3) * scale_mul
+	if _orb_sprite:
+		_orb_sprite.texture = travel[0]
+		_orb_sprite.material = FxMaterials.mix_unshaded()
+		_orb_sprite.modulate = Color.WHITE
+		_orb_sprite.scale = Vector2(_bolt_scale, _bolt_scale)
+		_orb_sprite.rotation = velocity.angle()
+	# Luz de viaje + estela cálidas (fuego), en vez del azul arcano. (Otros colores de bolt se
+	# parametrizarían acá; por ahora el único bolt propio es el de fuego.)
+	if glow:
+		glow.color = Color(1.0, 0.5, 0.18)
+	if _trail:
+		var ramp := Gradient.new()
+		ramp.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		ramp.colors = PackedColorArray([
+			Color(1.0, 0.8, 0.3, 0.85), Color(1.0, 0.42, 0.12, 0.6),
+			Color(1.0, 0.3, 0.05, 0.0)])
+		_trail.color_ramp = ramp
+		_trail.color = Color(1, 1, 1, 1)
+
 func _physics_process(delta: float) -> void:
 	_t += delta
 	if glow:
@@ -148,14 +185,16 @@ func _physics_process(delta: float) -> void:
 		if _orb_sprite: _orb_sprite.position = voff
 		if _trail: _trail.position = voff
 	if _use_power and _orb_sprite:
-		var frames := _get_power_frames()
+		var use_bolt := not _bolt_travel.is_empty()
+		var frames: Array = _bolt_travel if use_bolt else _get_power_frames()
 		if not frames.is_empty():
 			_orb_sprite.texture = frames[int(_t * 1000.0 / 90.0) % frames.size()]
 		_orb_sprite.rotation = velocity.angle()
 		var f: float = clampf(life * 3.5, 0.0, 1.0)   # difumina en el último tramo
 		_orb_sprite.modulate.a = f
+		var base_s: float = _bolt_scale if use_bolt else 0.6
 		var sh: float = 0.85 + f * 0.15
-		_orb_sprite.scale = Vector2(0.6, 0.6) * sh
+		_orb_sprite.scale = Vector2(base_s, base_s) * sh
 	var step := velocity * delta
 	var space := get_world_2d().direct_space_state
 	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + step, 1)
@@ -179,17 +218,25 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0:
 		queue_free()
 
+## Color del número de daño: naranja si es el bolt de fuego de la vara, amarillo si es normal.
+func _dmg_color() -> Color:
+	return Color(1.0, 0.42, 0.1) if not _bolt_impact.is_empty() else Color(1, 0.9, 0.5)
+
 func _on_body_entered(body: Node) -> void:
 	if _dead:   # ya impactó este frame (raycast de muro u otro body) → no dupliques FX/daño
 		return
 	if friendly and body is Enemy:
 		_dead = true
-		body.take_damage(damage, velocity.normalized() * BOLT_KB)   # empuje
+		body.take_damage(damage, velocity.normalized() * BOLT_KB, is_crit, _dmg_color())   # empuje
+		if not _bolt_impact.is_empty():   # bolt de fuego de la vara → prende al mob
+			BurnFx.apply(body)
 		_impact()
 		queue_free()
 	elif friendly and body is Boss:
 		_dead = true
-		body.take_damage(damage)   # el jefe no recibe knockback
+		body.take_damage(damage, Vector2.ZERO, is_crit, _dmg_color())   # el jefe no recibe knockback
+		if not _bolt_impact.is_empty():   # bolt de fuego → quema también al jefe
+			BurnFx.apply(body)
 		_impact()
 		queue_free()
 	elif not friendly and body is Player:
@@ -209,9 +256,19 @@ func _impact(on_wall := false) -> void:
 	Audio.play("boom", -6.0)
 	var fx_pos := global_position + Vector2(0.0, -z_height)
 	var boom := AnimatedSprite2D.new()
-	boom.sprite_frames = _get_boom_frames()
+	if not _bolt_impact.is_empty():   # explosión propia de la vara (fuego, etc.)
+		var sf := SpriteFrames.new()
+		sf.add_animation("boom")
+		sf.set_animation_loop("boom", false)
+		sf.set_animation_speed("boom", 18.0)
+		for t in _bolt_impact:
+			sf.add_frame("boom", t)
+		boom.sprite_frames = sf
+		boom.scale = Vector2(0.7, 0.7)
+	else:
+		boom.sprite_frames = _get_boom_frames()
+		boom.scale = Vector2(0.85, 0.85)
 	boom.animation = "boom"
-	boom.scale = Vector2(0.85, 0.85)
 	boom.z_index = 41
 	boom.material = FxMaterials.mix_unshaded()
 	boom.global_position = fx_pos
@@ -221,7 +278,7 @@ func _impact(on_wall := false) -> void:
 	# Luz de explosión: flash que se retiene un poco y se apaga (brasa). Ilumina el PISO.
 	# Mismo azul que el orbe en viaje (FRIENDLY_COL) y energy MODERADA: con energy alta (3.2)
 	# el azul se saturaba a BLANCO; a ~1.6 conserva el tono, congruente con la luz de viaje.
-	var fx_col := FRIENDLY_COL
+	var fx_col := (Color(1.0, 0.55, 0.2) if not _bolt_impact.is_empty() else FRIENDLY_COL)
 	var lt := PointLight2D.new()
 	lt.texture = load("res://assets/fx/light_radial.tres")
 	lt.color = fx_col

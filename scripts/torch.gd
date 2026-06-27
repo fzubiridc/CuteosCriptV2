@@ -37,6 +37,7 @@ func _ready() -> void:
 	_sprite.frame = int(seed_off) % FRAMES   # desfasar el ciclo entre antorchas
 	_apply_cfg()
 	LightCfg.changed.connect(_apply_cfg)
+	Audio.attach_flame(self)   # loop de llama posicional (más fuerte al acercarse)
 
 ## Dungeon setea el montaje (llama sobre la cara, luz metida a la sala). Habilita el tuning en vivo.
 func set_mount(flame: Vector2, light: Vector2) -> void:
