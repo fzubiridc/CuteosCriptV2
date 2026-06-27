@@ -66,10 +66,6 @@ var _k_glow_energy := 0.9
 var _k_glow_radius := 0.5
 var _k_reveal_dist := 220.0   # cache de mob_reveal_dist (antes se leía por frame en _physics_process)
 
-# Director de combate: limita cuántos mobs golpean a la vez (static, compartido por todos).
-static var _atk_active: Dictionary = {}   # instance_id → true
-const MAX_ATTACKERS := 3
-
 ## Proveedor de rutas por grilla (AStarGrid2D del nivel iso). Si está seteado
 ## (lo pone iso_procgen), los mobs rutean por la grilla esquivando muros. En el
 ## juego 2D queda null → usan el NavigationAgent2D de siempre.
@@ -387,27 +383,12 @@ func _shooter_fire(delta: float, ppos: Vector2, to_player: float) -> void:
 		get_parent().add_child(p)
 		p.setup(global_position, (ppos - global_position).normalized(), damage, false, proj_spd)
 
-# --- Director de combate (static): tope de atacantes simultáneos ---
-static func _try_claim(id: int) -> bool:
-	if _atk_active.has(id):
-		return true
-	for k in _atk_active.keys():        # poda ids de mobs ya liberados (regen/muerte sin release)
-		if not is_instance_id_valid(k):
-			_atk_active.erase(k)
-	if _atk_active.size() >= MAX_ATTACKERS:
-		return false
-	_atk_active[id] = true
-	return true
-
-static func _release(id: int) -> void:
-	_atk_active.erase(id)
-
 func _reset_combat() -> void:
 	if st != St.CHASE:
 		_set_telegraph(false)
 	st = St.CHASE
 	st_t = 0.0
-	_release(get_instance_id())
+	CombatDirector.release(get_instance_id())
 
 func _ai_default_windup() -> float:
 	if ai == "erratic": return 0.18     # picaflor: telegraph corto, pica y se va
@@ -442,11 +423,11 @@ func _melee_think(delta: float, ppos: Vector2, to_player: float, player) -> Vect
 		return global_position          # quieto durante el telegraph
 	if st == St.RECOVER:
 		if st_t <= 0.0 or to_player > atk_exit:
-			_release(get_instance_id())
+			CombatDirector.release(get_instance_id())
 			st = St.CHASE
 		return global_position          # quieto / vulnerable
 	# CHASE: orbita su slot; al entrar en rango pide cupo al director y telegrafea.
-	if to_player <= atk_enter and _try_claim(get_instance_id()):
+	if to_player <= atk_enter and CombatDirector.try_claim(get_instance_id()):
 		st = St.WINDUP
 		st_t = windup
 		_set_telegraph(true)

@@ -32,6 +32,7 @@ LightField="*res://scripts/autoload/light_field.gd"
 FxMaterials="*res://scripts/autoload/fx_materials.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
 Fps="*res://scripts/autoload/fps_counter.gd"
+CombatDirector="*res://scripts/autoload/combat_director.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
