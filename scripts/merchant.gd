@@ -67,9 +67,8 @@ func interactable_now() -> bool:
 
 func _process(_delta: float) -> void:
 	if _near and Input.is_action_just_pressed("interact"):
-		var hud := get_tree().current_scene.get_node_or_null("HUD")
-		if hud and hud.has_method("open_shop"):
-			hud.open_shop(self)
+		# El mercader ya no conoce el HUD: emite la señal y GameState media (el HUD escucha).
+		GameState.shop_requested.emit(self)
 
 ## SpriteFrames del mercader (idle, 4 frames) desde el sheet. Fallback a carga cruda.
 static var _frames: SpriteFrames

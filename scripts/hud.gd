@@ -66,6 +66,7 @@ func _ready() -> void:
 	GameState.level_up.connect(_on_level_up)
 	GameState.player_died.connect(_on_death)
 	GameState.mode_changed.connect(_on_mode)
+	GameState.shop_requested.connect(open_shop)   # el mercader pide abrir la tienda vía GameState
 	for i in 3:
 		up_btns[i].pressed.connect(_pick.bind(i))
 	$PausePanel/BtnResume.pressed.connect(_toggle_pause)

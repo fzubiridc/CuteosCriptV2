@@ -30,6 +30,7 @@ signal boss_spawned(boss: Node)
 signal boss_hp_changed(current: int, maximum: int)
 signal boss_died
 signal level_up(choices: Array)
+signal shop_requested(merchant)   # el mercader pide abrir la tienda; el HUD escucha
 @warning_ignore_restore("unused_signal")
 
 func _ready() -> void:
