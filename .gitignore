@@ -56,3 +56,7 @@ _pixi_assets/
 
 # Tilesets fuente (CraftPix) — solo para dibujar/recortar; no versionar
 _tilesets_src/
+
+# Python cache
+__pycache__/
+*.pyc
