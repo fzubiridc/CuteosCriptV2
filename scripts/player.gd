@@ -5,6 +5,7 @@ class_name Player
 ## las 5 dirs base de walk_empty. El proyectil sale de Tip (punta del staff).
 
 const PROJECTILE := preload("res://scenes/projectile.tscn")
+const AOE := preload("res://scripts/aoe.gd")
 @export var camera_zoom := 4.0   # knob de zoom de cámara (3 = original, más = más cerca)
 @export var rig_scale := 0.4     # escala visual del rig (0.4 = top-down; subir para iso)
 
@@ -53,6 +54,7 @@ var atk_cd_t := 0.0
 var kb := Vector2.ZERO
 var dash_t := 0.0
 var dash_cd_t := 0.0
+var aoe_cd_t := 0.0
 var dash_vel := Vector2.ZERO
 static var _px_tex: Texture2D            # 1×1 blanco compartido (partícula del dash)
 var ifr := 0.0
@@ -90,6 +92,11 @@ func _ready() -> void:
 	_refresh_weapon()
 	_play("idle", facing_dir)
 	cam.zoom = Vector2(camera_zoom, camera_zoom)   # knob de zoom (subir = más cerca)
+	# Cámara fija al jugador: el mago queda clavado en el centro y el mapa se desliza.
+	# Sin límites ni suavizado → centrado pixel-perfect (no se despega del centro).
+	cam.position_smoothing_enabled = false
+	cam.ignore_rotation = true
+	cam.make_current()
 	_setup_light()
 	CastShadow.attach(self, body)          # sombra proyectada PRO + contacto (auto-ancla a los pies)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
@@ -104,27 +111,48 @@ func _setup_light() -> void:
 	var light := get_node_or_null("Light") as PointLight2D
 	if light == null:
 		return
-	# Charco de luz compartido (elíptico, achatado en Y → vista 3/4).
-	var pool := load("res://assets/fx/light_pool.tres") as Texture2D
-	if pool != null:
-		light.texture = pool
-		return
+	_apply_light_tex(light)
+	# Regenerar el charco en vivo al mover el knob de suavidad (tecla L).
+	if not LightCfg.changed.is_connected(_on_light_cfg_changed):
+		LightCfg.changed.connect(_on_light_cfg_changed)
+
+func _on_light_cfg_changed() -> void:
+	var light := get_node_or_null("Light") as PointLight2D
+	if light:
+		_apply_light_tex(light)
+
+## player_soft = 2.0 (default) → usa el charco HORNEADO (look actual intacto). Si lo movés, genera
+## el charco por código desde la curva (1-d)^player_soft → manejás el difuminado del charco del piso.
+func _apply_light_tex(light: PointLight2D) -> void:
+	var p := LightCfg.get_v("player_soft")
+	if absf(p - 2.0) < 0.01:
+		var pool := load("res://assets/fx/light_pool.tres") as Texture2D
+		if pool != null:
+			light.texture = pool
+			return
+	# Charco elíptico (achatado en Y → vista 3/4) con falloff tuneable.
 	var s := 256
 	var img := Image.create_empty(s, s, false, Image.FORMAT_RGBA8)
 	var c := Vector2(s / 2.0, s / 2.0)
 	var maxd := s / 2.0
 	for y in s:
 		for x in s:
-			var d := Vector2(x, y).distance_to(c) / maxd
+			var off := Vector2(x, y) - c
+			off.y *= 2.0   # achatado Y (mismo look 3/4 que el charco horneado)
+			var d := off.length() / maxd
 			var a := clampf(1.0 - d, 0.0, 1.0)
-			a = a * a   # falloff suave (halo)
+			a = pow(a, p)
 			img.set_pixel(x, y, Color(1, 1, 1, a))
 	light.texture = ImageTexture.create_from_image(img)
 
 func _load_textures() -> void:
-	for i in 9:
-		var path := "res://assets/hero/staffs/staff%d.png" % (i + 1)
-		_staff_textures.append(_load_runtime_tex(path))
+	# Carga dinámica: staff1.png, staff2.png, … hasta que falte una (soporta varas
+	# nuevas insertadas desde el rigtool sin tocar código). Requiere que Godot ya
+	# las haya importado (al parar el play o reenfocar el editor).
+	var si := 1
+	while ResourceLoader.exists("res://assets/hero/staffs/staff%d.png" % si):
+		_staff_textures.append(_load_runtime_tex("res://assets/hero/staffs/staff%d.png" % si))
+		si += 1
 	for godot_dir in HAND_OVERLAY_DIRS:
 		var src_name: String = HAND_OVERLAY_DIRS[godot_dir]
 		var path := "res://assets/hero/hands/%s.png" % src_name
@@ -191,7 +219,12 @@ func attack_damage() -> int:
 	var wdmg := int(w.dmg) if w else base_attack_dmg
 	return int(round((wdmg + _equip_sum("dmg")) * dmg_mul))
 
+## DEBUG (panel tecla J): -1 = normal (según material); >=0 fuerza esa vara para previsualizarla.
+var debug_staff_idx: int = -1
+
 func _staff_tier_index() -> int:
+	if debug_staff_idx >= 0 and not _staff_textures.is_empty():
+		return clampi(debug_staff_idx, 0, _staff_textures.size() - 1)
 	var w = equip.get("arma", null)
 	if w == null:
 		return -1
@@ -201,16 +234,36 @@ func _staff_tier_index() -> int:
 			return clampi(i, 0, _staff_textures.size() - 1)
 	return 0
 
+## DEBUG: fuerza la vara i (o -1 = normal) y refresca al toque (invalida el cache).
+func debug_set_staff(i: int) -> void:
+	debug_staff_idx = i
+	cur_staff_idx = -1
+	_refresh_weapon()
+
+func debug_staff_count() -> int:
+	return _staff_textures.size()
+
+## Rig de la vara idx: Data.STAFF_RIG si existe, o un default razonable (grip centro-abajo,
+## gema arriba) para varas nuevas todavía sin riggear → una vara recién insertada ya funciona.
+func _staff_rig(idx: int) -> Dictionary:
+	if idx >= 0 and idx < Data.STAFF_RIG.size():
+		return Data.STAFF_RIG[idx]
+	var tex: Texture2D = _staff_textures[idx] if idx >= 0 and idx < _staff_textures.size() else null
+	var w: int = tex.get_width() if tex != null else 24
+	var h: int = tex.get_height() if tex != null else 24
+	return {"grip": {"x": int(w * 0.5), "y": int(h * 0.72)}, "focus": {"x": int(w * 0.5), "y": int(h * 0.12)}, "rot_deg": 0, "spx": w}
+
 func _refresh_weapon() -> void:
 	var idx := _staff_tier_index()
 	if idx < 0 or _staff_textures.is_empty() or _staff_textures[idx] == null:
 		weapon.visible = false
 		cur_staff_idx = -1
+		_staff_anim_frames.clear()
 		return
 	if idx == cur_staff_idx:
 		return
 	cur_staff_idx = idx
-	var cfg: Dictionary = Data.STAFF_RIG[idx]
+	var cfg: Dictionary = _staff_rig(idx)
 	var grip: Dictionary = cfg.grip
 	var focus: Dictionary = cfg.focus
 	weapon.texture = _staff_textures[idx]
@@ -225,6 +278,39 @@ func _refresh_weapon() -> void:
 	weapon.visible = true
 	# Tip es hijo del Weapon: su posición es relativa al grip (que es el origen local).
 	tip.position = Vector2(float(focus.x) - float(grip.x), float(focus.y) - float(grip.y))
+	_load_staff_anim(idx)
+
+## Animación propia de la vara: si existe assets/hero/staffs/staffN_anim/frame_000.png…,
+## los carga y _tick_staff_anim cicla weapon.texture sobre ellos. Mismas dims que la estática
+## (así el grip/escala del rig siguen valiendo). Sin carpeta _anim → vara estática.
+var _staff_anim_frames: Array = []
+var _staff_anim_t := 0.0
+var _staff_anim_playing := false          # la anim de la vara solo corre MIENTRAS atacás
+var _staff_static_tex: Texture2D = null   # textura estática a la que se vuelve al terminar
+var _staff_anim_fps := 18.0               # fps de la vara activa (Data.STAFF_ANIM_FPS, default 18)
+
+func _load_staff_anim(idx: int) -> void:
+	_staff_anim_frames.clear()
+	_staff_anim_t = 0.0
+	_staff_anim_playing = false
+	_staff_static_tex = _staff_textures[idx] if idx >= 0 and idx < _staff_textures.size() else null
+	_staff_anim_fps = float(Data.STAFF_ANIM_FPS.get(idx, 18.0))
+	var i := 0
+	while ResourceLoader.exists("res://assets/hero/staffs/staff%d_anim/frame_%03d.png" % [idx + 1, i]):
+		_staff_anim_frames.append(_load_runtime_tex("res://assets/hero/staffs/staff%d_anim/frame_%03d.png" % [idx + 1, i]))
+		i += 1
+
+func _tick_staff_anim(delta: float) -> void:
+	if _staff_anim_frames.is_empty() or not weapon.visible or not _staff_anim_playing:
+		return
+	_staff_anim_t += delta
+	var total := float(_staff_anim_frames.size()) / _staff_anim_fps
+	if _staff_anim_t >= total:   # terminó el ciclo → vuelve a la vara estática
+		_staff_anim_playing = false
+		if _staff_static_tex != null:
+			weapon.texture = _staff_static_tex
+		return
+	weapon.texture = _staff_anim_frames[int(_staff_anim_t * _staff_anim_fps) % _staff_anim_frames.size()]
 
 # ---------------- Loop ----------------
 func _physics_process(delta: float) -> void:
@@ -245,9 +331,12 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_regen_mana(delta)
 	_update_anim()
+	_tick_staff_anim(delta)
 	if Input.is_action_just_pressed("dash"): _try_dash()
 	if Input.is_action_pressed("attack"): _try_attack()
 	if Input.is_action_just_pressed("potion"): _use_potion()
+	# E = interact con prioridad: si no hay nada para interactuar cerca, lanza el AoE.
+	if Input.is_action_just_pressed("interact") and not _interactable_near(): _try_aoe()
 	if shake_t > 0.0:
 		shake_t -= delta
 		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amt * (shake_t / 0.25)
@@ -260,6 +349,7 @@ func shake(amt := 4.0) -> void:
 
 func _tick_timers(delta: float) -> void:
 	atk_cd_t = maxf(0.0, atk_cd_t - delta)
+	aoe_cd_t = maxf(0.0, aoe_cd_t - delta)
 	dash_t = maxf(0.0, dash_t - delta)
 	dash_cd_t = maxf(0.0, dash_cd_t - delta)
 	ifr = maxf(0.0, ifr - delta)
@@ -359,18 +449,13 @@ func _spawn_dash_particle() -> void:
 	s.texture = _get_px_tex()
 	s.scale = Vector2(2, 2)                       # 2×2 px (pixiRect 2×2)
 	s.z_index = -3
-	s.material = _unshaded_mat()                  # color exacto, sin tinte de luz
+	s.material = FxMaterials.mix_unshaded()        # color exacto, sin tinte de luz (material compartido)
 	s.modulate = Color(0.60, 0.72, 0.85, 0.66)    # #9ab8d8, alpha = min(1, t*3) inicial
 	s.global_position = global_position + Vector2(randf_range(-2.5, 2.5), 4.0 + randf_range(-3.5, 3.5))
 	get_parent().add_child(s)
 	var tw := s.create_tween()
 	tw.tween_property(s, "modulate:a", 0.0, 0.22) # vida 0.22s, fade lineal
 	tw.tween_callback(s.queue_free)
-
-func _unshaded_mat() -> CanvasItemMaterial:
-	var m := CanvasItemMaterial.new()
-	m.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	return m
 
 ## Textura 1×1 blanca compartida (se escala a 2×2 y se tinta por modulate).
 static func _get_px_tex() -> Texture2D:
@@ -382,31 +467,69 @@ static func _get_px_tex() -> Texture2D:
 	return _px_tex
 
 const MANA_COST_MUL := 0.6   # menos consumo de maná por tiro
+const MIN_BOLT_RANGE := 80.0   # piso de distancia de aterrizaje del bolt (que el arco se note)
 
 func _try_attack() -> void:
 	var w := _weapon_type_data()
 	var cost := float(w.get("mana_cost", 9)) * MANA_COST_MUL
 	if atk_cd_t > 0.0 or mana < cost: return
 	atk_cd_t = float(w.get("cd", 0.28)) / atkspd()
+	if not _staff_anim_frames.is_empty():   # dispara el destello/animación de la vara
+		_staff_anim_playing = true
+		_staff_anim_t = 0.0
 	mana -= cost
 	no_cast_t = 0.0
-	# Modelo 2.5D (pixi): el orbe COLISIONA en el plano de los pies (adelantado en la
-	# mira) y se DIBUJA elevado hacia la punta de la vara (z). Así no choca contra un
-	# muro que la punta "pisa" visualmente, y su luz cae en el piso.
-	var aim := (get_global_mouse_position() - global_position).normalized()
+	# Modelo 2.5D (pixi): el orbe COLISIONA en el plano de los pies y se DIBUJA elevado.
+	# ARQUEA hacia el punto del piso bajo el cursor: nace en la punta (alto) y baja hasta
+	# tocar el piso en el objetivo, donde su luz/sombra (que va en el piso) converge con el
+	# orbe. La colisión sigue en el plano de los pies (no choca muros que la punta "pisa");
+	# como el orbe ya viene bajando, el impacto a un mob se ve a su altura, no flotando.
+	var target := get_global_mouse_position()
 	var tipg := tip.global_position if weapon.visible else global_position
+	var aim := (target - global_position).normalized()
+	# Origen de la colisión: pies bajo la punta (adelantado un toque en la mira).
 	var spawn := Vector2(tipg.x, global_position.y + 5.0 + aim.y * 6.0)
+	# Vuelo hacia el punto del piso clickeado; piso de distancia para que el arco se note.
+	var to_target := target - spawn
+	var dir := to_target.normalized() if to_target.length() > 0.001 else aim
+	var land := maxf(to_target.length(), MIN_BOLT_RANGE)
 	var dmg := attack_damage()
 	if Rng.unit() * 100.0 < crit_chance(): dmg *= 2
 	var p := PROJECTILE.instantiate()
 	get_parent().add_child(p)
-	# Altura visual del orbe hasta la punta del staff. El tope escala con el rig
-	# (rig más grande = punta más alta) para que el bolt salga DE la punta, no abajo.
-	p.z_height = clampf(spawn.y - tipg.y, 2.0, 12.0 + rig_scale * 32.0)
+	# Altura visual inicial = gap real pies→punta (SIN tope: el viejo clamp 12+rig_scale*32
+	# se quedaba corto con rig_scale=0.8). El arco la baja de z0 (punta) a 0 (objetivo).
+	var z0 := maxf(2.0, spawn.y - tipg.y)
+	p.z_height = z0
 	if Dungeon.ISO:
 		p.scale = Vector2(1.6, 1.6)   # orbe más grande para el zoom-out iso
-	p.setup(spawn, aim, dmg, true, float(w.get("proj_spd", 260)))
+	p.setup(spawn, dir, dmg, true, float(w.get("proj_spd", 260)))
+	p.set_arc(z0, land)               # baja de z0 (punta) a 0 (objetivo del piso)
 	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
+
+# --- Ataque de área (E) -----------------------------------------------------
+const AOE_COST := 35.0    # maná
+const AOE_CD := 0.5       # cooldown s
+const AOE_DMG_MUL := 2.0  # pega más fuerte que el bolt normal (es habilidad con cooldown)
+						  # (tamaño/achatado del AoE salen de assets/fx/aoe_config.json)
+
+## ¿Hay algún objeto interactuable (cofre/mercader) disponible en rango? Si sí, E hace
+## interact (lo maneja el objeto) y NO casteamos el AoE. Reusa el grupo "interactable".
+func _interactable_near() -> bool:
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if is_instance_valid(n) and n.has_method("interactable_now") and n.interactable_now():
+			return true
+	return false
+
+## Planta el AoE bajo el cursor (targeted). Cuesta maná + cooldown, como los otros ataques.
+func _try_aoe() -> void:
+	if aoe_cd_t > 0.0 or mana < AOE_COST: return
+	aoe_cd_t = AOE_CD
+	mana -= AOE_COST
+	no_cast_t = 0.0
+	var a := AOE.new()
+	get_parent().add_child(a)
+	a.setup(get_global_mouse_position(), int(attack_damage() * AOE_DMG_MUL), 1.0)
 
 ## Dirección de apuntado: hacia el mouse.
 func _aim_dir(from: Vector2) -> Vector2:

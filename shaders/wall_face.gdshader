@@ -19,6 +19,7 @@ uniform float light_height[MAX_LIGHTS];
 uniform vec3 ambient = vec3(0.1, 0.1, 0.12);
 uniform float cap = 1.4;
 uniform float light_boost = 1.0;   // multiplica el aporte de luz (caras de muro)
+uniform float light_falloff = 2.0; // exponente de caída de la luz (bajo = más difusa/suave)
 uniform float normal_strength = 1.0;
 uniform float relief_floor = 0.65;   // 1.0 = sin relieve; más bajo = relieve más marcado
 uniform sampler2D normal_tex : repeat_disable;
@@ -57,7 +58,7 @@ void fragment() {
 		vec2 delta = light_pos[i] - world_pos;
 		float d = length(delta);
 		if (d >= rad) { continue; }
-		float att = pow(1.0 - d / rad, 2.0) * light_energy[i];
+		float att = pow(1.0 - d / rad, light_falloff) * light_energy[i];
 		// Direccionalidad de la cara.
 		float ndl;
 		if (use_face_normal) {

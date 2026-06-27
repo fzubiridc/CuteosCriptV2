@@ -98,4 +98,5 @@ func reset_run() -> void:
 		"depth": 1,
 		"kills": 0,
 		"time": 0.0,
+		"run_seed": Rng.range_i(1, 0x7FFFFFFF),   # semilla maestra: cada piso deriva de (run_seed, depth)
 	}

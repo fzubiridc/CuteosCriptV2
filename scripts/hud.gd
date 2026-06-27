@@ -1,4 +1,5 @@
 extends CanvasLayer
+class_name HUD
 ## HUD: barras de vida/maná/XP, stats, barra de jefe, panel de mejora,
 ## inventario, pausa y pantalla de muerte.
 
@@ -7,7 +8,7 @@ extends CanvasLayer
 @onready var level_value: Label = $XPBar/LevelValue
 @onready var stats: Label = $StatsLabel
 @onready var boss_ui: Control = $BossUI
-@onready var boss_bar: ProgressBar = $BossUI/BossBar
+@onready var boss_fill: TextureRect = $BossUI/BossBarFill
 @onready var boss_name: Label = $BossUI/BossName
 @onready var up_panel: Control = $UpgradePanel
 @onready var up_title: Label = $UpgradePanel/Title
@@ -30,6 +31,26 @@ var _shop_merchant = null
 var _shop_just_opened := false
 var _displayed_xp_ratio := 0.0
 var _xp_ratio_initialized := false
+var _boss_fill_target := 1.0
+var _boss_fill_display := 1.0
+
+# --- Cache de valores para evitar trabajo por frame en _process ---
+# Solo empujamos shader params / texto de labels cuando el valor cambió respecto
+# al frame anterior (set_shader_parameter y reconstruir strings no son gratis).
+var _prev_life_ratio := -1.0
+var _prev_mana_ratio := -1.0
+var _prev_xp_fill := -1.0
+var _prev_life_text := ""
+var _prev_mana_text := ""
+var _prev_xp_text := ""
+var _prev_level_text := ""
+# Dirty-flag de la línea de stats: GameState no expone equip_changed ni
+# potions_changed, así que cacheamos las entradas y solo reconstruimos
+# stats.text (que llama attack_damage(), costoso) cuando alguna cambió.
+var _prev_stats_level := -1
+var _prev_stats_coins := -2147483648
+var _prev_stats_potions := -1
+var _prev_stats_dmg := -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -362,15 +383,31 @@ func _process(_delta: float) -> void:
 			_shop_just_opened = false
 		elif Input.is_action_just_pressed("interact"):
 			_close_shop()
-	var p = GameState.player
+	var p: Player = GameState.player
 	if p == null:
 		return
-	var life_ratio := clampf(float(p.hp) / maxf(1.0, p.max_hp()), 0.0, 1.0)
-	(life_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", life_ratio)
-	life_preview_value.text = "%d / %d" % [int(ceil(float(p.hp))), int(p.max_hp())]
+	# max_hp() recorre el equip: lo calculamos una sola vez por frame.
+	var pmax_hp := p.max_hp()
+	var life_ratio := clampf(float(p.hp) / maxf(1.0, pmax_hp), 0.0, 1.0)
+	# Vida: solo tocar el shader/label si cambió el ratio o el texto.
+	if not is_equal_approx(life_ratio, _prev_life_ratio):
+		(life_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", life_ratio)
+		_prev_life_ratio = life_ratio
+	var life_text := "%d / %d" % [int(ceil(float(p.hp))), pmax_hp]
+	if life_text != _prev_life_text:
+		life_preview_value.text = life_text
+		_prev_life_text = life_text
+	# Maná: idem.
 	var mana_ratio := clampf(p.mana / maxf(1.0, p.max_mana), 0.0, 1.0)
-	(mana_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", mana_ratio)
-	mana_preview_value.text = "%d / %d" % [int(round(p.mana)), int(p.max_mana)]
+	if not is_equal_approx(mana_ratio, _prev_mana_ratio):
+		(mana_preview_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", mana_ratio)
+		_prev_mana_ratio = mana_ratio
+	var mana_text := "%d / %d" % [int(round(p.mana)), int(p.max_mana)]
+	if mana_text != _prev_mana_text:
+		mana_preview_value.text = mana_text
+		_prev_mana_text = mana_text
+	# XP: la barra se interpola suave, así que el lerp sí corre por frame,
+	# pero solo empujamos el shader cuando el valor mostrado realmente cambió.
 	var xp_ratio := clampf(float(p.xp) / maxf(1.0, p.xp_to_next), 0.0, 1.0)
 	if not _xp_ratio_initialized:
 		_displayed_xp_ratio = xp_ratio
@@ -380,10 +417,38 @@ func _process(_delta: float) -> void:
 		_displayed_xp_ratio = lerpf(_displayed_xp_ratio, xp_ratio, xp_smoothing)
 		if absf(_displayed_xp_ratio - xp_ratio) < 0.0005:
 			_displayed_xp_ratio = xp_ratio
-	(xp_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", _displayed_xp_ratio)
-	xp_value.text = "%d / %d" % [p.xp, p.xp_to_next]
-	level_value.text = str(p.level)
-	stats.text = "Nivel %d    Monedas %d    Pociones %d    Daño %d" % [p.level, p.coins, p.potions, p.attack_damage()]
+	if not is_equal_approx(_displayed_xp_ratio, _prev_xp_fill):
+		(xp_fill.material as ShaderMaterial).set_shader_parameter("fill_ratio", _displayed_xp_ratio)
+		_prev_xp_fill = _displayed_xp_ratio
+	var xp_text := "%d / %d" % [p.xp, p.xp_to_next]
+	if xp_text != _prev_xp_text:
+		xp_value.text = xp_text
+		_prev_xp_text = xp_text
+	var level_text := str(p.level)
+	if level_text != _prev_level_text:
+		level_value.text = level_text
+		_prev_level_text = level_text
+	# Línea de stats: evitamos el costo real (rearmar el string + reasignar
+	# Label.text, que dispara text-shaping/redraw) salvo que algo cambie. Como
+	# GameState no expone equip_changed ni potions_changed, comparamos contra los
+	# valores cacheados (incluido attack_damage(), que es barato: ~6 lookups del
+	# equip). attack_damage() cubre el caso de equipar desde la bolsa, que no
+	# altera nivel/monedas/pociones; así el daño nunca queda desactualizado.
+	var pdmg := p.attack_damage()
+	if p.level != _prev_stats_level or p.coins != _prev_stats_coins \
+			or p.potions != _prev_stats_potions or pdmg != _prev_stats_dmg:
+		stats.text = "Nivel %d    Monedas %d    Pociones %d    Daño %d" % [p.level, p.coins, p.potions, pdmg]
+		_prev_stats_level = p.level
+		_prev_stats_coins = p.coins
+		_prev_stats_potions = p.potions
+		_prev_stats_dmg = pdmg
+
+	# Vaciado suave de la barra de jefe (el líquido baja con un pequeño lag).
+	if boss_ui.visible:
+		_boss_fill_display = lerpf(_boss_fill_display, _boss_fill_target, 1.0 - exp(-7.0 * _delta))
+		if absf(_boss_fill_display - _boss_fill_target) < 0.0008:
+			_boss_fill_display = _boss_fill_target
+		_set_boss_fill(_boss_fill_display)
 
 	if up_panel.visible or death_panel.visible:
 		return
@@ -399,10 +464,17 @@ func _process(_delta: float) -> void:
 func _on_boss_spawn(b: Node) -> void:
 	boss_ui.visible = true
 	boss_name.text = b.boss_name
+	_boss_fill_target = 1.0
+	_boss_fill_display = 1.0
+	_set_boss_fill(1.0)
 
 func _on_boss_hp(current: int, maximum: int) -> void:
-	boss_bar.max_value = maximum
-	boss_bar.value = current
+	_boss_fill_target = clampf(float(current) / maxf(1.0, float(maximum)), 0.0, 1.0)
+
+func _set_boss_fill(ratio: float) -> void:
+	var mat := boss_fill.material as ShaderMaterial
+	if mat:
+		mat.set_shader_parameter("fill_ratio", ratio)
 
 func _on_boss_died() -> void:
 	boss_ui.visible = false
@@ -604,6 +676,9 @@ func _restart() -> void:
 
 # ---------------- Tienda / mercader ----------------
 func open_shop(merchant) -> void:
+	# Guarda: no abrir la tienda con un mercader inválido (evita crash al leer .stock).
+	if not is_instance_valid(merchant):
+		return
 	_shop_merchant = merchant
 	if merchant.stock.is_empty():
 		merchant.stock = Items.make_shop_stock(int(GameState.run.get("depth", 1)))
@@ -612,6 +687,10 @@ func open_shop(merchant) -> void:
 	_build_shop()
 
 func _build_shop() -> void:
+	# Guarda: si el mercader murió con la tienda abierta, cerramos en vez de crashear.
+	if not is_instance_valid(_shop_merchant):
+		_close_shop()
+		return
 	if _shop_panel and is_instance_valid(_shop_panel):
 		_shop_panel.queue_free()
 	var p = GameState.player
@@ -681,6 +760,10 @@ func _shop_card(it: Dictionary, idx: int) -> Control:
 	return card
 
 func _buy_item(idx: int) -> void:
+	# Guarda: el mercader pudo morir mientras la tienda seguía abierta.
+	if not is_instance_valid(_shop_merchant):
+		_close_shop()
+		return
 	var stock = _shop_merchant.stock
 	var it = stock.items[idx]
 	var p = GameState.player
@@ -694,6 +777,10 @@ func _buy_item(idx: int) -> void:
 	_build_shop()
 
 func _buy_heal() -> void:
+	# Guarda: el mercader pudo morir mientras la tienda seguía abierta.
+	if not is_instance_valid(_shop_merchant):
+		_close_shop()
+		return
 	var stock = _shop_merchant.stock
 	var p = GameState.player
 	if p.coins < int(stock.heal_price):

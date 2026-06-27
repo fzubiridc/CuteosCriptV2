@@ -7,8 +7,8 @@ class_name Pickup
 static var _gem: Texture2D
 static var _xp_flame_cache := {}    # color → Array de frames (compartido)
 
-# Colores de llamita de XP disponibles (se elige uno al azar por drop). Sumar acá
-# "red"/"blue" cuando estén: {"dir": <subcarpeta>, "prefix": <prefijo de archivo>}.
+# Colores de llamita de XP disponibles (se elige uno al azar por drop). Para sumar variantes:
+# {"dir": <subcarpeta>, "prefix": <prefijo de archivo>}.
 const XP_FLAMES := {
 	"green":  {"dir": "green",  "prefix": "llamita_32_"},
 	"yellow": {"dir": "yellow", "prefix": "llamita_amarilla_32_"},

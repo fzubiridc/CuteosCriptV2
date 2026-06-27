@@ -115,6 +115,10 @@ const MODS := [
 ## rot_deg = rotación visual de la imagen del arma.
 ## spx = ancho objetivo del arma en px → escala = spx / ancho_nativo. Las
 ## staff5-8 son de 128px nativas, el resto 64px (ver v2hero.js original).
+## fps de la animación de ataque por vara (índice 0-based → fps; default 18 si falta).
+## Lo gestiona rig_sync.py desde el rigtool (campo animfps). Vacío = todas usan el default.
+const STAFF_ANIM_FPS := {}
+
 const STAFF_RIG := [
 	{"grip": {"x": 32, "y": 47}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 49},  # staff1
 	{"grip": {"x": 31, "y": 43}, "focus": {"x": 31, "y": 8},  "rot_deg": 0,   "spx": 64},
@@ -125,6 +129,10 @@ const STAFF_RIG := [
 	{"grip": {"x": 35, "y": 93}, "focus": {"x": 13, "y": 37}, "rot_deg": -45, "spx": 64},
 	{"grip": {"x": 41, "y": 88}, "focus": {"x": 21, "y": 39}, "rot_deg": -45, "spx": 51},
 	{"grip": {"x": 32, "y": 42}, "focus": {"x": 32, "y": 8},  "rot_deg": 0,   "spx": 64},  # staff9
+	{"grip": {"x": 12, "y": 89}, "focus": {"x": 11, "y": 18}, "rot_deg": 0,   "spx": 11},  # staff10 (riggeada en rigtool 2026-06-26)
+	{"grip": {"x": 51, "y": 76}, "focus": {"x": 101, "y": 24}, "rot_deg": -45, "spx": 54},  # staff11 (riggeada en rigtool 2026-06-26)
+	{"grip": {"x": 54, "y": 75}, "focus": {"x": 104, "y": 22}, "rot_deg": -45, "spx": 51},  # staff12
+	{"grip": {"x": 42, "y": 84}, "focus": {"x": 93, "y": 30}, "rot_deg": -45, "spx": 55},  # staff13
 ]
 
 const STAFF_NAMES := [

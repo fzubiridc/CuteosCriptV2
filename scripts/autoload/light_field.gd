@@ -3,7 +3,8 @@ extends Node
 ## tintan con sample(pos) → la luz les llega "por los pies" y NO las afecta la
 ## sombra de los muros (el cuerpo no se oscurece contra una pared).
 
-var _lights: Array = []          # PointLight2D (jugador + antorchas)
+var _lights: Array = []          # PointLight2D (jugador + antorchas) — estáticas del piso
+var _dynamic: Array = []         # luces de entidades (los _glow de los mobs) → su luz los ilumina a ellos
 var _amb_node: CanvasModulate
 var _amb_fallback := Color(0.34, 0.33, 0.42)
 var _gathered := false
@@ -17,6 +18,16 @@ const MAX_LIGHTS := 64
 var entity_material: ShaderMaterial
 var _packed: Dictionary = {}
 
+# Buffers de empaquetado pre-alocados (FIX allocs): pack_lights() los rellena IN-PLACE
+# cada frame en vez de crear PackedArrays nuevos → sin churn de GC. Dimensionados a
+# MAX_LIGHTS una sola vez; el "count" real va aparte en el Dictionary devuelto.
+var _pk_pos := PackedVector2Array()
+var _pk_col := PackedVector3Array()
+var _pk_energy := PackedFloat32Array()
+var _pk_radius := PackedFloat32Array()
+var _pk_height := PackedFloat32Array()
+var _pk_ready := false
+
 func _ready() -> void:
 	entity_material = ShaderMaterial.new()
 	entity_material.shader = LIT_SHADER
@@ -28,37 +39,42 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_packed = pack_lights()
 	apply_lights(entity_material, _packed)
+	entity_material.set_shader_parameter("light_falloff", LightCfg.get_v("light_falloff"))
 
 ## Empaqueta las luces de la escena para el shader (reusado por dungeon para las
 ## caras). Devuelve arrays de tamaño fijo MAX_LIGHTS + count real + ambiente.
 func pack_lights() -> Dictionary:
-	var pos := PackedVector2Array()
-	var col := PackedVector3Array()
-	var energy := PackedFloat32Array()
-	var radius := PackedFloat32Array()
-	var height := PackedFloat32Array()
-	for L in get_lights():
+	# Buffers a tamaño fijo MAX_LIGHTS, alocados una sola vez (rellenados in-place abajo).
+	if not _pk_ready:
+		_pk_pos.resize(MAX_LIGHTS); _pk_col.resize(MAX_LIGHTS)
+		_pk_energy.resize(MAX_LIGHTS); _pk_radius.resize(MAX_LIGHTS); _pk_height.resize(MAX_LIGHTS)
+		_pk_ready = true
+	# Purga in-place los _glow de mobs muertos (iterar en reversa + remove_at, sin alocar
+	# un Array nuevo por frame como hacía _dynamic.filter(lambda)).
+	for i in range(_dynamic.size() - 1, -1, -1):
+		if not is_instance_valid(_dynamic[i]):
+			_dynamic.remove_at(i)
+	var count := 0
+	for L in get_lights() + _dynamic:
 		if not is_instance_valid(L):
 			continue                       # luz liberada en un regen → no castear un objeto freed (el cast en sí erroraba)
 		var lp := L as PointLight2D
 		if lp == null or not lp.enabled:
 			continue
-		var rad := lp.texture_scale * 128.0
+		var rad := lp.texture_scale * LightCfg.LIGHT_POOL_RADIUS
 		if rad <= 0.0:
 			continue
-		pos.append(lp.global_position)
-		col.append(Vector3(lp.color.r, lp.color.g, lp.color.b))
-		energy.append(lp.energy)
-		radius.append(rad)
-		height.append(lp.height)
-		if pos.size() >= MAX_LIGHTS:
+		_pk_pos[count] = lp.global_position
+		_pk_col[count] = Vector3(lp.color.r, lp.color.g, lp.color.b)
+		_pk_energy[count] = lp.energy
+		_pk_radius[count] = rad
+		_pk_height[count] = lp.height
+		count += 1
+		if count >= MAX_LIGHTS:
 			break
-	var count := pos.size()
-	pos.resize(MAX_LIGHTS); col.resize(MAX_LIGHTS)
-	energy.resize(MAX_LIGHTS); radius.resize(MAX_LIGHTS); height.resize(MAX_LIGHTS)
 	var amb := LightCfg.ambient_color() * LightCfg.get_v("foot_ambient")
-	return {"count": count, "pos": pos, "col": col, "energy": energy,
-		"radius": radius, "height": height, "ambient": Vector3(amb.r, amb.g, amb.b)}
+	return {"count": count, "pos": _pk_pos, "col": _pk_col, "energy": _pk_energy,
+		"radius": _pk_radius, "height": _pk_height, "ambient": Vector3(amb.r, amb.g, amb.b)}
 
 ## Resultado de pack_lights de este frame (lo cachea _process). dungeon lo reusa
 ## para no empaquetar dos veces.
@@ -81,7 +97,14 @@ func apply_lights(mat: ShaderMaterial, p: Dictionary) -> void:
 ## Llamar cuando cambian las luces de la escena (al generar la mazmorra).
 func mark_dirty() -> void:
 	_lights.clear()
+	_dynamic.clear()
 	_gathered = false
+
+## Registra la luz propia de una entidad (el _glow de un mob) → el campo la incluye, así su sprite
+## (y los cercanos) se iluminan con ella, como el jugador con su Light. Se purga sola al liberarse.
+func add_dynamic(l: Node) -> void:
+	if l != null and not (l in _dynamic):
+		_dynamic.append(l)
 
 ## Lista de PointLight2D activas (jugador + antorchas). La usa el shader de las
 ## caras de muro para iluminarlas por píxel con las mismas luces.
@@ -122,19 +145,19 @@ func sample(pos: Vector2) -> Color:
 	var r := amb.r * fa
 	var g := amb.g * fa
 	var b := amb.b * fa
-	for L in _lights:
+	for L in _lights + _dynamic:
 		if not is_instance_valid(L):
 			continue
 		var lp := L as PointLight2D
 		if not lp.enabled:
 			continue
-		var rad := lp.texture_scale * 128.0   # extensión real del light_pool (256/2)
+		var rad := lp.texture_scale * LightCfg.LIGHT_POOL_RADIUS   # extensión real del light_pool (256/2)
 		if rad <= 0.0:
 			continue
 		var d := pos.distance_to(lp.global_position)
 		if d >= rad:
 			continue
-		var at := pow(1.0 - d / rad, 2.0) * lp.energy
+		var at := pow(1.0 - d / rad, LightCfg.get_v("light_falloff")) * lp.energy
 		r += lp.color.r * at
 		g += lp.color.g * at
 		b += lp.color.b * at
@@ -142,7 +165,7 @@ func sample(pos: Vector2) -> Color:
 	# antorcha R y G topan en el techo y el cálido vira a amarillo/verdoso. Escalando
 	# el color entero se mantiene el matiz (anaranjado).
 	var m := maxf(r, maxf(g, b))
-	var lim := 1.4
+	var lim := LightCfg.LIGHT_CAP   # cap de brillo (antes literal 1.4)
 	if m > lim:
 		var sc := lim / m
 		r *= sc
@@ -168,7 +191,7 @@ func shadow_lights(pos: Vector2, max_n: int = 4, exclude_owner: Node = null) -> 
 		# Saltar la luz propia de la entidad (su luz cuelga del mismo nodo).
 		if exclude_owner != null and exclude_owner.is_ancestor_of(lp):
 			continue
-		var rad := lp.texture_scale * 128.0
+		var rad := lp.texture_scale * LightCfg.LIGHT_POOL_RADIUS
 		if rad <= 0.0:
 			continue
 		var off := pos - lp.global_position

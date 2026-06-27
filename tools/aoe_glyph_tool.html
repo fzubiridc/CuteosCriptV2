@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>AoE Glyph Tool — llamas dentro del glifo</title>
+<style>
+  :root{--bg:#14121a;--panel:#1d1a25;--panel2:#262130;--line:#3a3447;--txt:#e7e2f0;--dim:#9a8fb0;--accent:#ff8a3c;--ok:#5ed18a;--font:'Segoe UI',system-ui,sans-serif;--mono:ui-monospace,Consolas,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);padding:20px;font-size:13.5px}
+  h1{font-size:20px;margin:0 0 4px} .sub{color:var(--dim);font-size:12.5px;margin-bottom:14px;line-height:1.5}
+  .stage{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+  canvas{image-rendering:pixelated;background:#0d0b12;border:1px solid var(--line);border-radius:8px;cursor:crosshair;touch-action:none}
+  .panel{width:330px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  h3{margin:0 0 8px;font-size:15px} h4{margin:14px 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 11px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+  label{color:var(--dim);font-size:12.5px;min-width:74px}
+  input[type=range]{flex:1}
+  .v{font-family:var(--mono);font-size:12px;min-width:38px;text-align:right}
+  .help{color:var(--dim);font-size:12px;line-height:1.5;margin:6px 0}
+  .dz{border:1px dashed var(--line);border-radius:8px;padding:8px;text-align:center;color:var(--dim);font-size:11.5px;cursor:pointer;margin:6px 0}
+  ul{list-style:none;margin:8px 0;padding:0;max-height:120px;overflow:auto}
+  li{display:flex;gap:8px;align-items:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;font-family:var(--mono);font-size:12px}
+  li.sel{border-color:var(--accent);background:#2a2030}
+  li .x{margin-left:auto;cursor:pointer;color:#e06b6b}
+  .status{font-size:12px;padding:4px 0}
+</style>
+</head>
+<body>
+  <h1>🔥 AoE Glyph Tool</h1>
+  <div class="sub"><b>Clic</b> = agrega llama · <b>arrastrar</b> = mover · <b>rueda</b> = escalar · <b>Supr</b> = borrar. Tamaño y achatado del círculo abajo. <b id="srv" class="status"></b></div>
+  <div class="stage">
+    <div>
+      <canvas id="cv" width="600" height="440"></canvas>
+      <div id="dzg" class="dz">glifo no cargó → arrastrá <b>aoe_fire_glyph.png</b> <input type="file" id="fg" accept="image/png" style="display:none"></div>
+      <div id="dzf" class="dz">llama no cargó → arrastrá <b>aoe_fire_core.png</b> (o un frame) <input type="file" id="ff" accept="image/png" style="display:none"></div>
+    </div>
+    <div class="panel">
+      <h4>Círculo rúnico</h4>
+      <div class="row"><label>tamaño (radio)</label><input type="range" id="rad" min="60" max="240" step="2" value="120"><span class="v" id="radv">120</span></div>
+      <div class="row"><label>achatado</label><input type="range" id="flat" min="0.4" max="1" step="0.01" value="0.82"><span class="v" id="flatv">0.82</span></div>
+      <div class="help">El <b>achatado</b> se ve acá igual que en el juego. El <b>tamaño</b> (radio del área en px de mundo) se aplica en el juego — la vista acá siempre encuadra al máximo.</div>
+      <h4>Llamas <span id="cnt" style="color:var(--dim);font-weight:400"></span></h4>
+      <div class="row"><label>escala nueva</label><input type="range" id="defs" min="0.1" max="1.2" step="0.02" value="0.4"><span class="v" id="defsv">0.40</span></div>
+      <ul id="list"></ul>
+      <div class="row"><button id="addc">+ central</button><button id="clr">limpiar</button></div>
+      <div class="status" id="msg"></div>
+    </div>
+  </div>
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('cv'), cx=cv.getContext('2d'); cx.imageSmoothingEnabled=false;
+let glyph=null, flame=null;
+let radius=120, flat=0.82;
+let flames=[];           // {x,y,s} normalizados al glifo
+let sel=-1, drag=false, hasServer=false, saveT=null;
+let G={x:0,y:0,w:0,h:0}; // rect del glifo (YA achatado) en el canvas
+
+function tryLoad(src,cb){ const im=new Image(); im.onload=()=>cb(im); im.onerror=()=>cb(null); im.src=src; }
+tryLoad('../assets/fx/aoe_fire_glyph.png', im=>{ if(im){glyph=im; layout(); draw();} });
+tryLoad('../assets/fx/aoe_fire_core_anim/frame_004.png', im=>{ if(im){flame=im; draw();} else tryLoad('../assets/fx/aoe_fire_core.png', i2=>{ if(i2){flame=i2;draw();} }); });
+
+// --- carga del config (auto-guardado: server) ---
+fetch('/api/aoe').then(r=>r.json()).then(j=>{
+  hasServer=true; setSrv();
+  const c=(j&&j.config)||{};
+  if(typeof c.radius==='number') radius=c.radius;
+  if(typeof c.flat==='number') flat=c.flat;
+  if(Array.isArray(c.flames)) flames=c.flames.map(f=>({x:f.x,y:f.y,s:f.s}));
+  $('rad').value=radius; $('radv').textContent=radius;
+  $('flat').value=flat; $('flatv').textContent=flat.toFixed(2);
+  layout(); draw();
+}).catch(()=>{ hasServer=false; setSrv(); });
+function setSrv(){ const e=$('srv'); if(hasServer){e.textContent='● auto-guardado en disco';e.style.color='var(--ok)';} else {e.textContent='○ sin server (corré py tools/serve.py) — los cambios NO se guardan';e.style.color='#caa44f';} }
+
+function layout(){
+  if(!glyph) return;
+  const gw=glyph.width, gh=glyph.height*flat;          // alto achatado (= juego)
+  const k=Math.min((cv.width-40)/gw,(cv.height-40)/gh);
+  G.w=gw*k; G.h=gh*k; G.x=(cv.width-G.w)/2; G.y=(cv.height-G.h)/2;
+}
+function draw(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  if(glyph) cx.drawImage(glyph,G.x,G.y,G.w,G.h);
+  cx.strokeStyle='rgba(255,138,60,.25)'; cx.lineWidth=1;
+  cx.beginPath(); cx.moveTo(G.x+G.w/2,G.y); cx.lineTo(G.x+G.w/2,G.y+G.h); cx.moveTo(G.x,G.y+G.h/2); cx.lineTo(G.x+G.w,G.y+G.h/2); cx.stroke();
+  flames.forEach((f,i)=>{
+    const px=G.x+f.x*G.w, py=G.y+f.y*G.h, w=f.s*G.w, h=flame? w*(flame.height/flame.width): w;
+    if(flame) cx.drawImage(flame, px-w/2, py-h/2, w, h);
+    else { cx.fillStyle='rgba(255,150,60,.6)'; cx.beginPath(); cx.ellipse(px,py,w/2,h/2,0,0,7); cx.fill(); }
+    cx.strokeStyle=i===sel?'#ff8a3c':'rgba(255,255,255,.35)'; cx.lineWidth=i===sel?2:1;
+    cx.strokeRect(px-w/2,py-h/2,w,h);
+  });
+  syncList();
+}
+function hit(mx,my){ for(let i=flames.length-1;i>=0;i--){ const f=flames[i],px=G.x+f.x*G.w,py=G.y+f.y*G.h,w=f.s*G.w,h=(flame?w*(flame.height/flame.width):w);
+  if(mx>=px-w/2&&mx<=px+w/2&&my>=py-h/2&&my<=py+h/2) return i; } return -1; }
+function evt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)*(cv.width/r.width), y:(e.clientY-r.top)*(cv.height/r.height)}; }
+const clamp=v=>Math.max(0,Math.min(1,v));
+cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); const p=evt(e); const h=hit(p.x,p.y);
+  if(h>=0){sel=h;drag=true;} else {flames.push({x:(p.x-G.x)/G.w,y:(p.y-G.y)/G.h,s:+$('defs').value}); sel=flames.length-1; drag=true; save();} draw(); });
+cv.addEventListener('pointermove',e=>{ if(!drag||sel<0)return; const p=evt(e); flames[sel].x=clamp((p.x-G.x)/G.w); flames[sel].y=clamp((p.y-G.y)/G.h); draw(); });
+cv.addEventListener('pointerup',()=>{ if(drag)save(); drag=false; });
+cv.addEventListener('wheel',e=>{ if(sel<0)return; e.preventDefault(); flames[sel].s=Math.max(0.05,Math.min(1.5,flames[sel].s*(e.deltaY<0?1.08:1/1.08))); draw(); save(); },{passive:false});
+addEventListener('keydown',e=>{ if((e.key==='Delete'||e.key==='Backspace')&&sel>=0){ flames.splice(sel,1); sel=-1; draw(); save(); } });
+
+$('rad').oninput=e=>{ radius=+e.target.value; $('radv').textContent=radius; save(); };
+$('flat').oninput=e=>{ flat=+e.target.value; $('flatv').textContent=flat.toFixed(2); layout(); draw(); save(); };
+$('defs').oninput=e=>$('defsv').textContent=(+e.target.value).toFixed(2);
+$('addc').onclick=()=>{ flames.push({x:0.5,y:0.5,s:+$('defs').value}); sel=flames.length-1; draw(); save(); };
+$('clr').onclick=()=>{ flames=[]; sel=-1; draw(); save(); };
+
+function cfgJSON(){ return JSON.stringify({radius:radius, flat:+flat.toFixed(3), flames:flames.map(f=>({x:+f.x.toFixed(3),y:+f.y.toFixed(3),s:+f.s.toFixed(3)}))}); }
+function syncList(){
+  $('cnt').textContent='('+flames.length+')';
+  const ul=$('list'); ul.innerHTML='';
+  flames.forEach((f,i)=>{ const li=document.createElement('li'); if(i===sel)li.classList.add('sel');
+    li.innerHTML=`#${i+1}  x:${f.x.toFixed(2)} y:${f.y.toFixed(2)} s:${f.s.toFixed(2)} <span class="x">✕</span>`;
+    li.onclick=()=>{sel=i;draw();}; li.querySelector('.x').onclick=ev=>{ev.stopPropagation();flames.splice(i,1);sel=-1;draw();save();};
+    ul.appendChild(li); });
+}
+function save(){
+  if(!hasServer){ $('msg').textContent='⚠ sin server: no se guarda'; $('msg').style.color='#caa44f'; return; }
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>{ fetch('/api/aoe',{method:'POST',headers:{'Content-Type':'application/json'},body:cfgJSON()})
+    .then(r=>r.json()).then(j=>{ $('msg').textContent=j&&j.ok?'✓ guardado':'✗ error'; $('msg').style.color=j&&j.ok?'var(--ok)':'#e06b6b'; setTimeout(()=>$('msg').textContent='',1500); })
+    .catch(()=>{ $('msg').textContent='✗ no se pudo guardar'; $('msg').style.color='#e06b6b'; }); }, 450);
+}
+function wireDz(dz,inp,set){ const d=$(dz),f=$(inp); d.onclick=()=>f.click();
+  const load=file=>{ const fr=new FileReader(); fr.onload=()=>{ const im=new Image(); im.onload=()=>{ set(im); layout(); draw(); }; im.src=fr.result; }; fr.readAsDataURL(file); };
+  f.onchange=e=>{ if(e.target.files[0]) load(e.target.files[0]); };
+  d.addEventListener('dragover',e=>{e.preventDefault();d.style.borderColor='var(--accent)';});
+  d.addEventListener('dragleave',()=>d.style.borderColor='var(--line)');
+  d.addEventListener('drop',e=>{e.preventDefault();d.style.borderColor='var(--line)';if(e.dataTransfer.files[0])load(e.dataTransfer.files[0]);});
+}
+wireDz('dzg','fg',im=>glyph=im); wireDz('dzf','ff',im=>flame=im);
+draw();
+</script>
+</body>
+</html>

@@ -17,6 +17,8 @@ func _ready() -> void:
 	_build_ui()
 
 func _input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return   # panel de velocidad (tecla V): solo en debug/editor, oculto en release
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
 		_panel.visible = not _panel.visible
 		if _panel.visible:

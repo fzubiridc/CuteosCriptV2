@@ -16,10 +16,23 @@ const OCC_LAYER := 0
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
 var _mat: ShaderMaterial
+# Knobs cacheados (FIX: antes se leían de LightCfg.get_v() cada frame). Se refrescan
+# solo cuando el panel cambia un valor, vía LightCfg.changed (patrón de torch.gd).
+var _k_relief: float = 1.0
+var _k_boost: float = 2.0
+var _k_cap: float = LightCfg.LIGHT_CAP
 
 func _ready() -> void:
 	_install_occluder()
 	_setup_face_material()
+	_apply_cfg()
+	LightCfg.changed.connect(_apply_cfg)
+
+## Cachea los knobs de muro (refrescado por LightCfg.changed, no por frame).
+func _apply_cfg() -> void:
+	_k_boost = LightCfg.get_v("wall_light")
+	_k_relief = LightCfg.get_v("wall_relief")
+	_k_cap = LightCfg.LIGHT_CAP * _k_boost   # cap = LIGHT_CAP * boost (cap de luz, antes literal 1.4)
 
 func _setup_face_material() -> void:
 	_mat = ShaderMaterial.new()
@@ -33,11 +46,11 @@ func _setup_face_material() -> void:
 func _process(_dt: float) -> void:
 	if _mat == null:
 		return
+	# Las luces sí cambian por frame (dinámicas); los knobs salen del cache (_apply_cfg).
 	LightField.apply_lights(_mat, LightField.current_packed())
-	var boost: float = LightCfg.get_v("wall_light")
-	_mat.set_shader_parameter("relief_floor", LightCfg.get_v("wall_relief"))
-	_mat.set_shader_parameter("light_boost", boost)
-	_mat.set_shader_parameter("cap", 1.4 * boost)
+	_mat.set_shader_parameter("relief_floor", _k_relief)
+	_mat.set_shader_parameter("light_boost", _k_boost)
+	_mat.set_shader_parameter("cap", _k_cap)
 
 func _install_occluder() -> void:
 	var ts := tile_set

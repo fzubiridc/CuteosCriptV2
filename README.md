@@ -1,5 +1,10 @@
 # Cárcel del Cuteo — port Godot
 
+> ⚠️ **AVISO — el sistema Tiled / 2.5D está DESACTIVADO.** El path vivo es el
+> **iso procedural** (`dungeon.gd` con `ISO=true`). Todo lo de mapas fijos en
+> Tiled y el render 2.5D de abajo es **legacy** y no se usa en producción.
+> Ver [`AGENTS.md`](AGENTS.md) y [`docs/architecture_notes_2026-06-26.md`](docs/architecture_notes_2026-06-26.md).
+
 Port a Godot del juego original en Pixi. Roguelike de mazmorras con pisos
 procedurales, iluminación 2.5D (caras de muro foot-lit + topes + AO) y descenso
 por zonas hasta el jefe final.

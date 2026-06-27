@@ -33,6 +33,8 @@ var charge_phase := ""
 var charge_timer := 0.0
 var charge_dir := Vector2.ZERO
 
+var _contact_cd := 0.0   # cooldown de daño por contacto (mismo patrón que los mobs: 0.5s)
+
 @onready var agent: NavigationAgent2D = $NavigationAgent2D
 @onready var visual: Polygon2D = $Visual
 @onready var sprite: AnimatedSprite2D = $Sprite
@@ -122,6 +124,9 @@ func _physics_process(delta: float) -> void:
 		if flash_t == 0.0:
 			_set_tint(_base_tint())
 
+	if _contact_cd > 0.0:   # descuenta el cooldown de contacto
+		_contact_cd = maxf(0.0, _contact_cd - delta)
+
 	var player := GameState.player
 	if player == null:
 		return
@@ -143,8 +148,11 @@ func _physics_process(delta: float) -> void:
 		if absf(velocity.x) > 1.0:
 			sprite.flip_h = velocity.x < 0.0
 
-	if global_position.distance_to(ppos) < size + 9.0:
+	# Daño por contacto con cooldown: solo pega si el cooldown se agotó, y lo resetea
+	# a 0.5s tras pegar (igual que los mobs con hit_cd=0.5), evitando daño cada frame.
+	if _contact_cd <= 0.0 and global_position.distance_to(ppos) < size + 9.0:
 		player.take_damage(damage, global_position)
+		_contact_cd = 0.5
 
 	if pat_t <= 0.0 and charge_phase == "":
 		_next_pattern()
@@ -216,14 +224,17 @@ func _do_summon(delta: float, ppos: Vector2) -> void:
 	sub_t -= delta
 	if sub_t <= 0.0 and minion != "":
 		sub_t = 2.2
+		# Cuenta SOLO los minions propios del boss (no todos los Enemy del piso),
+		# filtrando los ya liberados; si no, con muchos mobs nunca llegaría a invocar.
 		var count := 0
-		for c in get_parent().get_children():
-			if c is Enemy:
+		for m in get_tree().get_nodes_in_group("boss_minion"):
+			if is_instance_valid(m):
 				count += 1
 		if count < 8:
 			var e := ENEMY.instantiate()
 			get_parent().add_child(e)
 			e.setup_type(minion, false)
+			e.add_to_group("boss_minion")   # registra el invocado como minion propio
 			e.global_position = global_position + Vector2(Rng.range_f(-30, 30), Rng.range_f(-30, 30))
 			e.home_pos = e.global_position
 			e.home_rect = Rect2(global_position - Vector2(220, 220), Vector2(440, 440))

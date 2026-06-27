@@ -7,32 +7,47 @@
 <style>
   :root{--bg:#14121a;--panel:#1d1a25;--panel2:#262130;--line:#3a3447;--txt:#e7e2f0;--dim:#9a8fb0;--accent:#7bd4ff;--font:'Segoe UI',system-ui,sans-serif}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;padding:40px 24px}
-  .wrap{max-width:760px;margin:0 auto}
-  h1{font-size:22px;margin:0 0 4px}
-  .sub{color:var(--dim);font-size:13px;margin-bottom:28px;line-height:1.6}
-  .sub code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--accent)}
-  .card{display:block;text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px;transition:border-color .12s,transform .12s}
-  .card:hover{border-color:var(--accent);transform:translateY(-1px)}
-  .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
-  .card p{margin:0;color:var(--dim);font-size:13px;line-height:1.55}
-  .tag{font-size:11px;color:var(--accent);border:1px solid var(--line);border-radius:20px;padding:2px 9px;margin-left:auto;font-weight:600}
-  footer{color:var(--dim);font-size:12px;margin-top:30px;line-height:1.6}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);display:flex;flex-direction:column}
+  header{padding:10px 16px 0;flex:0 0 auto}
+  h1{font-size:17px;margin:0 0 2px} .sub{color:var(--dim);font-size:11.5px;margin:0 0 8px;line-height:1.5}
+  .sub code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--accent)}
+  #tabbar{display:flex;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  #tabbar button{background:transparent;color:var(--dim);border:1px solid transparent;border-bottom:none;border-radius:9px 9px 0 0;padding:8px 16px;font-size:14px;cursor:pointer;font-family:var(--font)}
+  #tabbar button:hover{color:var(--txt);background:var(--panel)}
+  #tabbar button.on{background:var(--panel);color:var(--accent);border-color:var(--line)}
+  .frames{flex:1 1 auto;position:relative;background:var(--panel)}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  iframe[hidden]{display:none}
+  .warn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-size:13px;padding:30px;line-height:1.7}
+  .warn code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:2px 7px;color:var(--accent)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🛠️ Tools — Cárcel del Cuteo</h1>
-  <div class="sub">Herramientas web del proyecto. Serví el repo con <code>py -m http.server 8765</code> desde la raíz y entrá a <code>/tools/</code>.</div>
-
-  <a class="card" href="wall_origin_tool.html">
-    <h2>🧱 Wall Origin Tool <span class="tag">muros iso</span></h2>
-    <p>Afina el <b>texture_origin</b> de las 8 piezas de muro iso arrastrándolas sobre un rombo de piso de referencia. Exporta un JSON que se aplica a <code>assets/iso/iso_pixel.tres</code>.</p>
-  </a>
-
-  <footer>
-    Convención: toda tool nueva del proyecto va en esta carpeta <code>tools/</code> y se agrega acá.
-  </footer>
-</div>
+  <header>
+    <h1>🛠️ Tools — Cárcel del Cuteo</h1>
+    <div class="sub">Todo en un solo server: <code>py tools/serve.py</code> (:8765, auto-guardado). El arte del pixi se sirve bajo <code>/pixi/</code>.</div>
+    <div id="tabbar">
+      <button data-t="rig" class="on">🪄 Rig / Varas</button>
+      <button data-t="wall">🧱 Wall Origin</button>
+      <button data-t="aoe">🔥 AoE Glyph</button>
+    </div>
+  </header>
+  <div class="frames">
+    <iframe id="f-rig" src="rigtool.html"></iframe>
+    <iframe id="f-wall" src="wall_origin_tool.html" hidden></iframe>
+    <iframe id="f-aoe" src="aoe_glyph_tool.html" hidden></iframe>
+  </div>
+<script>
+  const tabs={rig:document.getElementById('f-rig'), wall:document.getElementById('f-wall'), aoe:document.getElementById('f-aoe')};
+  function show(t){
+    for(const k in tabs) tabs[k].hidden = (k!==t);
+    document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+    location.hash = t;
+  }
+  document.querySelectorAll('#tabbar button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+  const start=(location.hash||'').slice(1);
+  show(start in tabs ? start : 'rig');
+</script>
 </body>
 </html>

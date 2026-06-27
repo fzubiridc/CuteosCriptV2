@@ -12,6 +12,7 @@ func _ready() -> void:
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_label.add_theme_constant_override("outline_size", 5)
 	add_child(_label)
+	visible = false                  # arranca oculto; se muestra con F3
 
 func _process(_dt: float) -> void:
 	_label.text = "FPS %d" % Engine.get_frames_per_second()

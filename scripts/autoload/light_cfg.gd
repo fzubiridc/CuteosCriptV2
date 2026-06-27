@@ -8,19 +8,36 @@ signal changed
 
 const SAVE_PATH := "user://light_knobs.json"
 
+## Cap de brillo de la luz acumulada (preservando tono). Fuente única de verdad:
+## lo referencian light_field.gd, dungeon.gd e iso_wall_occluder.gd (cap = LIGHT_CAP * boost).
+## OJO: el shader wall_face.gdshader también tiene este 1.4 como default del uniform `cap`;
+## ese literal vive en el .gdshader (no es este archivo) y queda fuera de esta constante.
+const LIGHT_CAP := 1.4
+## Radio real del light_pool (textura 256px / 2). Lo usa light_field.gd para el alcance de cada luz.
+const LIGHT_POOL_RADIUS := 128.0
+
 ## Definición de cada knob: min, max, def, label, group. El panel se autogenera
 ## desde acá, así que agregar un knob = una línea.
 const DEFS := {
-	# --- Ambiente (CanvasModulate) --- (defaults = tuning aprobado por Felipe)
-	"amb_r": {"min": 0.0, "max": 1.0, "def": 0.32, "label": "Ambient R", "group": "Ambiente"},
-	"amb_g": {"min": 0.0, "max": 1.0, "def": 0.27, "label": "Ambient G", "group": "Ambiente"},
-	"amb_b": {"min": 0.0, "max": 1.0, "def": 0.32, "label": "Ambient B", "group": "Ambiente"},
-	"foot_ambient": {"min": 0.0, "max": 1.0, "def": 0.76, "label": "Ambiente entidades (foot)", "group": "Ambiente"},
+	# --- Ambiente (CanvasModulate) --- (defaults = baseline OSCURO estilo D2: el mundo se ilumina
+	# por la antorcha del player + antorchas de sala; las salas sin luz quedan negras. Tuneable en vivo, tecla L.)
+	"amb_r": {"min": 0.0, "max": 1.0, "def": 0.08, "label": "Ambient R", "group": "Ambiente"},
+	"amb_g": {"min": 0.0, "max": 1.0, "def": 0.08, "label": "Ambient G", "group": "Ambiente"},
+	"amb_b": {"min": 0.0, "max": 1.0, "def": 0.11, "label": "Ambient B", "group": "Ambiente"},
+	"foot_ambient": {"min": 0.0, "max": 1.0, "def": 0.28, "label": "Ambiente entidades (foot)", "group": "Ambiente"},
 	# --- Luz del jugador ---
-	"player_energy": {"min": 0.0, "max": 4.0, "def": 1.76, "label": "Jugador energía", "group": "Jugador"},
+	"player_energy": {"min": 0.0, "max": 4.0, "def": 2.0, "label": "Jugador energía", "group": "Jugador"},
 	"player_radius": {"min": 0.1, "max": 1.5, "def": 0.506, "label": "Jugador radio", "group": "Jugador"},
 	"player_height": {"min": 0.0, "max": 64.0, "def": 29.44, "label": "Jugador altura", "group": "Jugador"},
 	"player_warmth": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Jugador calidez (0=blanca)", "group": "Jugador"},
+	# Gradiente / difuminación de la luz al alejarse. def 2.0 = comportamiento actual (no cambia nada
+	# hasta mover el slider). Bajo = luz más SUAVE/difusa que llega más lejos; alto = halo chico y duro.
+	"light_falloff": {"min": 0.5, "max": 4.0, "def": 2.0, "label": "Gradiente caída (entidades/muros)", "group": "Jugador"},
+	"player_soft": {"min": 0.5, "max": 4.0, "def": 2.0, "label": "Suavidad charco piso (2=actual horneado)", "group": "Jugador"},
+	# --- Mobs: luz propia (aura suave) + a qué distancia se revelan (un poco más que tu luz) ---
+	"mob_reveal_dist": {"min": 0.0, "max": 800.0, "def": 340.0, "label": "Mob: distancia a la que se ven", "group": "Mobs"},
+	"mob_glow_energy": {"min": 0.0, "max": 3.0, "def": 0.9, "label": "Mob: energía del aura", "group": "Mobs"},
+	"mob_glow_radius": {"min": 0.0, "max": 1.5, "def": 0.5, "label": "Mob: radio del aura", "group": "Mobs"},
 	# --- Antorchas (L1) ---
 	"torch_energy": {"min": 0.0, "max": 4.0, "def": 2.56, "label": "Antorcha energía", "group": "Antorchas"},
 	"torch_radius": {"min": 0.2, "max": 2.5, "def": 0.798, "label": "Antorcha radio", "group": "Antorchas"},
@@ -80,6 +97,13 @@ func reset() -> void:
 ## Color de ambiente listo para CanvasModulate.
 func ambient_color() -> Color:
 	return Color(get_v("amb_r"), get_v("amb_g"), get_v("amb_b"))
+
+## Escala para una luz/charco proyectado en el PISO: X intacto, Y achatado (vista 3/4) con el
+## mismo factor que la sombra de contacto del jugador (knob "contact_flat"). Generaliza el
+## achatado a CUALQUIER luz de piso (charco del orbe, flash del impacto…) → todas congruentes.
+## (No usar en FX pegado a una pared: ese va en plano vertical, sin achatar.)
+func floor_scale() -> Vector2:
+	return Vector2(1.0, get_v("contact_flat"))
 
 func _load() -> void:
 	if not FileAccess.file_exists(SAVE_PATH):

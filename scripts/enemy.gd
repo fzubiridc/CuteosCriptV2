@@ -40,6 +40,28 @@ var wander_t := 0.0
 var wander_target := Vector2.ZERO
 var wobble := 0.0
 
+# --- IA melee ARPG (mini-FSM por timers) ---
+enum St { CHASE, WINDUP, RECOVER }
+var st: int = St.CHASE
+var st_t := 0.0                 # timer del estado actual
+var windup := 0.25             # telegraph (frenado) antes de pegar (s)
+var recover := 0.35            # vulnerable (frenado) después de pegar (s)
+var atk_enter := 0.0           # rango para ENTRAR a windup
+var atk_exit := 0.0            # rango para SALIR de combate (atk_enter < atk_exit → histéresis)
+var slot_dist := 26.0          # radio del anillo de cerco alrededor del player (no apilarse)
+var _slot_ang := 0.0           # ángulo fijo de mi slot
+const MELEE_PAD := 6.0
+var _glow: PointLight2D = null  # aura propia (hija): se ve un poco más allá de la luz del player
+# Cache de knobs del aura (antes se leían por frame en _physics_process). Se refrescan
+# SOLO cuando LightCfg emite "changed" (ver _apply_light_cfg), igual que torch.gd.
+var _k_glow_energy := 0.9
+var _k_glow_radius := 0.5
+var _k_reveal_dist := 220.0   # cache de mob_reveal_dist (antes se leía por frame en _physics_process)
+
+# Director de combate: limita cuántos mobs golpean a la vez (static, compartido por todos).
+static var _atk_active: Dictionary = {}   # instance_id → true
+const MAX_ATTACKERS := 3
+
 ## Proveedor de rutas por grilla (AStarGrid2D del nivel iso). Si está seteado
 ## (lo pone iso_procgen), los mobs rutean por la grilla esquivando muros. En el
 ## juego 2D queda null → usan el NavigationAgent2D de siempre.
@@ -48,11 +70,26 @@ static var path_grid = null
 @onready var agent: NavigationAgent2D = $NavigationAgent2D
 @onready var visual: Polygon2D = $Visual
 @onready var sprite: AnimatedSprite2D = $Sprite
+@onready var hpbar = $HealthBar   # HealthBar (sin tipar: evita depender del registro de class_name)
 
 func _ready() -> void:
+	add_to_group("enemies")   # grupo consumido por otros sistemas (spawner/targeting)
 	wander_target = home_pos
 	agent.path_desired_distance = 4.0
 	agent.target_desired_distance = 6.0
+	# Cache inicial de knobs del aura + suscripción a cambios en vivo (panel tecla L).
+	_apply_light_cfg()
+	LightCfg.changed.connect(_apply_light_cfg)
+
+## Refresca el cache de knobs del aura. Se llama en _ready y luego SOLO cuando
+## LightCfg emite "changed" → _physics_process deja de hacer get_v() por frame.
+func _apply_light_cfg() -> void:
+	_k_glow_energy = LightCfg.get_v("mob_glow_energy")
+	_k_glow_radius = LightCfg.get_v("mob_glow_radius")
+	_k_reveal_dist = LightCfg.get_v("mob_reveal_dist")   # cacheado: lo usa el auto-revelado por frame
+	if _glow != null:
+		_glow.energy = _k_glow_energy
+		_glow.texture_scale = _k_glow_radius
 
 func setup_type(key: String, is_elite := false) -> void:
 	type_key = key
@@ -71,6 +108,15 @@ func setup_type(key: String, is_elite := false) -> void:
 		damage = int(damage * 1.3)
 		size *= 1.3
 	hp = max_hp
+	# IA: slot de cerco (anillo determinista por instancia) + stats de combate por tipo.
+	_slot_ang = float(get_instance_id() % 360) * (TAU / 360.0)
+	windup = float(d.get("windup", _ai_default_windup()))
+	recover = float(d.get("recover", _ai_default_recover()))
+	slot_dist = float(d.get("slot_dist", size + 14.0))
+	var reach := size + 10.0 + MELEE_PAD
+	atk_enter = float(d.get("atk_enter", reach + 4.0))
+	atk_exit = float(d.get("atk_exit", reach + 22.0))   # atk_enter < atk_exit → histéresis (no vibra)
+	visible = false   # se auto-revela en _physics_process por distancia (no lo gatea el manager)
 	_apply_visual()
 
 func _apply_visual() -> void:
@@ -108,6 +154,11 @@ func _apply_visual() -> void:
 	sh.radius = size
 	$Shape.shape = sh
 
+	# Barra de vida fina sobre la cabeza (ancho ∝ tamaño; arriba del sprite/polígono).
+	if hpbar:
+		hpbar.width = size * 2.2
+		hpbar.position = Vector2(0, -(size * 1.3 + 8.0))
+
 	# Sombra: proyectada PRO (silueta) si hay sprite; de contacto si es polígono.
 	if not _shadow_attached:
 		_shadow_attached = true
@@ -115,6 +166,15 @@ func _apply_visual() -> void:
 			_shadow = CastShadow.attach(self, sprite, size, false)   # mobs: solo sombra circular (sin proyectada)
 		else:
 			FootShadow.attach(self, size * 0.9, size * 2.2)
+
+	# Aura propia (luz suave hija): ilumina el piso alrededor → presencia visible en la oscuridad.
+	if _glow == null:
+		_glow = PointLight2D.new()
+		_glow.texture = load("res://assets/fx/light_radial.tres")
+		_glow.color = Color(1, 0.86, 0.62); _glow.scale = LightCfg.floor_scale(); LightField.add_dynamic(_glow)   # = luz del jugador (player.tscn) + achatado elíptico (vista 3/4), como las otras luces de piso
+		add_child(_glow)
+	_glow.energy = _k_glow_energy            # cacheados (refrescados vía LightCfg.changed)
+	_glow.texture_scale = _k_glow_radius
 
 func _idle_tint() -> Color:
 	return Color(1.0, 0.92, 0.6) if elite else Color.WHITE
@@ -183,7 +243,9 @@ func _physics_process(delta: float) -> void:
 	if flash_t > 0.0:
 		flash_t = maxf(0.0, flash_t - delta)
 		if flash_t == 0.0:
-			if use_sprite:
+			if st == St.WINDUP:
+				_set_telegraph(true)   # un flash de daño no debe borrar el telegraph
+			elif use_sprite:
 				sprite.modulate = _idle_tint()
 			else:
 				visual.color = base_color
@@ -199,6 +261,8 @@ func _physics_process(delta: float) -> void:
 	if to_player > WAKE_RANGE:
 		if not _sleeping:
 			_sleeping = true
+			_reset_combat()
+			visible = false   # al dormir (lejos) ocultar render + aura; cubre el alejamiento brusco por teleport de puerta
 			if _shadow != null:
 				_shadow.set_process(false)
 			if use_sprite and sprite:
@@ -212,6 +276,14 @@ func _physics_process(delta: float) -> void:
 		if use_sprite and sprite:
 			sprite.play()
 
+	# Auto-revelado: el mob (y su aura hija) se ven dentro de mob_reveal_dist y solo en zona ya vista
+	# (un poco más allá de tu luz → los acechás como un brillo tenue acercándose en la oscuridad).
+	var seen: bool = path_grid == null or not is_instance_valid(path_grid) or path_grid.is_cell_seen(global_position)
+	visible = seen and to_player <= _k_reveal_dist   # cacheado (refrescado vía LightCfg.changed)
+	if _glow != null:
+		_glow.energy = _k_glow_energy        # cacheados (refrescados vía LightCfg.changed)
+		_glow.texture_scale = _k_glow_radius
+
 	_update_aggro(ppos, to_player)
 
 	var target_pos := home_pos
@@ -222,7 +294,7 @@ func _physics_process(delta: float) -> void:
 			target_pos = _shooter_target(ppos, to_player)
 			_shooter_fire(delta, ppos, to_player)
 		else:
-			target_pos = ppos
+			target_pos = _melee_think(delta, ppos, to_player, player)
 	else:
 		target_pos = _wander_point(delta)
 
@@ -253,10 +325,6 @@ func _physics_process(delta: float) -> void:
 	if use_sprite:
 		_update_sprite_anim()
 
-	if aggro and to_player < size + 8.0 and hit_cd <= 0.0:
-		hit_cd = 0.8
-		player.take_damage(damage, global_position)
-
 func _update_sprite_anim() -> void:
 	var moving := velocity.length() > 5.0
 	if moving:
@@ -272,6 +340,7 @@ func _update_aggro(ppos: Vector2, to_player: float) -> void:
 	if aggro:
 		if home_pos.distance_to(ppos) > float(Data.BALANCE.leash_tiles) * TILE and not home_rect.has_point(ppos):
 			aggro = false
+			_reset_combat()   # soltar el cupo del director al perder aggro
 	elif home_rect.has_point(ppos) or to_player < float(Data.BALANCE.aggro_radius) * TILE * 0.55:
 		aggro = true
 
@@ -303,20 +372,91 @@ func _shooter_fire(delta: float, ppos: Vector2, to_player: float) -> void:
 		get_parent().add_child(p)
 		p.setup(global_position, (ppos - global_position).normalized(), damage, false, proj_spd)
 
+# --- Director de combate (static): tope de atacantes simultáneos ---
+static func _try_claim(id: int) -> bool:
+	if _atk_active.has(id):
+		return true
+	for k in _atk_active.keys():        # poda ids de mobs ya liberados (regen/muerte sin release)
+		if not is_instance_id_valid(k):
+			_atk_active.erase(k)
+	if _atk_active.size() >= MAX_ATTACKERS:
+		return false
+	_atk_active[id] = true
+	return true
+
+static func _release(id: int) -> void:
+	_atk_active.erase(id)
+
+func _reset_combat() -> void:
+	if st != St.CHASE:
+		_set_telegraph(false)
+	st = St.CHASE
+	st_t = 0.0
+	_release(get_instance_id())
+
+func _ai_default_windup() -> float:
+	if ai == "erratic": return 0.18     # picaflor: telegraph corto, pica y se va
+	if speed <= 24.0: return 0.45        # bruto lento (golem/zombi): telegraph largo y legible
+	return 0.28
+
+func _ai_default_recover() -> float:
+	if ai == "erratic": return 0.22
+	if speed <= 24.0: return 0.55
+	return 0.35
+
+func _set_telegraph(on: bool) -> void:
+	if use_sprite:
+		sprite.modulate = Color(1.0, 0.45, 0.4) if on else _idle_tint()
+	else:
+		visual.color = Color(1.0, 0.45, 0.4) if on else base_color
+
+## FSM melee: orbita su slot (CHASE), pide cupo al director y se frena para telegraphear (WINDUP),
+## pega al final del windup y queda vulnerable (RECOVER). Devuelve a dónde moverse.
+func _melee_think(delta: float, ppos: Vector2, to_player: float, player) -> Vector2:
+	st_t = maxf(0.0, st_t - delta)
+	var slot := ppos + Vector2.RIGHT.rotated(_slot_ang) * slot_dist
+	var reach := size + 10.0 + MELEE_PAD
+	if st == St.WINDUP:
+		if st_t <= 0.0:
+			if to_player <= reach and hit_cd <= 0.0:
+				hit_cd = 0.5
+				player.take_damage(damage, global_position)
+			st = St.RECOVER
+			st_t = recover
+			_set_telegraph(false)
+		return global_position          # quieto durante el telegraph
+	if st == St.RECOVER:
+		if st_t <= 0.0 or to_player > atk_exit:
+			_release(get_instance_id())
+			st = St.CHASE
+		return global_position          # quieto / vulnerable
+	# CHASE: orbita su slot; al entrar en rango pide cupo al director y telegrafea.
+	if to_player <= atk_enter and _try_claim(get_instance_id()):
+		st = St.WINDUP
+		st_t = windup
+		_set_telegraph(true)
+		return global_position
+	return slot                         # persigue su SLOT, no el centro → no se apilan
+
 func take_damage(amount: int, knockback := Vector2.ZERO) -> void:
 	hp -= amount
 	kb += knockback
 	aggro = true
 	flash_t = 0.08
+	if hpbar:
+		hpbar.refresh()
 	if use_sprite:
 		sprite.modulate = Color(2.2, 2.2, 2.2)
 	else:
 		visual.color = Color(1, 1, 1)
-	GameState.floater(global_position, str(amount), Color(1, 0.9, 0.5))
+	# Anti-spoiler: el número de daño solo aparece si la celda está en tu radio (no delata mobs en la sombra).
+	if path_grid == null or not is_instance_valid(path_grid) or path_grid.is_cell_visible(global_position):
+		GameState.floater(global_position, str(amount), Color(1, 0.9, 0.5))
 	if hp <= 0:
 		_die()
 
 func _die() -> void:
+	_reset_combat()   # soltar el cupo del director (el aura es hija → se libera sola con el mob)
 	Audio.play("enemy_death", -8.0)
 	GameState.run["kills"] = int(GameState.run.get("kills", 0)) + 1
 	@warning_ignore("integer_division")

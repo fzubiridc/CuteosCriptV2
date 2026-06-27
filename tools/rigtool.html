@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- rigtool quedo en review/legacy-tools/ pero sus rutas son relativas a la raiz
+     del repo (assets/v2_test/...). Con base href resuelve bien servido desde la raiz:
+     py -m http.server 8417  ->  http://localhost:8417/review/legacy-tools/rigtool.html -->
+<base href="/pixi/">
+<title>Mago tool — rig + extractor</title>
+<style>
+  :root{
+    /* paleta (se mantienen los nombres viejos porque el HTML los usa inline) */
+    --bg:#15131c; --pan:#1e1b27; --pan2:#262130; --bd:#393348; --bd2:#4b4460;
+    --tx:#e7e2ef; --tx-dim:#a8a2b8; --ac:#ffd34f; --k:#7cc4ff; --skin:#ff7ad8; --ok:#5ed18a;
+    --font: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--tx); font-family:var(--font); font-size:13.5px; line-height:1.5; padding:20px; }
+
+  /* tipografia / secciones */
+  h2{ margin:0 0 14px; font-size:19px; font-weight:600; }
+  h3{ margin:0 0 4px; font-size:16px; font-weight:600; color:var(--tx); }
+  h4{ margin:16px 0 7px; font-size:11.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--ac);
+      padding-bottom:5px; border-bottom:1px solid var(--bd); }
+  h4:first-of-type{ margin-top:6px; }
+  b{ color:var(--ac); font-weight:600; } .k{ color:var(--k); }
+  .muted{ color:var(--tx-dim); font-size:12.5px; }
+  .help{ color:var(--tx-dim); font-size:12px; line-height:1.45; margin:3px 0 8px; }   /* texto de ayuda bajo un control */
+  hr{ border:0; border-top:1px solid var(--bd); margin:16px 0; }
+
+  /* lienzos */
+  canvas{ image-rendering:pixelated; background:#19171f; border:1px solid var(--bd); border-radius:7px; display:block; }
+  #editor,#xeditor{ cursor:crosshair; touch-action:none; }
+  #weditor{ cursor:crosshair; touch-action:none; width:600px; height:600px; }
+  #wstaffview{ cursor:crosshair; touch-action:none; width:220px; height:220px; }
+
+  /* panel = tarjeta */
+  .panel{ width:470px; background:var(--pan); border:1px solid var(--bd); border-radius:12px;
+          padding:18px 20px; box-shadow:0 3px 16px rgba(0,0,0,.28); }
+
+  /* controles */
+  button{ background:var(--pan2); color:var(--tx); border:1px solid var(--bd2); border-radius:7px;
+          padding:6px 12px; cursor:pointer; font-family:var(--font); font-size:13px;
+          transition:border-color .12s, background .12s, color .12s; }
+  button:hover{ border-color:var(--ac); background:#2d2839; }
+  button.on{ border-color:var(--k); color:var(--k); background:#1d2632; }
+  input,select{ background:#13111a; color:var(--tx); border:1px solid var(--bd2); border-radius:6px;
+                padding:5px 8px; font-family:var(--font); font-size:13px; }
+  input[type=number]{ font-family:var(--mono); }
+  input[type=color]{ padding:1px; }
+  input:focus,select:focus{ outline:none; border-color:var(--k); }
+  label{ color:var(--tx-dim); font-size:12.5px; }
+  .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+  textarea{ width:100%; height:130px; background:#13111a; color:#9ae6a0; border:1px solid var(--bd);
+            border-radius:8px; font-family:var(--mono); font-size:12px; padding:9px; line-height:1.5; }
+
+  /* layout */
+  .stage{ display:flex; gap:24px; align-items:flex-start; }
+  .tab{ display:none; } .tab.on{ display:block; }
+
+  /* barra global (personaje/direccion) */
+  #globalsel{ background:var(--pan); border:1px solid var(--bd); border-radius:10px; padding:11px 16px; }
+
+  /* tabbar */
+  #tabbar{ display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--bd); }
+  #tabbar button{ background:transparent; color:var(--tx-dim); border:1px solid transparent; border-bottom:none;
+                  border-radius:9px 9px 0 0; padding:9px 18px; font-size:14px; }
+  #tabbar button:hover{ color:var(--tx); background:var(--pan); }
+  #tabbar button.on{ background:var(--pan); color:var(--ac); border-color:var(--bd); }
+
+  /* miniaturas */
+  #thumbs,#xthumbs{ display:flex; gap:4px; flex-wrap:wrap; margin-top:8px; }
+  #thumbs canvas{ width:48px; height:48px; cursor:pointer; border-radius:4px; }
+  #thumbs canvas.cur{ border-color:var(--ac); }
+  #thumbs .done{ box-shadow:0 0 0 2px var(--ok) inset; }
+  #thumbs .hasmask{ outline:2px solid #c45cff; outline-offset:-2px; }
+  #xthumbs canvas{ width:46px; height:46px; cursor:pointer; border:1px solid var(--bd); border-radius:4px; }
+  #xthumbs canvas.cur{ border-color:var(--ac); }
+  #xthumbs canvas.hasmask{ outline:2px solid var(--skin); outline-offset:-2px; }
+</style>
+<script>
+// === bootstrap standalone: si corre bajo rigserver.py, carga config del disco y auto-guarda ===
+(function(){
+  const RX=/^(walktest:|rigtool:|extractor:|handlib:)/;
+  window.__hasServer=false;
+  try{
+    const xhr=new XMLHttpRequest(); xhr.open('GET','/api/config',false); xhr.send();
+    if(xhr.status===200){ const j=JSON.parse(xhr.responseText); if(j&&j.ok){ window.__hasServer=true; const c=j.config||{}; for(const k in c) localStorage.setItem(k, typeof c[k]==='string'?c[k]:JSON.stringify(c[k])); } }
+  }catch(e){}
+  window.serverSaveAll=function(){ if(!window.__hasServer)return; const data={}; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(RX.test(k)) data[k]=localStorage.getItem(k);} fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{}); };
+  if(window.__hasServer){ const orig=localStorage.setItem.bind(localStorage); let t=null; localStorage.setItem=function(k,v){ orig(k,v); if(RX.test(k)){ clearTimeout(t); t=setTimeout(window.serverSaveAll,700); } }; }
+})();
+</script>
+</head>
+<body>
+  <h2>🪄 Mago tool — rig de varas y manos</h2>
+  <div id="globalsel" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <b>personaje</b>
+    <select id="gchar"><option>mage</option><option>archmage</option></select>
+    <b>dirección</b>
+    <select id="gdir">
+      <option>south</option><option>south-east</option><option>east</option><option>north-east</option>
+      <option>north</option><option>north-west</option><option>west</option><option>south-west</option>
+    </select>
+    <span class="muted">(global — aplica a Extractor y Varas)</span>
+    <span id="gserver" class="muted"></span>
+    <span style="flex:1"></span>
+    <button id="gsave">💾 guardar en archivo…</button>
+    <button id="gexport">⬇ exportar (Descargas)</button>
+    <label class="impbtn" style="cursor:pointer;background:#2a2433;border:1px solid var(--bd);border-radius:5px;padding:4px 9px">⬆ importar<input type="file" id="gimport" accept=".json" style="display:none"></label>
+    <span id="gcfgmsg" style="color:#4caf50"></span>
+  </div>
+  <div id="tabbar">
+    <button id="btnTabRig" class="on">Rig</button>
+    <button id="btnTabExt">Extractor de mano</button>
+    <button id="btnTabWalk">Varas (walk)</button>
+  </div>
+
+  <!-- ================= TAB RIG ================= -->
+  <div id="tabRig" class="tab on">
+   <div class="stage">
+    <div>
+      <canvas id="editor" width="600" height="600"></canvas>
+      <div id="thumbs"></div>
+    </div>
+    <div class="panel">
+      <h3>Rig · mano + contorno</h3>
+      <div class="muted">Modo <b>mano</b>: clic = fija la mano del frame.
+        Modo <b>contorno</b>: pintás la parte del personaje que va por DELANTE de la staff (la mano que la envuelve).</div>
+      <hr>
+      <h4>Carga</h4>
+      <div class="row"><label>patrón</label><input id="cfgPat" size="34" value="/pixi/review/legacy-assets/v2_test/stafftest/frame_#.png"></div>
+      <div class="row">
+        <label># pad</label><input id="cfgPad" type="number" value="3" style="width:50px">
+        <label>count</label><input id="cfgN" type="number" value="9" style="width:55px">
+        <label>frame px</label><input id="cfgF" type="number" value="120" style="width:60px">
+      </div>
+      <div class="row"><label>staff</label><input id="cfgStaff" size="34" value="/pixi/review/legacy-assets/v2_test/stafftest/unknown.png"></div>
+      <div class="row"><label>staff px</label><input id="cfgSpx" type="number" value="64" style="width:60px"><button id="btnLoad">Cargar</button></div>
+      <hr>
+      <div class="row">
+        <button id="prev">◀</button><span>frame <b id="curlbl">0</b>/<span id="maxlbl">0</span></span><button id="next">▶</button>
+        <button id="playbtn">▶ play</button><button id="depthbtn">staff: adelante</button>
+      </div>
+      <div class="row">
+        <b>Herramienta:</b>
+        <button id="toolHand" class="on">mano</button>
+        <button id="toolGrip">grip staff</button>
+        <button id="toolContour">contorno</button>
+        <button id="toolMeasure">medir</button>
+      </div>
+      <div class="row muted" id="measRow" style="display:none">Clic punto A, clic punto B → distancia. <b id="measlbl"></b></div>
+      <div class="row" id="contourRow" style="display:none">
+        <label>pincel</label><input id="brush" type="number" value="4" style="width:50px">
+        <button id="eraseBtn">borrar</button>
+        <button id="copyContour">copiar contorno anterior</button>
+        <button id="clearContour">limpiar este</button>
+      </div>
+      <div class="row">
+        <button id="copyprev">copiar mano del anterior</button>
+        <span>STAFF_GRIP <b id="griplbl"></b></span>
+      </div>
+      <div class="row muted">←/→ frame · Shift+↑/↓ nudge mano</div>
+      <hr>
+      <h4>Salida</h4>
+      <button id="copybtn">copiar datos</button>
+      <button id="exportFront">descargar capa frontal (PNG)</button>
+      <span id="saved" style="color:#4caf50"></span>
+      <textarea id="out" readonly></textarea>
+      <div class="muted" style="margin-top:6px">Miniaturas: <span style="color:#4caf50">verde</span>=mano fijada · <span style="color:#c45cff">borde violeta</span>=tiene contorno. Clic para ir.</div>
+    </div>
+   </div>
+  </div>
+
+  <!-- ================= TAB EXTRACTOR ================= -->
+  <div id="tabExt" class="tab">
+   <div class="stage">
+    <div>
+      <canvas id="xeditor" width="720" height="720"></canvas>
+      <div class="row muted">rueda = zoom · arrastrar = pintar/borrar · espacio+arrastrar = desplazar</div>
+      <div id="xthumbs"></div>
+    </div>
+    <div class="panel">
+      <h3>Extractor de mano · píxel a píxel</h3>
+      <div class="muted">Personaje y dirección vienen del selector global de arriba. Elegí la animación <i>con vara</i>, extraé la mano que envuelve. Exporta la capa frontal real, alineada al frame.</div>
+      <hr>
+      <div class="row">
+        <label>animación (con vara)</label>
+        <select id="xanim">
+          <option value="idle">idle</option><option value="walk">walk</option><option value="hurt">hurt</option>
+          <option value="power">power</option><option value="powerboom">powerboom</option>
+        </select>
+        <label>frame px</label><input id="xcfgF" type="number" value="120" style="width:58px">
+        <button id="xbtnLoad">Cargar</button>
+        <span class="muted" id="xframesinfo"></span>
+      </div>
+      <hr>
+      <div class="row">
+        <button id="xprevf">◀</button><span>frame <b id="xcurlbl">0</b>/<span id="xmaxlbl">0</span></span><button id="xnextf">▶</button>
+        <button id="xcopyprev">copiar selección anterior</button>
+      </div>
+      <div class="row">
+        <button id="xtoolPaint" class="on">pintar</button>
+        <button id="xtoolErase">borrar</button>
+        <button id="xtoolPencil">lápiz</button>
+        <button id="xtoolPick">gotero</button>
+        <input type="color" id="xpencol" value="#d6b599" title="color del lápiz" style="width:34px;height:26px;padding:0">
+        <button id="xtoolAnchor">ancla</button>
+        <button id="xtoolMeasure">medir</button>
+        <label>pincel</label><input id="xbrush" type="number" value="1" min="1" max="6" style="width:46px">
+      </div>
+      <div class="row muted">pintar/borrar = incluir/excluir píxeles reales · lápiz = dibujar píxel nuevo · gotero = muestrear color</div>
+      <div class="row muted">ancla (grip de la mano): <b id="xanchorlbl">— sin fijar</b> <button id="xanchorClr" style="padding:2px 7px">borrar</button></div>
+      <div class="row" id="xmeasRow" style="display:none">regla: clic A, clic B → <b id="xmeaslbl">—</b></div>
+      <hr>
+      <div class="row">
+        <button id="xseedBtn">sembrar piel</button>
+        <button id="xclearBtn">limpiar frame</button>
+        <span class="muted">píxeles: <b id="xcntlbl">0</b></span>
+      </div>
+      <div class="row muted">umbral piel</div>
+      <div class="row">
+        <label>R mín</label><input id="xthR" type="number" value="100" style="width:54px">
+        <label>R−B mín</label><input id="xthRB" type="number" value="24" style="width:54px">
+        <label>suma mín</label><input id="xthSum" type="number" value="180" style="width:54px">
+      </div>
+      <div class="muted">«sembrar piel» preselecciona píxeles cálidos claros dentro del recuadro visible; después corregís a mano.</div>
+      <hr>
+      <div class="row">
+        <button id="xtoVaras" style="border-color:var(--k);color:var(--k)">→ usar en Varas</button>
+        <span class="muted">manda la mano (recorte + ancla) a Varas para este personaje/dirección</span>
+      </div>
+      <div class="row">
+        <button id="xexportBtn">descargar capa frontal (PNG)</button>
+        <button id="xexportCropBtn">descargar recortado + ancla (PNG)</button>
+      </div>
+      <span id="xsaved" style="color:#4caf50"></span>
+      <textarea id="xout" readonly style="height:78px"></textarea>
+    </div>
+   </div>
+  </div>
+
+  <!-- ================= TAB VARAS (WALK) ================= -->
+  <div id="tabWalk" class="tab">
+   <div class="stage">
+    <div>
+      <div class="muted">composición — rueda: zoom · espacio+arrastrar: pan <button id="wzreset" style="padding:1px 7px;margin-left:4px">reset zoom</button></div>
+      <canvas id="weditor" width="700" height="700"></canvas>
+      <div id="wstaffs" style="display:flex;gap:6px;margin-top:6px"></div>
+      <button id="wstaffdel" style="margin-top:6px;font-size:12px;background:#3a2326;border:1px solid #6b3a3a;color:#e3a3a3;border-radius:6px;padding:4px 10px;cursor:pointer">🗑 eliminar vara activa</button>
+      <div id="wstaffdrop" style="margin-top:8px;border:1px dashed var(--bd2);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;color:var(--tx-dim);font-size:12px">
+        ⬇ Arrastrá una <b>vara nueva</b> (PNG) acá, o <u>clic para elegir</u> — se agrega ordenada al repo (pixi + juego)
+        <input type="file" id="wstafffile" accept="image/png" style="display:none">
+      </div>
+      <div id="wstaffmsg" class="muted" style="min-height:16px;margin-top:4px"></div>
+      <div id="wanimdrop" style="margin-top:6px;border:1px dashed var(--bd2);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;color:var(--tx-dim);font-size:12px">
+        ✨ Arrastrá los <b>frames de la animación</b> de la vara <b>activa</b> (varios PNG, mismo tamaño que la estática), o <u>clic</u> — se guardan en staffN_anim/
+        <input type="file" id="wanimfile" accept="image/png,image/gif" multiple style="display:none">
+      </div>
+      <h4 style="margin-top:14px">Vara · puntos y animación</h4>
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <div class="muted">arma sola — clic = fijar grip / salida</div>
+          <canvas id="wstaffview" width="256" height="256"></canvas>
+        </div>
+        <div>
+          <div class="muted">animación <button id="wanimplay" style="padding:1px 9px;margin-left:4px">▶ play</button> <span id="wanimlbl" class="muted"></span></div>
+          <canvas id="wanimview" width="256" height="256" style="width:220px;height:220px"></canvas>
+        </div>
+      </div>
+      <h4 style="margin-top:14px">Bolt · animaciones de la vara activa</h4>
+      <div class="help">El proyectil de ESTA vara. El <b>1er frame del viaje</b> es la bola estática. PNG sueltos (mismo tamaño, se ordenan por nombre) o un GIF. Se guardan en <span class="k">staffN_bolt/travel</span> y <span class="k">staffN_bolt/impact</span> (pixi + juego).</div>
+      <div id="wboltdrop_travel" style="margin-top:6px;border:1px dashed var(--bd2);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;color:var(--tx-dim);font-size:12px">
+        🔥 <b>Viaje</b> (loop) — arrastrá frames/GIF o <u>clic</u>
+        <input type="file" id="wboltfile_travel" accept="image/png,image/gif" multiple style="display:none">
+      </div>
+      <div id="wboltdrop_impact" style="margin-top:6px;border:1px dashed var(--bd2);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;color:var(--tx-dim);font-size:12px">
+        💥 <b>Impacto / vanish</b> (one-shot) — arrastrá frames/GIF o <u>clic</u>
+        <input type="file" id="wboltfile_impact" accept="image/png,image/gif" multiple style="display:none">
+      </div>
+      <div id="wboltmsg" class="muted" style="min-height:16px;margin-top:4px"></div>
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:6px">
+        <div>
+          <div class="muted">viaje <button id="wbolttravelplay" style="padding:1px 9px">▶</button> <span id="wbolttravellbl" class="muted"></span></div>
+          <canvas id="wbolttravelview" width="128" height="128" style="width:128px;height:128px"></canvas>
+        </div>
+        <div>
+          <div class="muted">impacto <button id="wboltimpactplay" style="padding:1px 9px">▶</button> <span id="wboltimpactlbl" class="muted"></span></div>
+          <canvas id="wboltimpactview" width="128" height="128" style="width:128px;height:128px"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Varas (walk) · base mano vacía + vara + mano extraída</h3>
+      <div class="muted">Compositor de 3 capas: <b>base</b> (mago mano libre) → <b>vara</b> (escala/rotación/anchor) → <b>mano extraída</b> por delante. Vara y mano se clavan al mismo punto por frame.</div>
+      <h4>1 · Base — el mago sin vara</h4>
+      <div class="help">La caminata con la mano libre (sin vara). Personaje y dirección salen del selector global de arriba; tocá <b>recargar</b> si cambiás algo.</div>
+      <div class="row">
+        <label>animación (mano libre)</label>
+        <select id="wanim">
+          <option value="walk_empty">walk (mano libre)</option>
+          <option value="idle">idle</option><option value="walk">walk</option><option value="hurt">hurt</option>
+          <option value="power">power</option><option value="powerboom">powerboom</option>
+        </select>
+        <label>frame px</label><input id="wfpx" type="number" value="120" style="width:56px">
+        <button id="wreload">recargar</button>
+        <span class="muted" id="wframesinfo"></span>
+      </div>
+      <div class="row muted">personaje y dirección: selector global de arriba</div>
+      <div class="row">
+        <button id="wprev">◀</button><span>frame <b id="wcurlbl">0</b>/<span id="wmaxlbl">8</span></span><button id="wnext">▶</button>
+        <button id="wplay" class="on">⏸</button>
+        <button id="wdepth">vara: adelante</button>
+      </div>
+      <h4>2 · Anclaje por frame (vara + mano)</h4>
+      <div class="help">El punto donde se clavan la vara y la mano en CADA frame del ciclo. Clic en el lienzo grande = marca el frame actual. Usá <b>copiar anterior</b> / <b>aplicar a todos</b> para no marcarlos uno por uno.</div>
+      <div class="row muted" id="wanchorsrc">anchors: locales</div>
+      <div class="row"><b>Anchor x frame:</b>
+        <button id="wtoolHand" class="on">marcar mano</button>
+        <button id="wcopyprev">copiar anterior</button>
+        <button id="wcopyall">aplicar a todos</button>
+      </div>
+      <div class="row"><b>Rot x frame°:</b>
+        <button id="wfrotm">−5</button>
+        <input id="wfrot" type="number" value="0" step="1" style="width:60px">
+        <button id="wfrotp">+5</button>
+        <button id="wfrotall">aplicar rot a todos</button>
+      </div>
+      <h4>3 · Vara</h4>
+      <div class="help"><b>escala</b> = ancho objetivo en px (el alto sigue la proporción → varas no cuadradas OK). <b>rotación°</b> = inclinación de la vara (ej. −45 para diagonal). La vara activa se elige con las miniaturas o las teclas 1–9.</div>
+      <div class="row">
+        <label>escala</label><input id="wspx" type="number" value="64" style="width:56px">
+        <label>rotación°</label><input id="wrot" type="number" value="0" step="5" style="width:56px">
+        <label>anim fps</label><input id="wanimfps" type="number" value="18" min="1" style="width:56px">
+        <span class="muted">activa: <b id="wactivelbl">1</b></span>
+      </div>
+      <div class="row">
+        <b>Anchor en vara:</b>
+        <button id="wstaffGrip" class="on">grip</button>
+        <button id="wstaffFocus">salida hechizo</button>
+      </div>
+      <div class="help"><b>grip</b> = el píxel de la vara que se apoya en la mano. <b>salida hechizo</b> = la punta/gema de donde sale el proyectil. Elegí cuál editás y hacé clic en la vista de la vara (abajo a la izquierda).</div>
+      <h4>4 · Mano extraída (capa de adelante)</h4>
+      <div class="help">El recorte de la mano que envuelve la vara, dibujado por delante. <b>espejar ⇄</b> da vuelta la mano según el lado. Viene de la pestaña Extractor o de un PNG.</div>
+      <div class="row">
+        <label><input type="checkbox" id="whandon" checked> mostrar</label>
+        <label><input type="checkbox" id="whandflip"> espejar ⇄</label>
+      </div>
+      <div class="row">
+        <input id="whandsrc" size="24" value="assets/v2_test/hands/south.png">
+        <label class="impbtn" style="cursor:pointer;background:#2a2433;border:1px solid var(--bd);border-radius:5px;padding:4px 9px">subir<input type="file" id="whandfile" accept="image/*" style="display:none"></label>
+        <span id="whandupl" class="muted"></span>
+      </div>
+      <div class="row">
+        <label>anchor x</label><input id="whandax" type="number" value="4" style="width:50px">
+        <label>y</label><input id="whanday" type="number" value="4" style="width:50px">
+        <label>escala</label><input id="whandscale" type="number" value="1" step="0.25" min="0.25" style="width:56px">
+      </div>
+      <div class="help"><b>anchor x/y</b> = qué píxel de la mano cae en el punto de anclaje del frame. <b>escala</b> = tamaño relativo de la mano.</div>
+      <div class="row muted">←/→ frame · Shift+flechas = nudge anchor del frame · 1–8 = vara</div>
+      <h4>5 · Salida</h4>
+      <div class="help">Con el servidor corriendo, todo se guarda solo a disco. Esta caja muestra el código del rig por si querés copiarlo a mano.</div>
+      <div class="muted">grip vara <b id="wgriplbl"></b> · salida <b id="wfoclbl"></b> · anchor frame <b id="whandlbl"></b></div>
+      <textarea id="wout" readonly style="height:96px"></textarea>
+      <span id="wsaved" style="color:#4caf50"></span>
+    </div>
+   </div>
+  </div>
+
+<script>
+// ===== tabs =====
+window.SEL={ char:'mage', dir:'south' };
+window.selListeners=[];
+(function(){
+  const gc=document.getElementById('gchar'), gd=document.getElementById('gdir');
+  function fire(){ window.SEL.char=gc.value; window.SEL.dir=gd.value; window.selListeners.forEach(fn=>{ try{fn()}catch(e){} }); }
+  gc.onchange=fire; gd.onchange=fire;
+})();
+(function(){ const e=document.getElementById('gserver'); if(window.__hasServer){ e.textContent='● servidor: auto-guardado en disco'; e.style.color='#4caf50'; } else { e.textContent='○ sin servidor — localStorage (exportá para no perder)'; e.style.color='#caa44f'; } })();
+// --- Exportar / Importar config (todo el localStorage del tool) ---
+(function(){
+  const RX=/^(walktest:|rigtool:|extractor:|handlib:)/;
+  const msg=(t)=>{ const e=document.getElementById('gcfgmsg'); e.textContent=t; setTimeout(()=>e.textContent='',4000); };
+  function gatherJSON(){ const data={}; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(RX.test(k)) data[k]=localStorage.getItem(k); } return {json:JSON.stringify(data,null,2), n:Object.keys(data).length}; }
+  // descarga clásica (a Descargas)
+  document.getElementById('gexport').onclick=()=>{
+    const {json,n}=gatherJSON();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download='rig_config.json'; a.click();
+    msg('✓ descargado ('+n+' entradas)');
+  };
+  // guardar directo a un archivo elegido (recuerda la ubicación en la sesión)
+  let _fh=null;
+  document.getElementById('gsave').onclick=async()=>{
+    const {json,n}=gatherJSON();
+    if(!window.showSaveFilePicker){ msg('tu navegador no soporta guardar directo — usá «exportar»'); return; }
+    try{
+      if(!_fh) _fh=await window.showSaveFilePicker({ suggestedName:'rig_config.json', types:[{description:'JSON',accept:{'application/json':['.json']}}] });
+      const w=await _fh.createWritable(); await w.write(json); await w.close();
+      msg('✓ guardado en archivo ('+n+') — re-clic sobreescribe');
+    }catch(e){ if(e.name!=='AbortError') msg('error: '+e.message); }
+  };
+  document.getElementById('gimport').onchange=(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const fr=new FileReader();
+    fr.onload=()=>{ try{ const d=JSON.parse(fr.result); let n=0; Object.keys(d).forEach(k=>{ if(RX.test(k)){ localStorage.setItem(k,d[k]); n++; } }); msg('✓ importado ('+n+') — recargando…'); setTimeout(()=>location.reload(),700); }catch(err){ msg('JSON inválido'); } };
+    fr.readAsText(f); e.target.value='';
+  };
+})();
+window.__tab = 'rig';
+function showTab(t){
+  window.__tab = t;
+  document.getElementById('tabRig').classList.toggle('on', t==='rig');
+  document.getElementById('tabExt').classList.toggle('on', t==='ext');
+  document.getElementById('tabWalk').classList.toggle('on', t==='walk');
+  document.getElementById('btnTabRig').classList.toggle('on', t==='rig');
+  document.getElementById('btnTabExt').classList.toggle('on', t==='ext');
+  document.getElementById('btnTabWalk').classList.toggle('on', t==='walk');
+}
+document.getElementById('btnTabRig').onclick = ()=>showTab('rig');
+document.getElementById('btnTabExt').onclick = ()=>showTab('ext');
+document.getElementById('btnTabWalk').onclick = ()=>showTab('walk');
+</script>
+
+<script>
+// ================= RIG (scope aislado) =================
+(function(){
+const ed = document.getElementById('editor'), ex = ed.getContext('2d');
+ex.imageSmoothingEnabled = false;
+let CFG = {}, frames = [], staff = null, hands = [], masks = [], grip = { x: 32, y: 42 };
+let cur = 0, playing = false, depthFront = true, tool = 'hand', erase = false, SCALE = 5, OX = 30, OY = 30;
+let painting = false, measA = null, measB = null;
+const $ = id => document.getElementById(id);
+const tmp = document.createElement('canvas'), tg = tmp.getContext('2d');
+tg.imageSmoothingEnabled = false;
+
+function lsKey() { return 'rigtool:' + CFG.pat; }
+function save() {
+  const m = masks.map(c => (c && maskHasInk(c)) ? c.toDataURL() : null);
+  try { localStorage.setItem(lsKey(), JSON.stringify({ hands, grip, depthFront, masks: m })); } catch (e) {}
+  $('saved').textContent = '✓'; setTimeout(() => $('saved').textContent = '', 700);
+  buildExport();
+}
+function maskHasInk(c) { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true; return false; }
+function newMask() { const c = document.createElement('canvas'); c.width = c.height = CFG.f; return c; }
+
+function load() {
+  CFG = { pat: $('cfgPat').value.trim(), pad: +$('cfgPad').value, n: +$('cfgN').value, f: +$('cfgF').value, staff: $('cfgStaff').value.trim(), spx: +$('cfgSpx').value };
+  SCALE = Math.floor(540 / CFG.f); OX = OY = (600 - CFG.f * SCALE) / 2;
+  tmp.width = tmp.height = CFG.f;
+  frames = []; let loaded = 0; const need = CFG.n + 1;
+  const onload = () => { if (++loaded === need) { restore(); render(); buildThumbs(); } };
+  for (let i = 0; i < CFG.n; i++) { const im = new Image(); im.onload = onload; im.onerror = onload; im.src = CFG.pat.replace('#', String(i).padStart(CFG.pad, '0')); frames.push(im); }
+  staff = new Image(); staff.onload = onload; staff.onerror = onload; staff.src = CFG.staff;
+  $('maxlbl').textContent = CFG.n - 1;
+}
+function restore() {
+  const g = { x: Math.round(CFG.f * 0.37), y: Math.round(CFG.f * 0.58) };
+  hands = Array.from({ length: CFG.n }, () => null);
+  masks = Array.from({ length: CFG.n }, () => newMask());
+  const raw = localStorage.getItem(lsKey());
+  if (raw) { try {
+    const d = JSON.parse(raw);
+    if (d.hands) hands = d.hands;
+    if (d.grip) grip = d.grip;
+    depthFront = d.depthFront !== false;
+    if (d.masks) d.masks.forEach((u, i) => { if (u) { const im = new Image(); im.onload = () => { masks[i].getContext('2d').drawImage(im, 0, 0); render(); buildThumbs(); }; im.src = u; } });
+  } catch (e) {} }
+  for (let i = 0; i < CFG.n; i++) if (!hands[i]) hands[i] = { ...g, guess: true };
+  $('depthbtn').textContent = 'staff: ' + (depthFront ? 'adelante' : 'atrás');
+  $('griplbl').textContent = `{x:${grip.x}, y:${grip.y}}`;
+}
+
+function drawStaffAt(hand) { ex.drawImage(staff, OX + (hand.x - grip.x) * SCALE, OY + (hand.y - grip.y) * SCALE, CFG.spx * SCALE, CFG.spx * SCALE); }
+function frontOverlay(fi) {
+  tg.clearRect(0, 0, CFG.f, CFG.f); tg.globalCompositeOperation = 'source-over';
+  if (frames[fi]) tg.drawImage(frames[fi], 0, 0);
+  tg.globalCompositeOperation = 'destination-in'; tg.drawImage(masks[fi], 0, 0);
+  tg.globalCompositeOperation = 'source-over';
+  return tmp;
+}
+function render(fi) {
+  if (fi === undefined) fi = cur;
+  ex.clearRect(0, 0, 600, 600);
+  const hand = hands[fi];
+  if (!depthFront && hand) drawStaffAt(hand);
+  if (frames[fi]) ex.drawImage(frames[fi], OX, OY, CFG.f * SCALE, CFG.f * SCALE);
+  if (depthFront && hand) drawStaffAt(hand);
+  ex.drawImage(frontOverlay(fi), OX, OY, CFG.f * SCALE, CFG.f * SCALE);
+  if (!playing && tool === 'contour') {
+    ex.globalAlpha = 0.45; ex.globalCompositeOperation = 'source-over';
+    ex.drawImage(tintMask(fi), OX, OY, CFG.f * SCALE, CFG.f * SCALE); ex.globalAlpha = 1;
+  }
+  if (!playing && hand && tool !== 'contour') {
+    const hx = OX + hand.x * SCALE, hy = OY + hand.y * SCALE;
+    ex.strokeStyle = hand.guess ? '#ff3b8b88' : '#3bff8b'; ex.lineWidth = 1;
+    ex.beginPath(); ex.moveTo(hx - 9, hy); ex.lineTo(hx + 9, hy); ex.moveTo(hx, hy - 9); ex.lineTo(hx, hy + 9); ex.stroke();
+  }
+  if (tool === 'measure') {
+    const pt = (p, col) => { const X = OX + p.x * SCALE, Y = OY + p.y * SCALE; ex.fillStyle = col; ex.fillRect(X - 2, Y - 2, 4, 4); };
+    if (measA) pt(measA, '#ffd84f');
+    if (measA && measB) {
+      pt(measB, '#9ad8ff');
+      ex.strokeStyle = '#fff'; ex.lineWidth = 1; ex.beginPath();
+      ex.moveTo(OX + measA.x * SCALE, OY + measA.y * SCALE); ex.lineTo(OX + measB.x * SCALE, OY + measB.y * SCALE); ex.stroke();
+      const dx = Math.abs(measB.x - measA.x), dy = Math.abs(measB.y - measA.y);
+      $('measlbl').textContent = `ancho ${dx}px · alto ${dy}px · diag ${Math.hypot(dx, dy).toFixed(1)}px`;
+    } else $('measlbl').textContent = 'clic punto B…';
+  }
+  $('curlbl').textContent = fi;
+  document.querySelectorAll('#thumbs canvas').forEach((c, i) => c.classList.toggle('cur', i === cur));
+}
+let _tint = document.createElement('canvas'), _tc = _tint.getContext('2d');
+function tintMask(fi) { _tint.width = _tint.height = CFG.f; _tc.clearRect(0, 0, CFG.f, CFG.f); _tc.globalCompositeOperation = 'source-over'; _tc.drawImage(masks[fi], 0, 0); _tc.globalCompositeOperation = 'source-in'; _tc.fillStyle = '#c45cff'; _tc.fillRect(0, 0, CFG.f, CFG.f); return _tint; }
+
+function evtToFrame(e) { const r = ed.getBoundingClientRect(); return { x: (e.clientX - r.left) * (ed.width / r.width) / SCALE - OX / SCALE, y: (e.clientY - r.top) * (ed.height / r.height) / SCALE - OY / SCALE }; }
+function paint(fp) {
+  const g = masks[cur].getContext('2d'); const br = +$('brush').value;
+  g.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(fp.x, fp.y, br, 0, Math.PI * 2); g.fill();
+}
+ed.addEventListener('pointerdown', e => {
+  ed.setPointerCapture(e.pointerId); const fp = evtToFrame(e);
+  if (tool === 'measure') { if (!measA || measB) { measA = { x: Math.round(fp.x), y: Math.round(fp.y) }; measB = null; } else { measB = { x: Math.round(fp.x), y: Math.round(fp.y) }; } render(); return; }
+  if (tool === 'contour') { painting = true; paint(fp); render(); }
+  else if (tool === 'grip') { const hand = hands[cur]; grip = { x: Math.round(fp.x - hand.x + grip.x), y: Math.round(fp.y - hand.y + grip.y) }; $('griplbl').textContent = `{x:${grip.x}, y:${grip.y}}`; save(); render(); }
+  else { hands[cur] = { x: Math.round(fp.x), y: Math.round(fp.y) }; save(); render(); buildThumbs(); }
+});
+ed.addEventListener('pointermove', e => { if (painting && tool === 'contour') { paint(evtToFrame(e)); render(); } });
+ed.addEventListener('pointerup', () => { if (painting) { painting = false; save(); buildThumbs(); } });
+
+function go(d) { cur = (cur + d + CFG.n) % CFG.n; render(); }
+$('prev').onclick = () => go(-1); $('next').onclick = () => go(1);
+$('copyprev').onclick = () => { const p = hands[(cur - 1 + CFG.n) % CFG.n]; hands[cur] = { x: p.x, y: p.y }; save(); render(); buildThumbs(); };
+$('copyContour').onclick = () => { const pc = masks[(cur - 1 + CFG.n) % CFG.n]; const g = masks[cur].getContext('2d'); g.clearRect(0, 0, CFG.f, CFG.f); g.drawImage(pc, 0, 0); save(); render(); buildThumbs(); };
+$('clearContour').onclick = () => { masks[cur].getContext('2d').clearRect(0, 0, CFG.f, CFG.f); save(); render(); buildThumbs(); };
+$('depthbtn').onclick = () => { depthFront = !depthFront; $('depthbtn').textContent = 'staff: ' + (depthFront ? 'adelante' : 'atrás'); save(); render(); };
+$('eraseBtn').onclick = () => { erase = !erase; $('eraseBtn').classList.toggle('on', erase); };
+function setTool(t) { tool = t; ['Hand', 'Grip', 'Contour', 'Measure'].forEach(n => $('tool' + n).classList.toggle('on', t === n.toLowerCase())); $('contourRow').style.display = t === 'contour' ? 'flex' : 'none'; $('measRow').style.display = t === 'measure' ? 'flex' : 'none'; render(); }
+$('toolHand').onclick = () => setTool('hand');
+$('toolGrip').onclick = () => setTool('grip');
+$('toolContour').onclick = () => setTool('contour');
+$('toolMeasure').onclick = () => setTool('measure');
+$('btnLoad').onclick = load;
+$('copybtn').onclick = () => { navigator.clipboard.writeText($('out').value); $('saved').textContent = '✓ copiado'; setTimeout(() => $('saved').textContent = '', 900); };
+$('exportFront').onclick = () => {
+  for (let i = 0; i < CFG.n; i++) {
+    const o = frontOverlay(i); const url = o.toDataURL();
+    const a = document.createElement('a'); a.href = url; a.download = `front_${String(i).padStart(CFG.pad, '0')}.png`; a.click();
+  }
+};
+$('playbtn').onclick = () => { playing = !playing; $('playbtn').classList.toggle('on', playing); $('playbtn').textContent = playing ? '⏸' : '▶ play'; if (playing) requestAnimationFrame(playLoop); else render(); };
+function playLoop(t) { if (!playing) return; render(Math.floor(t / 130) % CFG.n); requestAnimationFrame(playLoop); }
+addEventListener('keydown', e => {
+  if (window.__tab !== 'rig') return;
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') { go(-1); e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { go(1); e.preventDefault(); }
+  else if (e.shiftKey && e.key === 'ArrowUp') { hands[cur].y--; save(); render(); e.preventDefault(); }
+  else if (e.shiftKey && e.key === 'ArrowDown') { hands[cur].y++; save(); render(); e.preventDefault(); }
+});
+function buildThumbs() {
+  const box = $('thumbs'); box.innerHTML = '';
+  for (let i = 0; i < CFG.n; i++) {
+    const c = document.createElement('canvas'); c.width = c.height = CFG.f;
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    if (frames[i]) g.drawImage(frames[i], 0, 0);
+    if (hands[i] && !hands[i].guess) c.classList.add('done');
+    if (masks[i] && maskHasInk(masks[i])) c.classList.add('hasmask');
+    if (i === cur) c.classList.add('cur');
+    c.onclick = () => { cur = i; render(); };
+    box.appendChild(c);
+  }
+}
+function buildExport() {
+  const arr = hands.map(h => `{x:${h.x},y:${h.y}}`).join(', ');
+  const anyMask = masks.some(m => m && maskHasInk(m));
+  $('out').value =
+`// ${CFG.pat}  (${CFG.n} frames, frame ${CFG.f}px, staff ${CFG.spx}px)
+const STAFF_GRIP = { x: ${grip.x}, y: ${grip.y} };
+const STAFF_DEPTH = '${depthFront ? 'front' : 'back'}';
+const HAND_BY_FRAME = [ ${arr} ];
+// capa frontal (contorno): ${anyMask ? 'SÍ — usar "descargar capa frontal (PNG)" → front_###.png' : 'sin pintar'}`;
+}
+load();
+})();
+</script>
+
+<script>
+// ================= EXTRACTOR (scope aislado) =================
+(function(){
+const $=id=>document.getElementById(id);
+const ed=$('xeditor'), ex=ed.getContext('2d'); ex.imageSmoothingEnabled=false;
+let CFG={pat:'',pad:1,n:4,f:120};
+let frames=[], imgs=[], masks=[], paints=[];
+let cur=0, tool='paint', brush=1, painting=false, drag=null;
+let Z=8, OX=0, OY=0;
+let measA=null, measB=null, spaceDown=false, anchor=null;
+let penColor=[214,181,153];
+const _pc=document.createElement('canvas'), _pcx=_pc.getContext('2d');
+
+addEventListener('keydown',e=>{ if(window.__tab!=='ext')return; if(e.code==='Space'){spaceDown=true;e.preventDefault();}});
+addEventListener('keyup',e=>{ if(e.code==='Space')spaceDown=false; });
+
+function lsKey(){ return 'extractor:'+CFG.pat; }
+function paintToURL(p){ for(let i=3;i<p.length;i+=4) if(p[i]>0){ _pc.width=_pc.height=CFG.f; _pcx.putImageData(new ImageData(Uint8ClampedArray.from(p),CFG.f,CFG.f),0,0); return _pc.toDataURL(); } return null; }
+function save(){ try{ localStorage.setItem(lsKey(), JSON.stringify({masks:masks.map(m=>Array.from(m)), paints:paints.map(paintToURL), anchor})); }catch(e){} }
+function restore(){ try{ const j=JSON.parse(localStorage.getItem(lsKey())); if(!j)return;
+  if(Array.isArray(j)){ if(j.length===CFG.n) masks=j.map(a=>Uint8Array.from(a)); }            // formato viejo
+  else { if(j.masks&&j.masks.length===CFG.n) masks=j.masks.map(a=>Uint8Array.from(a)); if(j.anchor) anchor=j.anchor;
+    if(j.paints) j.paints.forEach((u,i)=>{ if(u){ const im=new Image(); im.onload=()=>{ _pc.width=_pc.height=CFG.f; _pcx.clearRect(0,0,CFG.f,CFG.f); _pcx.drawImage(im,0,0); paints[i]=new Uint8ClampedArray(_pcx.getImageData(0,0,CFG.f,CFG.f).data); render(); }; im.src=u; } }); }
+}catch(e){} }
+
+function pad(i){ return String(i).padStart(CFG.pad,'0'); }
+function srcFor(i){ return CFG.pat.replace('#', pad(i)); }
+
+function load(){
+  const char=window.SEL.char, dir=window.SEL.dir, anim=$('xanim').value;
+  CFG={pat:`assets/v2_test/${char}/${anim}/${dir}_#.png`, pad:1, n:0, f:Math.max(8,+$('xcfgF').value)};
+  frames=[]; imgs=[]; masks=[]; paints=[]; anchor=null; cur=0;
+  const loadOne=(i)=>{
+    const im=new Image();
+    im.onload=()=>{
+      const c=document.createElement('canvas'); c.width=c.height=CFG.f;
+      const cx=c.getContext('2d'); cx.imageSmoothingEnabled=false; cx.drawImage(im,0,0,CFG.f,CFG.f);
+      imgs[i]=c; frames[i]=cx.getImageData(0,0,CFG.f,CFG.f);
+      masks[i]=new Uint8Array(CFG.f*CFG.f); paints[i]=new Uint8ClampedArray(CFG.f*CFG.f*4);
+      loadOne(i+1);
+    };
+    im.onerror=()=>finish(i);
+    im.src=srcFor(i);
+  };
+  const finish=(n)=>{
+    CFG.n=Math.max(0,n);
+    $('xframesinfo').textContent = CFG.n>0 ? `${CFG.n} frames` : 'sin frames (esa dir/anim no existe)';
+    $('xmaxlbl').textContent=Math.max(0,CFG.n-1);
+    if(CFG.n>0) restore();
+    fitView(); buildThumbs(); render();
+  };
+  loadOne(0);
+}
+
+function fitView(){ Z=Math.max(2,Math.floor(Math.min(ed.width,ed.height)/CFG.f)); OX=0; OY=0; }
+
+function rect(){ return ed.getBoundingClientRect(); }
+function toFrame(e){
+  const r=rect();
+  const sx=(e.clientX-r.left)*(ed.width/r.width), sy=(e.clientY-r.top)*(ed.height/r.height);
+  return { x:Math.floor(sx/Z+OX), y:Math.floor(sy/Z+OY), sx, sy };
+}
+
+function skinAt(d,idx,th){
+  const r=d[idx],g=d[idx+1],b=d[idx+2],a=d[idx+3];
+  if(a===0) return false;
+  return r>=th.R && (r-b)>=th.RB && r>=g && g>=b && (r+g+b)>=th.Sum;
+}
+
+function visibleBox(){
+  const x0=Math.max(0,Math.floor(OX)), y0=Math.max(0,Math.floor(OY));
+  const x1=Math.min(CFG.f, Math.ceil(OX+ed.width/Z)), y1=Math.min(CFG.f, Math.ceil(OY+ed.height/Z));
+  return {x0,y0,x1,y1};
+}
+
+function seed(){
+  const d=frames[cur].data, m=masks[cur];
+  const th={R:+$('xthR').value, RB:+$('xthRB').value, Sum:+$('xthSum').value};
+  const {x0,y0,x1,y1}=visibleBox();
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
+    const idx=(y*CFG.f+x)*4;
+    if(skinAt(d,idx,th)) m[y*CFG.f+x]=1;
+  }
+  save(); render(); buildThumbs();
+}
+
+function setPixel(fx,fy,val){
+  const half=Math.floor(brush/2);
+  for(let dy=0;dy<brush;dy++) for(let dx=0;dx<brush;dx++){
+    const x=fx-half+dx, y=fy-half+dy;
+    if(x<0||y<0||x>=CFG.f||y>=CFG.f) continue;
+    masks[cur][y*CFG.f+x]=val;
+    if(val===0){ const o=(y*CFG.f+x)*4; paints[cur][o+3]=0; } // borrar también quita pintura
+  }
+}
+function setPaint(fx,fy,col){ // col=[r,g,b] dibuja, col=null borra píxel pintado
+  const half=Math.floor(brush/2), p=paints[cur];
+  for(let dy=0;dy<brush;dy++) for(let dx=0;dx<brush;dx++){
+    const x=fx-half+dx, y=fy-half+dy;
+    if(x<0||y<0||x>=CFG.f||y>=CFG.f) continue;
+    const o=(y*CFG.f+x)*4;
+    if(col){ p[o]=col[0];p[o+1]=col[1];p[o+2]=col[2];p[o+3]=255; } else { p[o+3]=0; }
+  }
+}
+function hasInk(i){ return masks[cur][i] || paints[cur][i*4+3]>0; }
+
+function render(){
+  ex.clearRect(0,0,ed.width,ed.height);
+  const img=imgs[cur]; if(!img){ $('xcurlbl').textContent=cur; return; }
+  ex.save(); ex.imageSmoothingEnabled=false;
+  ex.drawImage(img, OX,OY, ed.width/Z, ed.height/Z, 0,0, ed.width, ed.height);
+  ex.restore();
+  const m=masks[cur], pp=paints[cur];
+  ex.fillStyle='rgba(255,90,200,.45)';
+  const {x0,y0,x1,y1}=visibleBox();
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){ if(m[y*CFG.f+x]) ex.fillRect((x-OX)*Z,(y-OY)*Z,Z,Z); }
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){ const o=(y*CFG.f+x)*4; if(pp[o+3]>0){ ex.fillStyle=`rgb(${pp[o]},${pp[o+1]},${pp[o+2]})`; ex.fillRect((x-OX)*Z,(y-OY)*Z,Z,Z); } }
+  if(Z>=8){
+    ex.strokeStyle='rgba(120,200,120,.20)'; ex.lineWidth=1;
+    for(let x=x0;x<=x1;x++){ const sx=(x-OX)*Z; ex.beginPath();ex.moveTo(sx,0);ex.lineTo(sx,ed.height);ex.stroke(); }
+    for(let y=y0;y<=y1;y++){ const sy=(y-OY)*Z; ex.beginPath();ex.moveTo(0,sy);ex.lineTo(ed.width,sy);ex.stroke(); }
+  }
+  if(tool==='measure'){
+    ex.fillStyle='#9ad8ff'; ex.strokeStyle='#9ad8ff'; ex.lineWidth=2;
+    const pt=p=>({x:(p.x+0.5-OX)*Z, y:(p.y+0.5-OY)*Z});
+    if(measA){ const a=pt(measA); ex.beginPath();ex.arc(a.x,a.y,3,0,7);ex.fill(); }
+    if(measA&&measB){ const a=pt(measA),b=pt(measB); ex.beginPath();ex.moveTo(a.x,a.y);ex.lineTo(b.x,b.y);ex.stroke(); ex.beginPath();ex.arc(b.x,b.y,3,0,7);ex.fill(); }
+  }
+  if(anchor){ const ax=(anchor.x+0.5-OX)*Z, ay=(anchor.y+0.5-OY)*Z;
+    ex.strokeStyle='#ffd84f'; ex.lineWidth=2; ex.beginPath();
+    ex.moveTo(ax-8,ay);ex.lineTo(ax+8,ay);ex.moveTo(ax,ay-8);ex.lineTo(ax,ay+8); ex.stroke();
+    ex.beginPath(); ex.arc(ax,ay,3,0,7); ex.stroke();
+  }
+  let cnt=0; for(let i=0;i<m.length;i++) cnt+=m[i];
+  $('xcntlbl').textContent=cnt;
+  $('xcurlbl').textContent=cur;
+  updateAnchorLbl();
+}
+
+function updateAnchorLbl(){
+  $('xanchorlbl').textContent = anchor ? `frame {x:${anchor.x}, y:${anchor.y}}` : '— sin fijar';
+  const b=bounds(); let rel='—';
+  if(anchor&&b) rel=`{x:${anchor.x-b.minx}, y:${anchor.y-b.miny}}`;
+  $('xout').value =
+`// ${CFG.pat}
+// ancla (frame): ${anchor?`{x:${anchor.x}, y:${anchor.y}}`:'sin fijar'}
+// ancla relativa al recorte: ${rel}
+// en v2hero: pegar el ancla de la mano sobre HAND_BY_FRAME[f] en cada frame`;
+}
+
+function bounds(){
+  let minx=1e9,miny=1e9,maxx=-1,maxy=-1;
+  for(let y=0;y<CFG.f;y++) for(let x=0;x<CFG.f;x++) if(hasInk(y*CFG.f+x)){ if(x<minx)minx=x;if(y<miny)miny=y;if(x>maxx)maxx=x;if(y>maxy)maxy=y; }
+  return maxx<0?null:{minx,miny,maxx,maxy};
+}
+
+function buildLayer(){
+  const c=document.createElement('canvas'); c.width=c.height=CFG.f;
+  const cx=c.getContext('2d'); const out=cx.createImageData(CFG.f,CFG.f);
+  const src=frames[cur].data, m=masks[cur], pp=paints[cur];
+  for(let i=0;i<m.length;i++){ const o=i*4;
+    if(pp[o+3]>0){ out.data[o]=pp[o];out.data[o+1]=pp[o+1];out.data[o+2]=pp[o+2];out.data[o+3]=255; }       // pintura por encima
+    else if(m[i]){ out.data[o]=src[o];out.data[o+1]=src[o+1];out.data[o+2]=src[o+2];out.data[o+3]=src[o+3]; }
+  }
+  cx.putImageData(out,0,0); return c;
+}
+
+function download(canvas,name){ const a=document.createElement('a'); a.download=name; a.href=canvas.toDataURL('image/png'); a.click(); $('xsaved').textContent='guardado '+name; setTimeout(()=>$('xsaved').textContent='',2500); }
+
+ed.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=toFrame(e); const r=rect();
+  Z=Math.max(2,Math.min(40, Z*(e.deltaY<0?1.2:1/1.2)));
+  OX=f.x - (e.clientX-r.left)*(ed.width/r.width)/Z;
+  OY=f.y - (e.clientY-r.top)*(ed.height/r.height)/Z;
+  render();
+},{passive:false});
+
+ed.addEventListener('pointerdown',e=>{
+  ed.setPointerCapture(e.pointerId);
+  const f=toFrame(e);
+  if(spaceDown){ drag={ox:OX,oy:OY,sx:e.clientX,sy:e.clientY}; return; }
+  if(tool==='anchor'){ anchor={x:f.x,y:f.y}; save(); updateAnchorLbl(); render(); return; }
+  if(tool==='measure'){ if(!measA||measB){measA={x:f.x,y:f.y};measB=null;} else {measB={x:f.x,y:f.y}; updateMeas();} render(); return; }
+  if(tool==='pick'){ if(f.x>=0&&f.y>=0&&f.x<CFG.f&&f.y<CFG.f){ const d=frames[cur].data,o=(f.y*CFG.f+f.x)*4; if(d[o+3]>0){ penColor=[d[o],d[o+1],d[o+2]]; $('xpencol').value=`#${[d[o],d[o+1],d[o+2]].map(v=>v.toString(16).padStart(2,'0')).join('')}`; } } return; }
+  painting=true;
+  if(tool==='pencil') setPaint(f.x,f.y,penColor);
+  else setPixel(f.x,f.y, tool==='paint'?1:0);
+  render();
+});
+ed.addEventListener('pointermove',e=>{
+  if(drag){ const r=rect(); OX=drag.ox-(e.clientX-drag.sx)*(ed.width/r.width)/Z; OY=drag.oy-(e.clientY-drag.sy)*(ed.height/r.height)/Z; render(); return; }
+  if(painting){ const f=toFrame(e); if(tool==='pencil') setPaint(f.x,f.y,penColor); else setPixel(f.x,f.y, tool==='paint'?1:0); render(); }
+});
+ed.addEventListener('pointerup',()=>{ if(painting){save();buildThumbs();} painting=false; drag=null; });
+
+function updateMeas(){ if(measA&&measB){ const dx=measB.x-measA.x,dy=measB.y-measA.y; $('xmeaslbl').textContent=`ancho ${Math.abs(dx)+1}px · alto ${Math.abs(dy)+1}px · diag ${Math.hypot(dx,dy).toFixed(1)}px`; } }
+
+function setTool(t){ tool=t; ['Paint','Erase','Pencil','Pick','Anchor','Measure'].forEach(n=>$('xtool'+n).classList.toggle('on',t===n.toLowerCase())); $('xmeasRow').style.display=t==='measure'?'flex':'none'; render(); }
+$('xtoolPaint').onclick=()=>setTool('paint');
+$('xtoolErase').onclick=()=>setTool('erase');
+$('xtoolPencil').onclick=()=>setTool('pencil');
+$('xtoolPick').onclick=()=>setTool('pick');
+$('xtoolAnchor').onclick=()=>setTool('anchor');
+$('xtoolMeasure').onclick=()=>setTool('measure');
+$('xpencol').oninput=e=>{ const h=e.target.value; penColor=[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; };
+$('xanchorClr').onclick=()=>{ anchor=null; save(); render(); };
+$('xbrush').oninput=e=>brush=Math.max(1,+e.target.value);
+
+$('xbtnLoad').onclick=load;
+$('xanim').onchange=load;
+window.selListeners.push(load); // global personaje/dirección → recargar Extractor
+$('xprevf').onclick=()=>{cur=(cur-1+CFG.n)%CFG.n;render();syncThumbs();};
+$('xnextf').onclick=()=>{cur=(cur+1)%CFG.n;render();syncThumbs();};
+$('xcopyprev').onclick=()=>{ const p=(cur-1+CFG.n)%CFG.n; masks[cur]=Uint8Array.from(masks[p]); save();render();buildThumbs(); };
+$('xseedBtn').onclick=seed;
+$('xclearBtn').onclick=()=>{ masks[cur]=new Uint8Array(CFG.f*CFG.f); paints[cur]=new Uint8ClampedArray(CFG.f*CFG.f*4); save();render();buildThumbs(); };
+$('xexportBtn').onclick=()=>download(buildLayer(), `hand_${cur}.png`);
+$('xexportCropBtn').onclick=()=>{
+  const layer=buildLayer(); const b=bounds(); if(!b){alert('frame vacío');return;}
+  const w=b.maxx-b.minx+1,h=b.maxy-b.miny+1;
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  c.getContext('2d').drawImage(layer,b.minx,b.miny,w,h,0,0,w,h);
+  const ax = anchor? anchor.x-b.minx : 'NA', ay = anchor? anchor.y-b.miny : 'NA';
+  download(c,`hand_${cur}_anchor_${ax}_${ay}.png`);
+};
+$('xtoVaras').onclick=()=>{
+  const b=bounds(); if(!b){ $('xsaved').textContent='nada que enviar'; setTimeout(()=>$('xsaved').textContent='',2500); return; }
+  if(!anchor){ $('xsaved').textContent='fijá el ancla primero'; setTimeout(()=>$('xsaved').textContent='',2500); return; }
+  const layer=buildLayer(); const w=b.maxx-b.minx+1,h=b.maxy-b.miny+1;
+  const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(layer,b.minx,b.miny,w,h,0,0,w,h);
+  const char=window.SEL.char, d=window.SEL.dir;
+  const payload={ url:c.toDataURL(), ax:anchor.x-b.minx, ay:anchor.y-b.miny };
+  try{ localStorage.setItem('handlib:'+char+'/'+d, JSON.stringify(payload)); }catch(e){}
+  if(window.onHandExtracted) window.onHandExtracted(char,d);
+  if(window.__hasServer) fetch('/api/hand',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({char,dir:d,dataURL:payload.url})}).then(()=>{$('xsaved').textContent=`✓ a Varas + disco (${char}/${d})`;}).catch(()=>{});
+  $('xsaved').textContent=`✓ enviado a Varas (${char}/${d})`; setTimeout(()=>$('xsaved').textContent='',3500);
+};
+
+function buildThumbs(){
+  const t=$('xthumbs'); t.innerHTML='';
+  for(let i=0;i<CFG.n;i++){
+    const c=document.createElement('canvas'); c.width=c.height=CFG.f;
+    const cx=c.getContext('2d'); if(imgs[i]) cx.drawImage(imgs[i],0,0);
+    cx.fillStyle='rgba(255,90,200,.5)';
+    const m=masks[i]; let has=false;
+    for(let p=0;p<m.length;p++) if(m[p]){ has=true; const x=p%CFG.f,y=(p/CFG.f)|0; cx.fillRect(x,y,1,1); }
+    c.className=(i===cur?'cur ':'')+(has?'hasmask':'');
+    c.onclick=()=>{cur=i;render();syncThumbs();};
+    t.appendChild(c);
+  }
+}
+function syncThumbs(){ [...$('xthumbs').children].forEach((c,i)=>c.classList.toggle('cur',i===cur)); }
+
+load();
+})();
+</script>
+
+<script>
+// ================= VARAS (WALK) (scope aislado) =================
+(function(){
+const $=id=>document.getElementById(id);
+const ed=$('weditor'), ex=ed.getContext('2d'); ex.imageSmoothingEnabled=false;
+let STAFF_SRC = buildStaffSrc();
+function buildStaffSrc(){  // descubre cuántas varas hay en disco (vía rigserver); fallback 10
+  let count = 10;
+  try { const x=new XMLHttpRequest(); x.open('GET','/api/staffs',false); x.send(); if(x.status===200){ const j=JSON.parse(x.responseText); if(j&&j.ok&&j.count>0) count=j.count; } } catch(e){}
+  return Array.from({length:count}, (_,i)=>`assets/v2_test/staffs/staff${i+1}.png`);
+}
+function natOf(i){ return (staffs[i]&&staffs[i].width)?staffs[i].width:64; }  // ancho nativo por vara (64, 128, …)
+function natWH(i){ const im=staffs[i]; return { w:(im&&im.width)?im.width:64, h:(im&&im.height)?im.height:64 }; }  // W×H nativo (soporta varas NO cuadradas)
+let NF=9, F=120, BASEDIR='assets/v2_test/mage/walk_empty';
+let SCALE=4, OX=60, OY=60;
+let dir='south', cur=0, playing=true, tool='hand', active=0, depthFront=true, staffTool='grip';
+let frames=[], staffs=[], handImg=new Image(), STAFF_CB='';
+let VZ=1, panX=0, panY=0, vdrag=null, vspace=false;  // zoom/pan del visor
+const MIRROR={ 'west':'east', 'north-west':'north-east', 'south-west':'south-east' };  // dir espejada → dir fuente
+let mirrored=false;  // la dirección global actual se obtiene espejando la fuente
+// estado persistente (v2: 3 capas)
+function defStaff(){ return {grip:{x:32,y:46}, focus:{x:32,y:8}, spx:64, rot:0, animfps:18}; }
+let ST={ staff:STAFF_SRC.map(defStaff), handByDir:{}, rotByDir:{}, handOn:true, hands:{}, depth:true, active:0 };
+function readHandLib(d){ try{ return JSON.parse(localStorage.getItem('handlib:'+window.SEL.char+'/'+d)); }catch(e){ return null; } }
+function handCfg(){
+  if(!ST.hands[dir]){
+    const lib=readHandLib(dir);
+    ST.hands[dir]= lib ? { src:'(Extractor)', upload:lib.url, ax:lib.ax, ay:lib.ay, flip:false, scale:1 }
+                       : { src:`assets/v2_test/hands/${dir}.png`, upload:null, ax:4, ay:4, flip:false, scale:1 };
+  }
+  return ST.hands[dir];
+}
+// el Extractor manda una mano para char/dir → refrescar en vivo si coincide con la dir fuente actual
+window.onHandExtracted=(char,d)=>{
+  if(char!==window.SEL.char || d!==dir) return;
+  const lib=readHandLib(d); if(!lib) return;
+  const prev=ST.hands[dir]||{};
+  ST.hands[dir]={ src:'(Extractor)', upload:lib.url, ax:lib.ax, ay:lib.ay, flip:prev.flip||false, scale:prev.scale||1 };
+  save(); syncHandUI(); loadHand();
+};
+
+function lsKey(){ return 'walktest:v2'; }
+function save(){ try{ localStorage.setItem(lsKey(), JSON.stringify(ST)); }catch(e){} $('wsaved').textContent='✓'; setTimeout(()=>$('wsaved').textContent='',600); buildOut(); }
+function restore(){ try{ const j=JSON.parse(localStorage.getItem(lsKey())); if(j) ST=Object.assign(ST,j); }catch(e){}
+  if(!ST.staff) ST.staff=[];
+  while(ST.staff.length<STAFF_SRC.length) ST.staff.push(defStaff());
+  ST.staff.forEach(s=>{ if(s.rot===undefined)s.rot=0; if(!s.grip)s.grip={x:32,y:46}; if(!s.focus)s.focus={x:s.grip.x,y:Math.max(0,s.grip.y-38)}; if(!s.spx)s.spx=64; if(s.animfps===undefined)s.animfps=18; });
+  if(ST.hand){ ST.handOn=ST.hand.on!==false; delete ST.hand; }   // migrar formato viejo (mano global única)
+  if(ST.handOn===undefined) ST.handOn=true; if(!ST.hands) ST.hands={}; if(!ST.rotByDir) ST.rotByDir={};
+  Object.values(ST.hands).forEach(h=>{ if(h.upload===undefined)h.upload=null; if(h.scale===undefined)h.scale=1; if(h.flip===undefined)h.flip=false; });
+  depthFront=ST.depth!==false; active=ST.active||0;
+}
+
+function recalcView(){ SCALE=Math.max(1,Math.floor(540/F)); OX=OY=(ed.width-F*SCALE)/2; }
+function resetView(){ VZ=1; panX=0; panY=0; }
+
+// --- anchors por-frame: fuente de verdad = tab Rig (rigtool:<pattern>.hands)
+let useRig=false;
+function rigKey(){ return 'rigtool:'+BASEDIR+'/'+dir+'_#.png'; }
+function rigAnchors(){ try{ const d=JSON.parse(localStorage.getItem(rigKey())); if(d&&d.hands&&d.hands.length===NF) return d.hands.map(h=>({x:h.x,y:h.y,guess:h.guess})); }catch(e){} return null; }
+function writeRigAnchor(i,x,y){ let d={}; try{ d=JSON.parse(localStorage.getItem(rigKey()))||{}; }catch(e){} if(!d.hands||d.hands.length!==NF) d.hands=Array.from({length:NF},()=>({x:46,y:66})); d.hands[i]={x,y}; try{ localStorage.setItem(rigKey(), JSON.stringify(d)); }catch(e){} }
+function handsForDir(){ // PURA: nunca muta (evita truncar mientras NF crece en la sonda)
+  const r=rigAnchors();
+  if(r){ useRig=true; return r; }
+  useRig=false;
+  if(!ST.handByDir[dir]) ST.handByDir[dir]=Array.from({length:Math.max(1,NF)},()=>({x:46,y:66,guess:true}));
+  return ST.handByDir[dir];
+}
+function normalizeHands(){ // ajustar longitud a NF UNA vez, ya con NF final, preservando lo marcado
+  const h=ST.handByDir[dir];
+  if(!h){ ST.handByDir[dir]=Array.from({length:NF},()=>({x:46,y:66,guess:true})); }
+  else if(h.length!==NF) ST.handByDir[dir]=Array.from({length:NF},(_,i)=> h[i] || {x:46,y:66,guess:true});
+  const r=ST.rotByDir[dir];
+  if(!r) ST.rotByDir[dir]=Array.from({length:NF},()=>0);
+  else if(r.length!==NF) ST.rotByDir[dir]=Array.from({length:NF},(_,i)=> r[i]||0);
+}
+function rotForDir(){ if(!ST.rotByDir[dir]) ST.rotByDir[dir]=Array.from({length:Math.max(1,NF)},()=>0); return ST.rotByDir[dir]; }
+function setAnchorFrame(i,x,y){ if(useRig) writeRigAnchor(i,x,y); else { const h=handsForDir(); h[i]={x,y}; save(); } }
+function setFrameRot(i,v){ const r=rotForDir(); r[i]=v; save(); }
+
+function loadFrames(){
+  frames=[]; NF=0;
+  const tryNext=(i)=>{
+    if(i>40){ finish(i); return; }
+    const im=new Image();
+    im.onload=()=>{ frames[i]=im; NF=i+1; tryNext(i+1); };
+    im.onerror=()=>finish(i);
+    im.src=`${BASEDIR}/${dir}_${i}.png`;
+  };
+  const finish=(n)=>{ NF=Math.max(1,n); frames.length=NF; if(cur>=NF)cur=0; normalizeHands(); $('wmaxlbl').textContent=NF-1; $('wframesinfo').textContent=n>0?`${n} frames`:'sin frames'; render(); };
+  tryNext(0);
+}
+function loadStaffs(){
+  staffs=[]; for(let i=0;i<STAFF_SRC.length;i++){ const im=new Image(); im.onload=()=>{ buildStaffThumbs(); render(); }; im.onerror=()=>{}; im.src=STAFF_SRC[i]+STAFF_CB; staffs.push(im); }
+}
+function loadHand(){ const h=handCfg(); handImg=new Image(); handImg.onload=()=>render(); handImg.onerror=()=>render(); handImg.src=h.upload||h.src; }
+
+function drawStaff(anchor, frot){
+  const s=ST.staff[active], img=staffs[active]; if(!img||!img.width) return;
+  const f=s.spx/img.width;
+  ex.save();
+  ex.translate(OX+anchor.x*SCALE, OY+anchor.y*SCALE);
+  const rot=(s.rot||0)+(frot||0);  // base de la vara + rotación de ESTE frame
+  if(rot) ex.rotate(rot*Math.PI/180);
+  ex.imageSmoothingEnabled=false;
+  ex.drawImage(img, -s.grip.x*f*SCALE, -s.grip.y*f*SCALE, img.width*f*SCALE, img.height*f*SCALE);  // aspecto real (no forzar cuadrado)
+  const fx=(s.focus.x-s.grip.x)*f*SCALE, fy=(s.focus.y-s.grip.y)*f*SCALE;
+  ex.strokeStyle='#7ec8ff'; ex.lineWidth=1;
+  ex.beginPath(); ex.moveTo(fx-5,fy); ex.lineTo(fx+5,fy); ex.moveTo(fx,fy-5); ex.lineTo(fx,fy+5); ex.stroke();
+  ex.restore();
+}
+function drawHand(anchor, frot){
+  if(!ST.handOn||!handImg.width) return;
+  const h=handCfg();
+  ex.save();
+  ex.imageSmoothingEnabled=false;
+  ex.translate(OX+anchor.x*SCALE, OY+anchor.y*SCALE);
+  if(frot) ex.rotate(frot*Math.PI/180);  // rotación de ESTE frame (mano sigue a la vara)
+  const hs=h.scale||1;
+  ex.scale((h.flip?-1:1)*hs, hs);  // espejar + escalar; anchor queda en el origen
+  ex.drawImage(handImg, -h.ax*SCALE, -h.ay*SCALE, handImg.width*SCALE, handImg.height*SCALE);
+  ex.restore();
+}
+function render(fi){
+  if(fi===undefined) fi=cur;
+  ex.setTransform(1,0,0,1,0,0);
+  ex.clearRect(0,0,ed.width,ed.height);
+  const a=handsForDir()[fi];
+  ex.save();
+  ex.translate(panX,panY); ex.scale(VZ,VZ);
+  if(mirrored){ ex.translate(2*OX+F*SCALE,0); ex.scale(-1,1); }  // espejar TODA la composición
+  ex.imageSmoothingEnabled=false;
+  const base=()=>{ if(frames[fi]&&frames[fi].width) ex.drawImage(frames[fi], OX,OY, F*SCALE, F*SCALE); };
+  if(depthFront){ base(); if(a){ drawStaff(a); drawHand(a); } }
+  else { if(a) drawStaff(a); base(); if(a) drawHand(a); }
+  if(!playing && a){
+    const hx=OX+a.x*SCALE, hy=OY+a.y*SCALE, r=8/VZ;
+    ex.strokeStyle=a.guess?'#ff3b8b88':'#3bff8b'; ex.lineWidth=1/VZ;
+    ex.beginPath(); ex.moveTo(hx-r,hy);ex.lineTo(hx+r,hy);ex.moveTo(hx,hy-r);ex.lineTo(hx,hy+r); ex.stroke();
+  }
+  ex.restore();
+  $('wcurlbl').textContent=fi;
+  $('wactivelbl').textContent=active+1;
+  $('wgriplbl').textContent=`{x:${ST.staff[active].grip.x}, y:${ST.staff[active].grip.y}}`;
+  $('wfoclbl').textContent=`{x:${ST.staff[active].focus.x}, y:${ST.staff[active].focus.y}}`;
+  $('whandlbl').textContent=a?`{x:${a.x}, y:${a.y}}`:'—';
+  $('wanchorsrc').textContent = mirrored ? `dir ESPEJADA de «${dir}» — anchors heredados (marcá en «${dir}»)` : (useRig ? 'anchors mano: del Rig (tab 1) ✓' : 'anchors mano: marcados acá (Varas) ✓');
+  [...$('wstaffs').children].forEach((c,i)=>{ c.style.borderColor = (i===active)?'var(--ac)':'var(--bd)'; });
+  drawStaffView();
+}
+
+function evtToFrame(e){
+  const r=ed.getBoundingClientRect();
+  const cx=(e.clientX-r.left)*(ed.width/r.width), cy=(e.clientY-r.top)*(ed.height/r.height);
+  return { x:Math.round(((cx-panX)/VZ - OX)/SCALE), y:Math.round(((cy-panY)/VZ - OY)/SCALE) };
+}
+ed.addEventListener('pointerdown',e=>{
+  if(vspace){ ed.setPointerCapture(e.pointerId); vdrag={px:panX,py:panY,sx:e.clientX,sy:e.clientY}; return; }
+  if(mirrored) return; // dir espejada: no se marca acá, se hereda de la fuente
+  const fp=evtToFrame(e); setAnchorFrame(cur, fp.x, fp.y); render();
+});
+ed.addEventListener('pointermove',e=>{ if(vdrag){ const r=ed.getBoundingClientRect(); panX=vdrag.px+(e.clientX-vdrag.sx)*(ed.width/r.width); panY=vdrag.py+(e.clientY-vdrag.sy)*(ed.height/r.height); render(); } });
+ed.addEventListener('pointerup',()=>{ vdrag=null; });
+ed.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=ed.getBoundingClientRect();
+  const cx=(e.clientX-r.left)*(ed.width/r.width), cy=(e.clientY-r.top)*(ed.height/r.height);
+  const conX=(cx-panX)/VZ, conY=(cy-panY)/VZ;
+  VZ=Math.max(0.5,Math.min(8, VZ*(e.deltaY<0?1.15:1/1.15)));
+  panX=cx-VZ*conX; panY=cy-VZ*conY; render();
+},{passive:false});
+
+// --- vista del arma sola: clic = fijar anchor (grip) en px nativos
+const sv=$('wstaffview'), svx=sv.getContext('2d'); svx.imageSmoothingEnabled=false;
+function svZoom(){ const wh=natWH(active); return Math.max(1,Math.floor(Math.min(sv.width/wh.w, sv.height/wh.h))); }
+function drawStaffView(){
+  svx.clearRect(0,0,sv.width,sv.height);
+  const img=staffs[active], wh=natWH(active), W=wh.w, H=wh.h; const z=svZoom(), ox=(sv.width-W*z)/2, oy=(sv.height-H*z)/2;
+  if(img&&img.width){ svx.imageSmoothingEnabled=false; svx.drawImage(img, ox,oy, W*z, H*z); }
+  svx.strokeStyle='rgba(120,200,120,.15)'; svx.lineWidth=1;
+  for(let i=0;i<=W;i+=8){ svx.beginPath();svx.moveTo(ox+i*z,oy);svx.lineTo(ox+i*z,oy+H*z);svx.stroke(); }
+  for(let i=0;i<=H;i+=8){ svx.beginPath();svx.moveTo(ox,oy+i*z);svx.lineTo(ox+W*z,oy+i*z);svx.stroke(); }
+  const s=ST.staff[active], ax=ox+s.grip.x*z, ay=oy+s.grip.y*z;
+  svx.strokeStyle='#ffd84f'; svx.lineWidth=2; svx.beginPath();
+  svx.moveTo(ax-9,ay);svx.lineTo(ax+9,ay);svx.moveTo(ax,ay-9);svx.lineTo(ax,ay+9); svx.stroke();
+  svx.beginPath(); svx.arc(ax,ay,3,0,7); svx.stroke();
+  const fx=ox+s.focus.x*z, fy=oy+s.focus.y*z;
+  svx.strokeStyle='#7ec8ff'; svx.lineWidth=2; svx.beginPath();
+  svx.moveTo(fx-9,fy);svx.lineTo(fx+9,fy);svx.moveTo(fx,fy-9);svx.lineTo(fx,fy+9); svx.stroke();
+  svx.beginPath(); svx.arc(fx,fy,3,0,7); svx.stroke();
+}
+sv.addEventListener('pointerdown',e=>{
+  const r=sv.getBoundingClientRect(), wh=natWH(active), W=wh.w, H=wh.h, z=svZoom(), ox=(sv.width-W*z)/2, oy=(sv.height-H*z)/2;
+  const px=(e.clientX-r.left)*(sv.width/r.width), py=(e.clientY-r.top)*(sv.height/r.height);
+  const pt={ x:Math.max(0,Math.min(W,Math.round((px-ox)/z))), y:Math.max(0,Math.min(H,Math.round((py-oy)/z))) };
+  if(staffTool==='focus') ST.staff[active].focus=pt;
+  else ST.staff[active].grip=pt;
+  save(); render(); drawStaffView();
+});
+
+function setPlaying(p){ playing=p; $('wplay').classList.toggle('on',p); $('wplay').textContent=p?'⏸':'▶ play'; if(p) requestAnimationFrame(loop); else render(); }
+function loop(t){ if(!playing) return; if(window.__tab==='walk') render(Math.floor(t/140)%NF); requestAnimationFrame(loop); }
+function go(d){ setPlaying(false); cur=(cur+d+NF)%NF; render(); }
+
+function setTool(t){ tool=t; $('wtoolHand').classList.toggle('on',t==='hand'); }
+function setStaffTool(t){ staffTool=t; $('wstaffGrip').classList.toggle('on',t==='grip'); $('wstaffFocus').classList.toggle('on',t==='focus'); }
+function setActive(i){ active=i; ST.active=i; $('wspx').value=ST.staff[i].spx; $('wrot').value=ST.staff[i].rot||0; $('wanimfps').value=ST.staff[i].animfps||18; save(); render(); loadStaffAnim(); loadBoltAnim('travel'); loadBoltAnim('impact'); }
+
+function buildStaffThumbs(){
+  const box=$('wstaffs'); box.innerHTML='';
+  staffs.forEach((im,i)=>{
+    const c=document.createElement('canvas'); c.width=c.height=64; c.style.width=c.style.height='56px';
+    c.style.cursor='pointer'; c.style.border='1px solid var(--bd)'; c.style.background='#222028';
+    if(im.width){ const cx=c.getContext('2d'); cx.imageSmoothingEnabled=false; const k=Math.min(64/im.width,64/im.height), dw=im.width*k, dh=im.height*k; cx.drawImage(im,(64-dw)/2,(64-dh)/2,dw,dh); }
+    if(i===active){ c.style.borderColor='var(--ac)'; c.classList.add('cur'); }
+    c.onclick=()=>setActive(i);
+    box.appendChild(c);
+  });
+}
+function buildOut(){
+  const hands=handsForDir().map(h=>`{x:${h.x},y:${h.y}}`).join(', ');
+  const s=ST.staff[active];
+  $('wout').value=
+`// dir: ${mirrored?`${window.SEL.dir} = ESPEJO horizontal de ${dir}`:dir} · vara ${active+1} (${STAFF_SRC[active].split('/').pop()})
+STAFF_GRIP = { x: ${s.grip.x}, y: ${s.grip.y} };  // px nativos de la vara (${natOf(active)})
+STAFF_FOCUS = { x: ${s.focus.x}, y: ${s.focus.y} };  // salida hechizo / gema
+STAFF_SPX  = ${s.spx};   STAFF_ROT = ${s.rot||0};   STAFF_ANIMFPS = ${s.animfps||18};
+HAND_SPRITE = '${(handCfg().upload?'(subida)':handCfg().src.split('/').pop())}';  HAND_ANCHOR = { x:${handCfg().ax}, y:${handCfg().ay} };  HAND_FLIP = ${!!handCfg().flip};  HAND_SCALE = ${handCfg().scale||1};
+DEPTH = '${depthFront?'front':'back'}';
+HAND_BY_FRAME['${dir}'] = [ ${hands} ];`;
+}
+
+function reload(){
+  mirrored=!!MIRROR[window.SEL.dir]; dir=MIRROR[window.SEL.dir]||window.SEL.dir;  // si es espejada, cargo la fuente
+  BASEDIR='assets/v2_test/'+window.SEL.char+'/'+$('wanim').value; F=Math.max(8,+$('wfpx').value);
+  recalcView(); resetView(); cur=0; loadFrames(); loadStaffs(); loadHand(); syncHandUI(); buildOut();
+}
+$('wanim').onchange=reload;
+$('wreload').onclick=reload;
+window.selListeners.push(reload); // global personaje/dirección → recargar Varas
+$('wzreset').onclick=()=>{ resetView(); render(); };
+$('wprev').onclick=()=>go(-1); $('wnext').onclick=()=>go(1);
+$('wplay').onclick=()=>setPlaying(!playing);
+$('wdepth').onclick=()=>{ depthFront=!depthFront; ST.depth=depthFront; $('wdepth').textContent='vara: '+(depthFront?'adelante':'atrás'); save(); render(); };
+$('wtoolHand').onclick=()=>setTool('hand');
+$('wstaffGrip').onclick=()=>setStaffTool('grip');
+$('wstaffFocus').onclick=()=>setStaffTool('focus');
+$('wcopyprev').onclick=()=>{ const h=handsForDir(); const p=h[(cur-1+NF)%NF]; setAnchorFrame(cur,p.x,p.y); render(); };
+$('wcopyall').onclick=()=>{ const h=handsForDir(); const c=h[cur]; for(let i=0;i<NF;i++) setAnchorFrame(i,c.x,c.y); render(); };
+$('wspx').oninput=e=>{ ST.staff[active].spx=Math.max(4,+e.target.value); save(); render(); };
+$('wrot').oninput=e=>{ ST.staff[active].rot=+e.target.value||0; save(); render(); drawAnimView(); };
+$('wanimfps').oninput=e=>{ ST.staff[active].animfps=Math.max(1,+e.target.value||18); save(); };
+function syncHandUI(){ const h=handCfg(); $('whandsrc').value=h.src; $('whandax').value=h.ax; $('whanday').value=h.ay; $('whandflip').checked=!!h.flip; $('whandscale').value=h.scale||1; $('whandon').checked=ST.handOn; $('whandupl').textContent=h.upload?'(usando archivo subido)':''; }
+$('whandon').onchange=e=>{ ST.handOn=e.target.checked; save(); render(); };
+$('whandflip').onchange=e=>{ handCfg().flip=e.target.checked; save(); render(); };
+$('whandscale').oninput=e=>{ handCfg().scale=Math.max(0.25,+e.target.value||1); save(); render(); };
+$('whandsrc').onchange=e=>{ const h=handCfg(); h.src=e.target.value.trim(); h.upload=null; save(); syncHandUI(); loadHand(); };
+$('whandax').oninput=e=>{ handCfg().ax=+e.target.value||0; save(); render(); };
+$('whanday').oninput=e=>{ handCfg().ay=+e.target.value||0; save(); render(); };
+$('whandfile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const fr=new FileReader(); fr.onload=()=>{ handCfg().upload=fr.result; save(); syncHandUI(); loadHand(); }; fr.readAsDataURL(f); e.target.value=''; };
+
+addEventListener('keydown',e=>{
+  if(window.__tab!=='walk') return;
+  if(e.code==='Space' && e.target.tagName!=='INPUT'){ vspace=true; e.preventDefault(); return; }
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  const h=handsForDir();
+  if(e.key==='ArrowLeft'){ go(-1); e.preventDefault(); }
+  else if(e.key==='ArrowRight'){ go(1); e.preventDefault(); }
+  else if(e.shiftKey&&e.key==='ArrowUp'){ if(!mirrored){setAnchorFrame(cur,h[cur].x,h[cur].y-1); render();} e.preventDefault(); }
+  else if(e.shiftKey&&e.key==='ArrowDown'){ if(!mirrored){setAnchorFrame(cur,h[cur].x,h[cur].y+1); render();} e.preventDefault(); }
+  else if(e.shiftKey&&e.key==='ArrowLeft'){ if(!mirrored){setAnchorFrame(cur,h[cur].x-1,h[cur].y); render();} e.preventDefault(); }
+  else if(e.shiftKey&&e.key==='ArrowRight'){ if(!mirrored){setAnchorFrame(cur,h[cur].x+1,h[cur].y); render();} e.preventDefault(); }
+  else if('123456789'.includes(e.key)){ setActive(+e.key-1); e.preventDefault(); }
+});
+addEventListener('keyup',e=>{ if(e.code==='Space') vspace=false; });
+
+// --- insertar vara nueva (drag-drop / archivo) -> /api/staff -> repo, y refrescar ---
+function refreshStaffsFromDisk(cb){
+  STAFF_SRC = buildStaffSrc();
+  while(ST.staff.length < STAFF_SRC.length) ST.staff.push(defStaff());
+  loadStaffs();
+  if(cb) cb();
+}
+function insertStaff(file){
+  if(!file) return;
+  const msg=$('wstaffmsg');
+  if(!window.__hasServer){ msg.textContent='⚠ necesitás rigserver.py corriendo para guardar al repo'; msg.style.color='#caa44f'; return; }
+  msg.textContent='subiendo '+file.name+'…'; msg.style.color='';
+  const fr=new FileReader();
+  fr.onload=()=>{
+    fetch('/api/staff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataURL:fr.result,name:file.name})})
+      .then(r=>r.json()).then(j=>{
+        if(j&&j.ok){ refreshStaffsFromDisk(()=>setActive(STAFF_SRC.length-1)); msg.textContent='✓ agregada como staff'+j.n+'.png (pixi + juego)'; msg.style.color='#4caf50'; }
+        else { msg.textContent='✗ '+((j&&j.error)||'error'); msg.style.color='#e06b6b'; }
+      }).catch(e=>{ msg.textContent='✗ '+e; msg.style.color='#e06b6b'; });
+  };
+  fr.readAsDataURL(file);
+}
+(function(){
+  const dz=$('wstaffdrop'), fi=$('wstafffile'); if(!dz) return;
+  dz.onclick=()=>fi.click();
+  fi.onchange=e=>{ insertStaff(e.target.files[0]); e.target.value=''; };
+  dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.style.borderColor='var(--ac)'; });
+  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--bd2)'; });
+  dz.addEventListener('drop',e=>{ e.preventDefault(); dz.style.borderColor='var(--bd2)'; const f=e.dataTransfer.files[0]; if(f) insertStaff(f); });
+})();
+
+// --- eliminar la vara ACTIVA -> /api/staffdelete -> Papelera + renumera siguientes, y refrescar ---
+function deleteStaff(){
+  const msg=$('wstaffmsg');
+  if(!window.__hasServer){ msg.textContent='⚠ necesitás rigserver.py corriendo para eliminar del repo'; msg.style.color='#caa44f'; return; }
+  if(STAFF_SRC.length<=1){ msg.textContent='✗ no podés eliminar la última vara'; msg.style.color='#e06b6b'; return; }
+  const n=active+1;
+  if(!confirm('¿Eliminar la vara '+n+'?\nVa a la Papelera y las siguientes se renumeran (staff'+(n+1)+'→staff'+n+'…).')) return;
+  msg.textContent='eliminando vara '+n+'…'; msg.style.color='';
+  fetch('/api/staffdelete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({staff:n})})
+    .then(r=>r.json()).then(j=>{
+      if(j&&j.ok){
+        ST.staff.splice(n-1,1);                          // sacar el rig de esa vara (reindexa el resto)
+        STAFF_CB='?t='+Date.now();                       // cache-bust: las staffN.png cambiaron de contenido
+        active=Math.max(0,Math.min(active,j.count-1));
+        refreshStaffsFromDisk(()=>setActive(active));     // setActive postea el config reindexado
+        msg.textContent='✓ vara '+n+' eliminada (a Papelera); quedan '+j.count; msg.style.color='#4caf50';
+      } else { msg.textContent='✗ '+((j&&j.error)||'error'); msg.style.color='#e06b6b'; }
+    }).catch(e=>{ msg.textContent='✗ '+e; msg.style.color='#e06b6b'; });
+}
+{ const _b=$('wstaffdel'); if(_b) _b.onclick=deleteStaff; }
+
+// --- insertar animación de la vara ACTIVA (varios frames) -> /api/staffanim ---
+// Extrae los frames de un GIF animado en el browser (ImageDecoder, sin dependencias).
+async function gifToFrames(file){
+  if(typeof ImageDecoder==='undefined') throw new Error('este navegador no soporta ImageDecoder — usá Chrome/Edge, o subí los frames como PNG sueltos');
+  const dec=new ImageDecoder({data: await file.arrayBuffer(), type:'image/gif'});
+  await dec.tracks.ready;
+  const count=dec.tracks.selectedTrack.frameCount||1;
+  const cv=document.createElement('canvas'), cx=cv.getContext('2d');
+  const out=[];
+  for(let i=0;i<count;i++){
+    const {image}=await dec.decode({frameIndex:i});
+    cv.width=image.displayWidth||image.codedWidth; cv.height=image.displayHeight||image.codedHeight;
+    cx.clearRect(0,0,cv.width,cv.height); cx.drawImage(image,0,0);
+    out.push(cv.toDataURL('image/png'));
+    if(image.close) image.close();
+  }
+  if(dec.close) dec.close();
+  return out;
+}
+async function insertStaffAnim(files){
+  if(!files || !files.length) return;
+  const msg=$('wstaffmsg');
+  if(!window.__hasServer){ msg.textContent='⚠ necesitás rigserver.py corriendo'; msg.style.color='#caa44f'; return; }
+  const n=active+1;
+  let frames=[];
+  try {
+    if(files.length===1 && /gif/i.test((files[0].type||'')+files[0].name)){
+      msg.textContent='extrayendo frames del gif…'; msg.style.color='';
+      frames=await gifToFrames(files[0]);
+    } else {
+      const arr=[...files].sort((a,b)=>a.name.localeCompare(b.name));
+      frames=await Promise.all(arr.map(f=>new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(f); })));
+    }
+  } catch(e){ msg.textContent='✗ '+(e.message||e); msg.style.color='#e06b6b'; return; }
+  if(!frames.length){ msg.textContent='✗ 0 frames'; msg.style.color='#e06b6b'; return; }
+  msg.textContent='subiendo '+frames.length+' frames para staff'+n+'…'; msg.style.color='';
+  fetch('/api/staffanim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({staff:n,frames})})
+    .then(r=>r.json()).then(j=>{
+      if(j&&j.ok){ msg.textContent='✓ animación de staff'+j.staff+' ('+j.frames+' frames) — replay en el juego para verla'; msg.style.color='#4caf50'; if(j.staff===active+1) loadStaffAnim(); }
+      else { msg.textContent='✗ '+((j&&j.error)||'error'); msg.style.color='#e06b6b'; }
+    }).catch(e=>{ msg.textContent='✗ '+e; msg.style.color='#e06b6b'; });
+}
+(function(){
+  const dz=$('wanimdrop'), fi=$('wanimfile'); if(!dz) return;
+  dz.onclick=()=>fi.click();
+  fi.onchange=e=>{ insertStaffAnim(e.target.files); e.target.value=''; };
+  dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.style.borderColor='var(--ac)'; });
+  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--bd2)'; });
+  dz.addEventListener('drop',e=>{ e.preventDefault(); dz.style.borderColor='var(--bd2)'; insertStaffAnim(e.dataTransfer.files); });
+})();
+
+// --- preview de la ANIMACIÓN de la vara activa (rotada por el rot de la vara) ---
+var animFrames=[], animI=0, animPlaying=false;
+function loadStaffAnim(){
+  animFrames=[]; animI=0;
+  const lbl=$('wanimlbl'); if(lbl) lbl.textContent='cargando…';
+  const base='assets/v2_test/staffs/staff'+(active+1)+'_anim/';
+  (function probe(i){
+    const im=new Image();
+    im.onload=()=>{ animFrames.push(im); probe(i+1); };
+    im.onerror=()=>{ if(lbl) lbl.textContent = animFrames.length? animFrames.length+' frames' : '(sin animación — arrastrá frames arriba)'; drawAnimView(); };
+    im.src=base+'frame_'+String(i).padStart(3,'0')+'.png?t='+i;
+  })(0);
+}
+function drawAnimView(){
+  const c=$('wanimview'); if(!c) return; const x=c.getContext('2d');
+  x.imageSmoothingEnabled=false; x.clearRect(0,0,c.width,c.height);
+  if(!animFrames.length) return;
+  const im=animFrames[animI%animFrames.length], rot=(ST.staff[active].rot||0)*Math.PI/180;
+  const k=Math.min(c.width/im.width, c.height/im.height)*0.85;
+  x.save(); x.translate(c.width/2, c.height/2); x.rotate(rot); x.imageSmoothingEnabled=false;
+  x.drawImage(im, -im.width*k/2, -im.height*k/2, im.width*k, im.height*k); x.restore();
+}
+function animLoop(t){ if(!animPlaying) return; if(window.__tab==='walk' && animFrames.length){ animI=Math.floor(t*(ST.staff[active].animfps||18)/1000)%animFrames.length; drawAnimView(); } requestAnimationFrame(animLoop); }
+if($('wanimplay')) $('wanimplay').onclick=()=>{ animPlaying=!animPlaying; $('wanimplay').textContent=animPlaying?'⏸ pausa':'▶ play'; if(animPlaying) requestAnimationFrame(animLoop); else drawAnimView(); };
+
+// --- BOLT de la vara ACTIVA: viaje (loop) + impacto (one-shot) -> /api/boltanim ---
+// Mismo patrón que la animación de vara. El 1er frame del "viaje" es la bola estática.
+async function insertBoltAnim(kind, files){
+  if(!files || !files.length) return;
+  const msg=$('wboltmsg');
+  if(!window.__hasServer){ msg.textContent='⚠ necesitás rigserver.py corriendo'; msg.style.color='#caa44f'; return; }
+  const n=active+1;
+  let frames=[];
+  try {
+    if(files.length===1 && /gif/i.test((files[0].type||'')+files[0].name)){
+      msg.textContent='extrayendo frames del gif…'; msg.style.color='';
+      frames=await gifToFrames(files[0]);
+    } else {
+      const arr=[...files].sort((a,b)=>a.name.localeCompare(b.name));
+      frames=await Promise.all(arr.map(f=>new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(f); })));
+    }
+  } catch(e){ msg.textContent='✗ '+(e.message||e); msg.style.color='#e06b6b'; return; }
+  if(!frames.length){ msg.textContent='✗ 0 frames'; msg.style.color='#e06b6b'; return; }
+  msg.textContent='subiendo '+frames.length+' frames de '+kind+' (vara '+n+')…'; msg.style.color='';
+  fetch('/api/boltanim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({staff:n,kind,frames})})
+    .then(r=>r.json()).then(j=>{
+      if(j&&j.ok){ msg.textContent='✓ bolt '+j.kind+' de staff'+j.staff+' ('+j.frames+' frames) — pixi + juego'; msg.style.color='#4caf50'; if(j.staff===active+1) loadBoltAnim(kind); }
+      else { msg.textContent='✗ '+((j&&j.error)||'error'); msg.style.color='#e06b6b'; }
+    }).catch(e=>{ msg.textContent='✗ '+e; msg.style.color='#e06b6b'; });
+}
+function wireBoltDrop(kind){
+  const dz=$('wboltdrop_'+kind), fi=$('wboltfile_'+kind); if(!dz) return;
+  dz.onclick=()=>fi.click();
+  fi.onchange=e=>{ insertBoltAnim(kind, e.target.files); e.target.value=''; };
+  dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.style.borderColor='var(--ac)'; });
+  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--bd2)'; });
+  dz.addEventListener('drop',e=>{ e.preventDefault(); dz.style.borderColor='var(--bd2)'; insertBoltAnim(kind, e.dataTransfer.files); });
+}
+wireBoltDrop('travel'); wireBoltDrop('impact');
+// preview de las dos animaciones del bolt (de la vara activa)
+var boltFrames={travel:[],impact:[]}, boltI={travel:0,impact:0}, boltPlaying={travel:false,impact:false};
+function loadBoltAnim(kind){
+  boltFrames[kind]=[]; boltI[kind]=0;
+  const lbl=$('wbolt'+kind+'lbl');
+  const base='assets/v2_test/staffs/staff'+(active+1)+'_bolt/'+kind+'/';
+  (function probe(i){
+    const im=new Image();
+    im.onload=()=>{ boltFrames[kind].push(im); probe(i+1); };
+    im.onerror=()=>{ if(lbl) lbl.textContent = boltFrames[kind].length? boltFrames[kind].length+' frames' : '(vacío — arrastrá arriba)'; drawBoltView(kind); };
+    im.src=base+'frame_'+String(i).padStart(3,'0')+'.png?t='+i;
+  })(0);
+}
+function drawBoltView(kind){
+  const c=$('wbolt'+kind+'view'); if(!c) return; const x=c.getContext('2d');
+  x.imageSmoothingEnabled=false; x.clearRect(0,0,c.width,c.height);
+  const fr=boltFrames[kind]; if(!fr.length) return;
+  const im=fr[boltI[kind]%fr.length]; if(!im||!im.width) return;
+  const k=Math.min(c.width/im.width, c.height/im.height)*0.9;
+  x.drawImage(im, (c.width-im.width*k)/2, (c.height-im.height*k)/2, im.width*k, im.height*k);
+}
+function boltLoop(t){
+  ['travel','impact'].forEach(kind=>{ if(boltPlaying[kind] && window.__tab==='walk' && boltFrames[kind].length){ boltI[kind]=Math.floor(t*12/1000)%boltFrames[kind].length; drawBoltView(kind); } });
+  if(boltPlaying.travel||boltPlaying.impact) requestAnimationFrame(boltLoop);
+}
+['travel','impact'].forEach(kind=>{ const b=$('wbolt'+kind+'play'); if(b) b.onclick=()=>{ boltPlaying[kind]=!boltPlaying[kind]; b.textContent=boltPlaying[kind]?'⏸':'▶'; if(boltPlaying.travel||boltPlaying.impact) requestAnimationFrame(boltLoop); else drawBoltView(kind); }; });
+
+restore();
+$('wanim').value='walk_empty'; $('wfpx').value=F;
+loadStaffAnim();
+loadBoltAnim('travel'); loadBoltAnim('impact');
+mirrored=!!MIRROR[window.SEL.dir]; dir=MIRROR[window.SEL.dir]||window.SEL.dir;
+BASEDIR='assets/v2_test/'+window.SEL.char+'/'+$('wanim').value;
+$('wdepth').textContent='vara: '+(depthFront?'adelante':'atrás');
+$('wspx').value=ST.staff[active].spx; $('wrot').value=ST.staff[active].rot||0;
+syncHandUI();
+recalcView();
+loadStaffs(); loadFrames(); loadHand(); buildOut();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
+

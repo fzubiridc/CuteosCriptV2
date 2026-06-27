@@ -9,6 +9,7 @@ var _near := false
 var _prompt: Label
 
 func _ready() -> void:
+	add_to_group("interactable")   # el AoE del player (E) lo consulta para priorizar interact
 	collision_layer = 0
 	collision_mask = 2   # detecta al jugador (capa 2)
 	var shape := CollisionShape2D.new()
@@ -59,6 +60,10 @@ func _ready() -> void:
 		if b is Player:
 			_near = false
 			_prompt.visible = false)
+
+## El AoE del player (E) consulta esto: ¿se puede abrir el mercader AHORA?
+func interactable_now() -> bool:
+	return _near
 
 func _process(_delta: float) -> void:
 	if _near and Input.is_action_just_pressed("interact"):

@@ -30,6 +30,8 @@ func _setup_post() -> void:
 	move_child(_post, 0)
 
 func _input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return   # panel de tuning (tecla L) solo en debug/editor; el post-FX (_setup_post) corre SIEMPRE
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
 		_panel.visible = not _panel.visible
 

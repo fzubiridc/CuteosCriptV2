@@ -1,7 +1,8 @@
 extends PointLight2D
-## Antorcha de pared: luz cálida con parpadeo de 2 frecuencias (flicker estilo
-## Pixi) + sprite de antorcha ANIMADO (torch_anim.png, 8 frames). Lee energía/
-## radio/altura de LightCfg → se autotunea en vivo desde el panel (tecla L).
+## Antorcha de pared: luz cálida ESTABLE (sin flicker — la energía se mantiene
+## fija en _base_energy) + sprite de antorcha ANIMADO (torch_anim.png, 8 frames)
+## que aporta la sensación de fuego. Lee energía/radio/altura de LightCfg → se
+## autotunea en vivo desde el panel (tecla L).
 
 const FRAMES := 8
 const FRAME_PX := 64

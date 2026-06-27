@@ -20,6 +20,23 @@ var _pool: Array[Sprite2D] = []
 var _contact: Sprite2D
 var _cast_projected := true   # false → solo sombra circular de contacto (sin siluetas)
 
+# Cache de knobs de LightCfg (antes se leían ~10-14 get_v() por frame por entidad).
+# Se refrescan SOLO cuando LightCfg emite "changed" (ver _apply_cfg), igual que torch.gd.
+var _k_cast_lift := 0.0
+var _k_contact_size := 1.0
+var _k_contact_flat := 1.0
+var _k_contact_alpha := 1.0
+var _k_cast_light_ht := 50.0
+var _k_cast_max_len := 60.0
+var _k_cast_alpha := 1.0
+var _k_cast_falloff := 1.0
+var _k_cast_width := 1.0
+var _k_cast_blur := 0.0
+var _k_cast_blur_grow := 0.0
+var _k_cast_tip_fade := 1.0
+var _k_cast_base_fade := 0.0
+var _k_cast_width_grow := 0.0
+
 # Cache de la fila de los pies (último píxel opaco) por textura → no rescanear.
 static var _feet_cache: Dictionary = {}
 const SHADER := preload("res://shaders/cast_shadow.gdshader")
@@ -63,6 +80,27 @@ func _ready() -> void:
 	_contact.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR   # blob suave, no pixelado
 	_contact.material = _unshaded()
 	add_child(_contact)
+	# Cache inicial de knobs + suscripción a cambios en vivo (panel tecla L), como torch.gd.
+	_apply_cfg()
+	LightCfg.changed.connect(_apply_cfg)
+
+## Refresca el cache de knobs de LightCfg. Se llama una vez en _ready y luego SOLO
+## cuando LightCfg emite "changed" → _process deja de hacer get_v() por frame.
+func _apply_cfg() -> void:
+	_k_cast_lift = LightCfg.get_v("cast_lift")
+	_k_contact_size = LightCfg.get_v("contact_size")
+	_k_contact_flat = LightCfg.get_v("contact_flat")
+	_k_contact_alpha = LightCfg.get_v("contact_alpha")
+	_k_cast_light_ht = LightCfg.get_v("cast_light_ht")
+	_k_cast_max_len = LightCfg.get_v("cast_max_len")
+	_k_cast_alpha = LightCfg.get_v("cast_alpha")
+	_k_cast_falloff = LightCfg.get_v("cast_falloff")
+	_k_cast_width = LightCfg.get_v("cast_width")
+	_k_cast_blur = LightCfg.get_v("cast_blur")
+	_k_cast_blur_grow = LightCfg.get_v("cast_blur_grow")
+	_k_cast_tip_fade = LightCfg.get_v("cast_tip_fade")
+	_k_cast_base_fade = LightCfg.get_v("cast_base_fade")
+	_k_cast_width_grow = LightCfg.get_v("cast_width_grow")
 
 func _unshaded() -> CanvasItemMaterial:
 	var m := CanvasItemMaterial.new()
@@ -125,6 +163,12 @@ func _process(_dt: float) -> void:
 	if _src == null or not is_instance_valid(_src):
 		_hide_all()
 		return
+	# Auto-gating: si la entidad está invisible/dormida (el padre apaga `visible` al
+	# alejarse el jugador), no hay nada que sombrear → ocultar y saltar el frame.
+	var p := get_parent() as Node2D
+	if p == null or not p.is_visible_in_tree():
+		_hide_all()
+		return
 	var tex := _frame_tex()
 	if tex == null:
 		_hide_all()
@@ -139,8 +183,8 @@ func _process(_dt: float) -> void:
 
 	# Ancla en MUNDO = nodo "Feet" de la entidad si existe (lo posicionás en el
 	# editor justo en los pies); si no, fallback a origen + _foot_y. `cast_lift` nudge.
-	var parent := get_parent() as Node2D
-	var lift: float = LightCfg.get_v("cast_lift")
+	var parent := p   # ya resuelto arriba (gating); evita un segundo get_parent()
+	var lift: float = _k_cast_lift
 	var feet_node := parent.get_node_or_null("Feet") as Node2D
 	var foot_global: Vector2
 	if feet_node != null:
@@ -155,11 +199,11 @@ func _process(_dt: float) -> void:
 
 	# Contacto: blob radial suave, elíptico, CENTRADO en los pies. Fijo (no depende
 	# de antorchas) y simple. Blob de 64px → /64.
-	var cw: float = w * bscale / 64.0 * LightCfg.get_v("contact_size")
+	var cw: float = w * bscale / 64.0 * _k_contact_size
 	_contact.visible = true
 	_contact.position = foot_local
-	_contact.scale = Vector2(cw, cw * LightCfg.get_v("contact_flat"))
-	_contact.modulate = Color(0.0, 0.0, 0.0, LightCfg.get_v("contact_alpha"))
+	_contact.scale = Vector2(cw, cw * _k_contact_flat)
+	_contact.modulate = Color(0.0, 0.0, 0.0, _k_contact_alpha)
 
 	# Sin proyectadas (p.ej. mobs): solo la circular de contacto.
 	if not _cast_projected:
@@ -174,16 +218,16 @@ func _process(_dt: float) -> void:
 	var feet_py: float = _feet_py(tex, h)              # fila de los pies (auto-detect, cacheado)
 	var feet_v: float = feet_py / h                    # mismo punto en UV (para el shader)
 	var body_h: float = feet_py * bscale               # alto VISIBLE (pies→cabeza) en mundo
-	var zL: float = LightCfg.get_v("cast_light_ht")
-	var maxlen: float = LightCfg.get_v("cast_max_len")
-	var calpha: float = LightCfg.get_v("cast_alpha")
-	var cfall: float = LightCfg.get_v("cast_falloff")
-	var cwidth: float = LightCfg.get_v("cast_width")
-	var cblur: float = LightCfg.get_v("cast_blur")
-	var cblur_grow: float = LightCfg.get_v("cast_blur_grow")
-	var ctip: float = LightCfg.get_v("cast_tip_fade")
-	var cbase: float = LightCfg.get_v("cast_base_fade")
-	var cwgrow: float = LightCfg.get_v("cast_width_grow")
+	var zL: float = _k_cast_light_ht
+	var maxlen: float = _k_cast_max_len
+	var calpha: float = _k_cast_alpha
+	var cfall: float = _k_cast_falloff
+	var cwidth: float = _k_cast_width
+	var cblur: float = _k_cast_blur
+	var cblur_grow: float = _k_cast_blur_grow
+	var ctip: float = _k_cast_tip_fade
+	var cbase: float = _k_cast_base_fade
+	var cwgrow: float = _k_cast_width_grow
 
 	for i in _pool.size():
 		var s := _pool[i]

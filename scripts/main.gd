@@ -6,11 +6,10 @@ extends Node2D
 const ENEMY := preload("res://scenes/enemy.tscn")
 const BOSS := preload("res://scenes/boss.tscn")
 const MINIMAP := preload("res://scripts/minimap.gd")
-
-# Mapas fijos por piso: si existe maps/floor_<N>.tmj|.tmx (N = nº de piso global,
-# con o sin cero adelante), ese piso usa el mapa de Tiled; si no, va procedural.
-# Poné false para forzar todo procedural.
-const USE_FIXED_MAPS := false   # iso-merge fase 1: usar generate() procedural iso
+# Preload con const → instanciado tipado (DOOR.new()/VISIBILITY_MANAGER.new()); evita el
+# parse-error fantasma de la línea 58 que daba el load(...).new() dinámico.
+const DOOR := preload("res://scripts/door.gd")
+const VISIBILITY_MANAGER := preload("res://scripts/visibility_manager.gd")
 
 # Eclipse: usa las imágenes versión eclipse (fondo/montañas/árboles). false = noche.
 const ECLIPSE := true
@@ -44,7 +43,7 @@ func _ready() -> void:
 		var r: Dictionary = save.get("run", {})
 		if not r.is_empty():
 			GameState.run = r
-		_build_floor(int(GameState.run.get("seed", -1)))
+		_build_floor()   # reproduce el piso guardado vía (run_seed, depth)
 		if save.has("player"):
 			player.load_save(save["player"])
 	else:
@@ -55,7 +54,11 @@ func _ready() -> void:
 	var mm := MINIMAP.new()                      # minimapa + mapa (M), con niebla
 	add_child(mm)
 	mm.setup(dungeon, player)
-	_add_debug_regen_button()
+	var vm := VISIBILITY_MANAGER.new()   # tipado vía preload; gatea objetos del mundo (cofres/decor/mercader) por celda vista; los mobs se auto-gatean en enemy.gd
+	add_child(vm)
+	vm.setup(dungeon)
+	if OS.is_debug_build():   # botón de regen solo en debug, igual que los paneles de debug
+		_add_debug_regen_button()
 
 ## Botón DEBUG en pantalla: regenera el piso actual con seed aleatorio (mapa nuevo) sin pasar por
 ## el menú y SIN perder la run (mantiene depth/zona/nivel/monedas). Reemplaza la tecla (F9 la
@@ -74,7 +77,7 @@ func _add_debug_regen_button() -> void:
 func _debug_regen() -> void:
 	if GameState.mode != GameState.Mode.PLAY:
 		return
-	_build_floor()                               # seed_val=-1 → Rng.randomize_seed() → layout nuevo
+	_build_floor(true)                           # force_new → run_seed nuevo → layout nuevo
 	SaveSystem.save_run(GameState.run, player)
 
 var _autosave_t := 0.0
@@ -96,33 +99,36 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------------------
 # Construcción de un piso
 # ---------------------------------------------------------------------------
-func _build_floor(seed_val: int = -1) -> void:
+## Seed determinista por (run_seed, depth): recargar el piso lo REPRODUCE (mismo
+## layout), avanzar de piso cambia el mapa, y `force_new=true` (botón debug) fuerza
+## una run nueva → mapa nuevo. Una sola fuente de verdad, sin el viejo -1/seed ambiguo.
+func _build_floor(force_new := false) -> void:
 	for n in get_children():
-		if n is Enemy or n is Boss or n is Pickup or n is Projectile or n is Chest or n is Merchant or n.is_in_group("decor"):
+		if n is Enemy or n is Boss or n is Pickup or n is Projectile or n is Chest or n is Merchant or n.is_in_group("decor") or n.is_in_group("door"):
 			n.queue_free()
-	if seed_val < 0:
-		Rng.randomize_seed()
-		GameState.run["seed"] = Rng.seed_value
-	else:
-		Rng.set_seed(seed_val)
-		GameState.run["seed"] = seed_val
+	var run_seed := int(GameState.run.get("run_seed", 0))
+	if run_seed == 0:
+		run_seed = int(GameState.run.get("seed", 0))   # compat: saves viejos sin run_seed
+	if force_new or run_seed == 0:
+		run_seed = Rng.range_i(1, 0x7FFFFFFF)
+	GameState.run["run_seed"] = run_seed
+	var depth := int(GameState.run.get("depth", 1))
+	# Mezclador explícito y estable entre versiones de Godot (hash([...]) podía variar).
+	var floor_seed: int = (run_seed * 2654435761 + depth) & 0x7FFFFFFF
+	Rng.set_seed(floor_seed)
+	GameState.run["seed"] = floor_seed   # se mantiene por compatibilidad/minimapa
 
-	var fixed_path := _fixed_map_for_floor(int(GameState.run.get("depth", 1)))
-	if fixed_path != "":
-		dungeon.generate_from_tiled(fixed_path)
-	else:
-		dungeon.generate()
+	dungeon.generate()
 	player.global_position = dungeon.get_spawn_point()
 	player.reset_physics_interpolation()
 
-	var zone: Dictionary = Data.ZONES[int(GameState.run.get("zone_idx", 0))]
+	# clampi anti-crash: un save corrupto/futuro con zone_idx fuera de rango crasheaba el indexado.
+	var zone: Dictionary = Data.ZONES[clampi(int(GameState.run.get("zone_idx", 0)), 0, Data.ZONES.size() - 1)]
 	var is_boss_floor: bool = int(GameState.run.get("floor_in_zone", 0)) >= int(zone.floors) - 1
-	if fixed_path != "":
-		_spawn_fixed_markers(zone)
-	else:
-		_spawn_enemies(zone)
-		_spawn_chests()
-		_spawn_decor()
+	_spawn_enemies(zone)
+	_spawn_chests()
+	_spawn_decor()
+	_spawn_doors()
 	_make_exit()
 	if is_boss_floor:
 		_close_exit()
@@ -216,44 +222,88 @@ func _spawn_merchant() -> void:
 		return
 	var m := Merchant.new()
 	add_child(m)
+	_gate(m, false)
 	m.global_position = _exit.global_position + Vector2(-34, 16)
 	m.reset_physics_interpolation()
 	GameState.floater(m.global_position + Vector2(0, -22), "Un mercader apareció...", Color("c7b8e8"))
+
+# --- Roles de sala (Fase 2): si dungeon asignó roles los usamos; si no (mapas fijos), "" → fallback por índice ---
+func _room_role(i: int) -> String:
+	return String(dungeon.room_roles.get(i, ""))
+
+## Índice de la primera sala con el rol dado, o -1 si no hay roles asignados.
+func _room_role_index(role: String) -> int:
+	for i in dungeon.room_roles:
+		if String(dungeon.room_roles[i]) == role:
+			return int(i)
+	return -1
+
+## Marca una entidad para el gating de visibilidad (ocultar info estilo D2). Arranca OCULTA.
+## threat=true → amenaza viva (parpadea con tu radio de visión); false → objeto del mundo (sticky al verla).
+func _gate(node: Node2D, threat: bool) -> void:
+	node.add_to_group("vis_gated")
+	if threat:
+		node.add_to_group("vis_threat")
+	node.visible = false
 
 # --- Cofres ---
 func _spawn_chests() -> void:
 	if dungeon.rooms.is_empty():
 		return
-	# iso-merge (test): un cofre por sala para verlos fácil; bajar después.
 	for ri in dungeon.rooms.size():
+		var role := _room_role(ri)
+		var place := false
+		var gold := false
+		if role == "treasure":
+			place = true; gold = true                 # cofre bueno garantizado
+		elif role == "combat":
+			place = Rng.chance(0.3)                    # 30% en salas de combate
+		elif role == "":
+			place = true; gold = Rng.chance(0.22)      # sin roles (mapas fijos): uno por sala
+		# entry / boss / merchant → sin cofre
+		if not place:
+			continue
 		var room: Rect2i = dungeon.rooms[ri]
 		var ch := Chest.new()
-		ch.gold = Rng.chance(0.22)
+		ch.gold = gold
 		add_child(ch)
+		_gate(ch, false)   # objeto del mundo: oculto hasta ver su celda, después sticky
 		ch.global_position = dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
 		ch.reset_physics_interpolation()
+
+# --- Puertas (modo salas aisladas Dungeon.USE_DOORS): teleport entre salas conectadas por el grafo ---
+func _spawn_doors() -> void:
+	if not dungeon.USE_DOORS:
+		return
+	for spec in dungeon.get_door_specs():
+		var d := DOOR.new()   # tipado vía preload (Door)
+		add_child(d)
+		d.global_position = dungeon.to_global(dungeon.map_to_local(spec.from))
+		d.target_pos = dungeon.to_global(dungeon.map_to_local(spec.to))
 
 # --- Mercader en pisos normales (además del post-jefe), en la sala más lejana ---
 func _spawn_merchant_floor() -> void:
 	var rooms := dungeon.rooms
 	if rooms.size() < 3:
 		return
-	var spawn_c := dungeon.to_global(dungeon.map_to_local(rooms[0].get_center()))
-	var exit_c: Vector2 = _exit.global_position if (_exit and is_instance_valid(_exit)) else spawn_c
-	# Sala (ni spawn ni salida) lo más lejos posible de AMBOS.
-	var best := -1
-	var best_score := -1.0
-	for ri in range(1, rooms.size() - 1):
-		var c := dungeon.to_global(dungeon.map_to_local(rooms[ri].get_center()))
-		var score: float = minf(c.distance_to(spawn_c), c.distance_to(exit_c))
-		if score > best_score:
-			best_score = score
-			best = ri
+	var best := _room_role_index("merchant")   # Fase 2: sala con rol mercader
 	if best < 0:
-		return
-	var pos := dungeon.to_global(dungeon.map_to_local(rooms[best].get_center()))
+		# Fallback (mapas fijos): sala (ni spawn ni salida) lo más lejos posible de AMBOS.
+		var spawn_c := dungeon.to_global(dungeon.map_to_local(rooms[0].get_center()))
+		var exit_c: Vector2 = _exit.global_position if (_exit and is_instance_valid(_exit)) else spawn_c
+		var best_score := -1.0
+		for ri in range(1, rooms.size() - 1):
+			var c := dungeon.to_global(dungeon.map_to_local(rooms[ri].get_center()))
+			var score: float = minf(c.distance_to(spawn_c), c.distance_to(exit_c))
+			if score > best_score:
+				best_score = score
+				best = ri
+		if best < 0:
+			return
+	var pos := dungeon.to_global(dungeon.map_to_local(_rand_room_cell(rooms[best])))
 	var m := Merchant.new()
 	add_child(m)
+	_gate(m, false)   # objeto del mundo: oculto hasta explorar su sala
 	m.global_position = pos
 	m.reset_physics_interpolation()
 	# Despejar mobs cerca del mercader → zona segura para comprar.
@@ -282,7 +332,10 @@ const BANNERS := ["banner_blue", "banner_red"]
 static var _decor_tex := {}
 
 func _spawn_decor() -> void:
-	for ri in range(1, dungeon.rooms.size()):
+	for ri in range(dungeon.rooms.size()):
+		var role := _room_role(ri)
+		if role == "entry" or (role == "" and ri == 0):
+			continue   # sin decoración en la entrada
 		var room: Rect2i = dungeon.rooms[ri]
 		if room.size.x < 4 or room.size.y < 4:
 			continue
@@ -312,6 +365,7 @@ func _place_decor(type: String, cell: Vector2i) -> void:
 	spr.z_index = -1   # debajo de entidades, sobre el piso
 	spr.global_position = dungeon.to_global(dungeon.map_to_local(cell))
 	add_child(spr)
+	_gate(spr, false)   # decor: oculto hasta ver su celda, después sticky
 
 func _decor_sheet(key: String) -> Texture2D:
 	if _decor_tex.has(key):
@@ -329,63 +383,59 @@ func _decor_sheet(key: String) -> Texture2D:
 # Spawns
 # ---------------------------------------------------------------------------
 func _spawn_boss(key: String) -> void:
-	var room: Rect2i = dungeon.rooms[dungeon.rooms.size() - 1]
+	var ri := _room_role_index("boss")   # Fase 2: sala del jefe (la más profunda)
+	if ri < 0:
+		ri = dungeon.rooms.size() - 1
+	var room: Rect2i = dungeon.rooms[ri]
 	var b := BOSS.instantiate()
 	add_child(b)
 	b.setup_boss(key)
-	b.global_position = dungeon.to_global(dungeon.map_to_local(room.get_center()))
+	b.global_position = dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
 	b.reset_physics_interpolation()
 
 func _spawn_enemies(zone: Dictionary) -> void:
 	var pool: Array = zone.enemies
 	var dens := float(zone.get("density", 1.0))
 	var elite_p := float(Data.BALANCE.elite_chance)
-	for i in range(1, dungeon.rooms.size()):
+	# Fase 3: escalado por profundidad.
+	var depth := int(GameState.run.get("depth", 1))
+	var depth_mul := 1.0 + 0.12 * (depth - 1)    # +12% densidad por piso
+	var elite_d := elite_p + 0.02 * (depth - 1)  # más élites en profundidad
+	var stat_mul := 1.0 + 0.10 * (depth - 1)     # +10% HP/daño por piso
+	for i in range(dungeon.rooms.size()):
+		var role := _room_role(i)
+		if role == "entry" or role == "merchant" or role == "boss":
+			continue   # sin mobs en entrada / mercader / sala de jefe
+		if role == "" and i == 0:
+			continue   # sin roles (mapas fijos): mantener el viejo "salta sala 0"
 		var room: Rect2i = dungeon.rooms[i]
-		# Varios mobs por sala, escalado por área (salas grandes → más), esparcidos.
-		# Densidad subida: divisor más bajo + tope más alto = muchos más mobs por sala.
-		var n := clampi(int(round(room.size.x * room.size.y / 14.0 * dens)), 4, 10)
-		var home_rect := Rect2(Vector2(room.position) * Dungeon.TILE, Vector2(room.size) * Dungeon.TILE)
+		# Varios mobs por sala, escalado por área (salas grandes → más) y por profundidad.
+		var n := clampi(int(round(room.size.x * room.size.y / 14.0 * dens * depth_mul)), 4, 14)
+		# home_rect en el MISMO espacio que home_pos (iso). Antes usaba room*TILE (espacio
+		# flat 16px, leftover del 2D) → el box quedaba pegado al origen y los mobs NO-aggro
+		# vagaban hacia él = drift al oeste, peor cuanto más lejos del origen.
+		var _rp := room.position
+		var _rs := room.size
+		var _cs := [dungeon.map_to_local(_rp), dungeon.map_to_local(_rp + Vector2i(_rs.x, 0)),
+			dungeon.map_to_local(_rp + Vector2i(0, _rs.y)), dungeon.map_to_local(_rp + _rs)]
+		var _mn: Vector2 = _cs[0]
+		var _mx: Vector2 = _cs[0]
+		for _c in _cs:
+			_mn = _mn.min(_c); _mx = _mx.max(_c)
+		var home_rect := Rect2(dungeon.to_global(_mn), dungeon.to_global(_mx) - dungeon.to_global(_mn))
 		for j in n:
 			var e := ENEMY.instantiate()
 			add_child(e)
-			e.setup_type(Rng.pick(pool), Rng.chance(elite_p))
+			e.setup_type(Rng.pick(pool), Rng.chance(elite_d))
+			if stat_mul > 1.0:
+				e.max_hp = int(round(e.max_hp * stat_mul))
+				e.hp = e.max_hp
+				e.damage = int(round(e.damage * stat_mul))
 			var pos := dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
 			e.global_position = pos
 			e.home_pos = pos
 			e.home_rect = home_rect
 			e.reset_physics_interpolation()
-
-## Ruta del mapa fijo para el piso N (maps/floor_N.tmj|.tmx, con o sin cero
-## adelante), o "" si no hay → ese piso va procedural.
-func _fixed_map_for_floor(n: int) -> String:
-	if not USE_FIXED_MAPS:
-		return ""
-	for fname in ["floor_%d" % n, "floor_%02d" % n]:
-		for ext in [".tmj", ".tmx"]:
-			var path: String = "res://maps/" + fname + ext
-			if FileAccess.file_exists(path):
-				return path
-	return ""
-
-## Spawns desde los marcadores de un mapa fijo (capa "markers" de Tiled).
-func _spawn_fixed_markers(zone: Dictionary) -> void:
-	var pool: Array = zone.enemies
-	for cell in dungeon.enemy_cells:
-		var e := ENEMY.instantiate()
-		add_child(e)
-		e.setup_type(Rng.pick(pool), false)
-		var pos := dungeon.to_global(dungeon.map_to_local(cell))
-		e.global_position = pos
-		e.home_pos = pos
-		e.home_rect = Rect2(pos - Vector2(48, 48), Vector2(96, 96))
-		e.reset_physics_interpolation()
-	for cell in dungeon.chest_cells:
-		var ch := Chest.new()
-		ch.gold = false
-		add_child(ch)
-		ch.global_position = dungeon.to_global(dungeon.map_to_local(cell))
-		ch.reset_physics_interpolation()
 
 ## Celda al azar dentro de la sala (con 1 tile de margen para no pegarse al muro).
 func _rand_room_cell(room: Rect2i) -> Vector2i:

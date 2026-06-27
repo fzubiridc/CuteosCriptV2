@@ -24,11 +24,12 @@ var _full_scale := 8             # px por tile en el mapa grande
 
 var _dungeon: Dungeon
 var _player: Node2D
-var _explored: Array = []
+var _drawn: Array = []   # cache de "ya pinté este píxel" (la verdad de exploración vive en Dungeon.cell_seen)
 var _img: Image
 var _tex: ImageTexture
 var _dirty := true
 var _exit_cell := Vector2i(-1, -1)
+var _last_cell := Vector2i(-99999, -99999)   # última celda revelada; gate para no recalcular el disco cada frame
 
 var _mini_box: Control
 var _mini_tex: TextureRect
@@ -169,7 +170,10 @@ func _make_dot(parent: Control, color: Color, sz: float) -> ColorRect:
 	return d
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
+	# Toggle del mapa por acción remapeable "map" (antes era KEY_M hardcodeado).
+	# echo=false replica el viejo "not event.echo"; exact_match=false mantiene el
+	# comportamiento previo de ignorar modificadores (solo importaba el keycode M).
+	if event.is_action_pressed("map"):
 		_full_root.visible = not _full_root.visible
 
 func _on_regenerated() -> void:
@@ -177,12 +181,13 @@ func _on_regenerated() -> void:
 	_reset()
 
 func _reset() -> void:
-	_explored = []
+	_last_cell = Vector2i(-99999, -99999)   # se borró _drawn → forzar reveal en el próximo frame aunque el player no se mueva
+	_drawn = []
 	for y in _mh:
 		var row: Array = []
 		row.resize(_mw)
 		row.fill(false)
-		_explored.append(row)
+		_drawn.append(row)
 	if _img != null:
 		_img.fill(C_UNSEEN)
 		_dirty = true
@@ -196,15 +201,20 @@ func _reset() -> void:
 func _process(_dt: float) -> void:
 	if _dungeon == null or not is_instance_valid(_dungeon) or _player == null or not is_instance_valid(_player):
 		return
-	if _explored.is_empty() or _dungeon.grid.is_empty():
+	if _drawn.is_empty() or _dungeon.grid.is_empty():
 		return
 	var cell := _dungeon.local_to_map(_dungeon.to_local(_player.global_position))
-	_reveal(cell)
-	if _dirty:
-		_tex.update(_img)
-		_dirty = false
+	# Gate de celda: solo recalculamos/redibujamos el disco si el player cambió de celda.
+	if cell != _last_cell:
+		_last_cell = cell
+		_reveal(cell)
+		if _dirty:
+			_tex.update(_img)
+			_dirty = false
 	_place_markers(cell)
 
+## Pinta en la Image las celdas que Dungeon marcó como vistas (cell_seen) y aún no dibujé.
+## El disco (REVEAL_RADIUS) coincide con el VIS_RADIUS de Dungeon → cubre lo recién revelado.
 func _reveal(c: Vector2i) -> void:
 	var r2 := REVEAL_RADIUS * REVEAL_RADIUS
 	for dy in range(-REVEAL_RADIUS, REVEAL_RADIUS + 1):
@@ -215,9 +225,11 @@ func _reveal(c: Vector2i) -> void:
 			var y := c.y + dy
 			if x < 0 or y < 0 or x >= _mw or y >= _mh:
 				continue
-			if _explored[y][x]:
+			if _drawn[y][x]:
 				continue
-			_explored[y][x] = true
+			if not _dungeon.is_seen_cell(Vector2i(x, y)):   # verdad de exploración = Dungeon
+				continue
+			_drawn[y][x] = true
 			var is_floor: bool = int(_dungeon.grid[y][x]) == 1
 			_img.set_pixel(x, y, C_FLOOR if is_floor else C_WALL)
 			_dirty = true
@@ -225,7 +237,7 @@ func _reveal(c: Vector2i) -> void:
 func _place_markers(cell: Vector2i) -> void:
 	_set_dot(_mini_player, cell, _mini_scale)
 	_set_dot(_full_player, cell, _full_scale)
-	var exit_seen: bool = _exit_cell.x >= 0 and _in_bounds(_exit_cell) and _explored[_exit_cell.y][_exit_cell.x]
+	var exit_seen: bool = _exit_cell.x >= 0 and _in_bounds(_exit_cell) and _dungeon.is_seen_cell(_exit_cell)
 	_mini_exit.visible = exit_seen
 	_full_exit.visible = exit_seen
 	if exit_seen:

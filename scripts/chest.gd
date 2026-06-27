@@ -12,6 +12,7 @@ var _spr: AnimatedSprite2D
 var _prompt: Label
 
 func _ready() -> void:
+	add_to_group("interactable")   # el AoE del player (E) lo consulta para priorizar interact
 	collision_layer = 0
 	collision_mask = 2   # detecta al jugador (capa 2)
 	var shape := CollisionShape2D.new()
@@ -79,6 +80,10 @@ func _ready() -> void:
 		if b is Player:
 			_near = false
 			_prompt.visible = false)
+
+## El AoE del player (E) consulta esto: ¿se puede interactuar AHORA con el cofre?
+func interactable_now() -> bool:
+	return _near and not _opened
 
 func _process(_delta: float) -> void:
 	if _near and not _opened and Input.is_action_just_pressed("interact"):
