@@ -1,0 +1,70 @@
+{
+"0": {
+"colors": {
+"core": "#ffeeb0",
+"mid": "#ff7a1e",
+"tail": "#6e1b05",
+"accent": "#000000"
+},
+"sViaje": 1,
+"sImpacto": 1,
+"sTrail": 1,
+"fpsViaje": 12,
+"fpsImpacto": 18,
+"part": {
+"amount": 30,
+"life": 0.45,
+"spread": 30,
+"turb": 1,
+"grav": 0,
+"orbit": 0
+},
+"light": {
+"color": "#ff8a2e",
+"energy": 1.3,
+"radius": 1
+},
+"aura": {
+"on": true,
+"boost": 1.4
+},
+"ribbon": {
+"on": true,
+"width": 10
+}
+},
+"12": {
+"colors": {
+"core": "#ffeeb0",
+"mid": "#ff7a1e",
+"tail": "#6e1b05",
+"accent": "#000000"
+},
+"sViaje": 0.4,
+"sImpacto": 0.2,
+"sTrail": 1,
+"fpsViaje": 12,
+"fpsImpacto": 18,
+"part": {
+"amount": 30,
+"life": 0.45,
+"spread": 30,
+"turb": 1,
+"grav": 0,
+"orbit": 0
+},
+"light": {
+"color": "#ff8a2e",
+"energy": 1.3,
+"radius": 1
+},
+"aura": {
+"on": true,
+"boost": 1.4
+},
+"ribbon": {
+"on": true,
+"width": 5
+}
+}
+}

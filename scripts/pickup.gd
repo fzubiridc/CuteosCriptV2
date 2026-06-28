@@ -180,9 +180,7 @@ func _show_info() -> void:
 	layer.add_child(panel)
 	var lbl := Label.new()
 	lbl.text = "%s [%s]\n%s" % [item_data.get("name", "ítem"), rd.name, Items.describe(item_data)]
-	lbl.add_theme_font_override("font", UiTheme.font_body())
-	lbl.add_theme_font_size_override("font_size", 18)
-	lbl.add_theme_color_override("font_color", Color(rd.color))
+	UiTheme.apply_item_description(lbl, 20, Color(rd.color))
 	panel.add_child(lbl)
 	_info = panel
 

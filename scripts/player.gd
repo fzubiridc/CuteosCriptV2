@@ -294,6 +294,7 @@ var _staff_anim_fps := 18.0               # fps de la vara activa (Data.STAFF_AN
 var _bolt_travel_frames: Array = []
 var _bolt_impact_frames: Array = []
 var _bolt_scale_mul := 1.0                 # escala del bolt de la vara activa (Data.STAFF_BOLT_SCALE, default 1.0 = tamaño auto)
+var _spell_profile: ElementProfile = null  # FX de la vara (tool "Hechizos"); null si la vara no esta configurada
 
 func _load_staff_anim(idx: int) -> void:
 	_staff_anim_frames.clear()
@@ -322,6 +323,10 @@ func _load_staff_bolt(idx: int) -> void:
 	while ResourceLoader.exists("res://assets/hero/staffs/staff%d_bolt/impact/frame_%03d.png" % [idx + 1, i]):
 		_bolt_impact_frames.append(_load_runtime_tex("res://assets/hero/staffs/staff%d_bolt/impact/frame_%03d.png" % [idx + 1, i]))
 		i += 1
+	SpellLibrary.reload()   # relee spells.json: editar la tool + reiniciar la corrida ya se ve (sin recompilar)
+	_spell_profile = SpellLibrary.get_profile(idx)   # FX de la vara (estela/particulas); null si no esta en la tool
+	if _spell_profile != null and _spell_profile.bolt_scale > 0.0:
+		_bolt_scale_mul = _spell_profile.bolt_scale   # escala del bolt: la tab "Hechizos" (sViaje) manda sobre el auto
 
 func _tick_staff_anim(delta: float) -> void:
 	if _staff_anim_frames.is_empty() or not weapon.visible or not _staff_anim_playing:
@@ -532,6 +537,8 @@ func _try_attack() -> void:
 	p.is_crit = is_crit               # número de daño dorado si crittea
 	if not _bolt_travel_frames.is_empty():   # vara con bolt propio (fuego, etc.) → reemplaza el orbe azul
 		p.set_bolt_frames(_bolt_travel_frames, _bolt_impact_frames, _bolt_scale_mul)   # escala por vara (rigtool)
+	if _spell_profile != null:   # FX nuevo de la vara (estela/particulas), SIN pisar el bolt
+		p.set_element(_spell_profile)
 	Audio.play("cast", -8.0)   # salida del orbe (sfx 'cast' del pixi)
 
 # --- Ataque de área (E) -----------------------------------------------------

@@ -7,8 +7,8 @@ foot-lit + auras), niebla de guerra estilo Diablo, combate ARPG y descenso por z
 Rama de trabajo: **`iso-merge`**. Escena de producción: **`scenes/main.tscn`**.
 
 > 👉 **Si sos un agente/dev arrancando, leé [`AGENTS.md`](AGENTS.md) primero**, y después
-> [`docs/project_memory_2026-06-26.md`](docs/project_memory_2026-06-26.md) (estado/decisiones) y
-> [`docs/architecture_notes_2026-06-26.md`](docs/architecture_notes_2026-06-26.md) (cómo funciona cada sistema).
+> [`docs/project_memory.md`](docs/project_memory.md) (estado/decisiones) y
+> [`docs/architecture_notes.md`](docs/architecture_notes.md) (cómo funciona cada sistema).
 
 ## Estructura
 

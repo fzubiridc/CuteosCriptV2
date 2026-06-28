@@ -1,0 +1,66 @@
+{
+  "fonts": [
+    {
+      "id": "tower_gold",
+      "display_name": "Tower Gold Bitmap",
+      "font": "res://assets/fonts/tower_gold_font.fnt",
+      "atlas": "res://assets/fonts/tower_gold_font.png",
+      "preview": "res://assets/fonts/previews/tower_gold_font_preview.png",
+      "face": "TowerGoldBitmap",
+      "characters": "A-Z a-z 0-9 punctuation Spanish accents",
+      "recommended_use": "HUD fantasy titles and readable gold UI text on dark backgrounds",
+      "source": "C:/Users/fezub/Downloads/ChatGPT Image 28 jun 2026, 00_53_56-transparent.png",
+      "notes": "N, f and v recovered from earlier source sheet."
+    },
+    {
+      "id": "tower_shadow",
+      "display_name": "Tower Shadow Bitmap",
+      "font": "res://assets/fonts/tower_shadow_font.fnt",
+      "atlas": "res://assets/fonts/tower_shadow_font.png",
+      "preview": "res://assets/fonts/previews/tower_shadow_font_preview.png",
+      "face": "TowerShadowBitmap",
+      "characters": "A-Z a-z 0-9 punctuation Spanish accents",
+      "recommended_use": "Dark engraved text for light panels/parchment backgrounds",
+      "source": "C:/Users/fezub/Downloads/ChatGPT Image 28 jun 2026, 01_16_21-transparent.png",
+      "notes": "Backslash derived by mirroring slash because the source sheet does not include a visible backslash glyph."
+    },
+    {
+      "id": "cinzel",
+      "display_name": "Cinzel Variable",
+      "font": "res://assets/fonts/Cinzel_Variable.ttf",
+      "roles": [
+        "FontTitle",
+        "DisplayTitle",
+        "FontSectionHeader"
+      ],
+      "settings": [
+        "res://assets/fonts/title_label_settings.tres",
+        "res://assets/fonts/section_header_label_settings.tres"
+      ],
+      "characters": "Latin uppercase/lowercase, punctuation, Spanish accents",
+      "recommended_use": "Titles, section headers, screen titles, location names, boss names and dramatic short labels",
+      "source": "https://github.com/google/fonts/tree/main/ofl/cinzel",
+      "notes": "Use normal Cinzel for readable medieval presentation; reserve decorative variants for special title screens only."
+    },
+    {
+      "id": "eb_garamond",
+      "display_name": "EB Garamond Variable",
+      "font": "res://assets/fonts/EB_Garamond_Variable.ttf",
+      "roles": [
+        "FontNarrativeBody",
+        "FontDialogue",
+        "FontBookText",
+        "FontItemDescription"
+      ],
+      "settings": [
+        "res://assets/fonts/narrative_label_settings.tres",
+        "res://assets/fonts/dialogue_label_settings.tres",
+        "res://assets/fonts/book_text_label_settings.tres"
+      ],
+      "characters": "Latin uppercase/lowercase, punctuation, Spanish accents",
+      "recommended_use": "Narrative text, dialogue, books, lore entries, item descriptions and quest descriptions",
+      "source": "https://github.com/google/fonts/tree/main/ofl/ebgaramond",
+      "notes": "Preferred for anything the player reads for more than one or two lines."
+    }
+  ]
+}

@@ -76,7 +76,7 @@ luz) funciona; el ruido viene del 2.5D legacy nunca borrado y de `dungeon.gd` ha
 
 **Arquitectura (cuando haya aire):**
 8. Unificar visibilidad de mobs/boss en el manager (hoy mobs se auto-gatean por distancia, boss no se gatea).
-9. Partir `dungeon.gd` (1875) y `hud.gd` (739) — ver `architecture_notes_2026-06-26.md`.
+9. Partir `dungeon.gd` (1875) y `hud.gd` (739) — ver `architecture_notes.md`.
 10. Mover el director de combate de `enemy.gd` (static) a un autoload propio; extraer helpers de material UNSHADED / texturas radiales (duplicados ×3-5).
 
 ## Comparación con buenas prácticas (ARPG iso / Diablo / BG3 / indie Godot)

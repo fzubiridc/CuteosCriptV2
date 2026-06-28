@@ -78,6 +78,11 @@
   #xthumbs canvas{ width:46px; height:46px; cursor:pointer; border:1px solid var(--bd); border-radius:4px; }
   #xthumbs canvas.cur{ border-color:var(--ac); }
   #xthumbs canvas.hasmask{ outline:2px solid var(--skin); outline-offset:-2px; }
+  .metricgrid{ display:grid; grid-template-columns:repeat(4, minmax(72px,1fr)); gap:8px; }
+  .metricgrid label{ display:flex; flex-direction:column; gap:3px; }
+  .glyphlist{ max-height:420px; overflow:auto; border:1px solid var(--bd); border-radius:8px; background:#13111a; padding:6px; }
+  .glyphbtn{ width:34px; height:30px; margin:2px; padding:0; font-family:var(--mono); }
+  .glyphbtn.on{ border-color:var(--ac); color:var(--ac); }
 </style>
 <script>
 // === bootstrap standalone: si corre bajo rigserver.py, carga config del disco y auto-guarda ===
@@ -115,6 +120,7 @@
     <button id="btnTabRig" class="on">Rig</button>
     <button id="btnTabExt">Extractor de mano</button>
     <button id="btnTabWalk">Varas (walk)</button>
+    <button id="btnTabFonts">Fonts</button>
   </div>
 
   <!-- ================= TAB RIG ================= -->
@@ -369,6 +375,56 @@
    </div>
   </div>
 
+  <!-- ================= TAB FONTS ================= -->
+  <div id="tabFonts" class="tab">
+   <div class="stage">
+    <div>
+      <canvas id="fontPreview" width="1100" height="460"></canvas>
+      <div class="row">
+        <label>texto prueba</label>
+        <input id="fontSample" size="72" value="LA TORRE TE RECLAMA - Ñandú mágico áéíóú 0123456789">
+      </div>
+      <div class="row muted">Seleccioná un glifo abajo, ajustá offsets/advance/crop, guardá y reimportá en Godot.</div>
+      <div id="fontGlyphs" class="glyphlist"></div>
+    </div>
+    <div class="panel">
+      <h3>Fonts · métricas BMFont</h3>
+      <div class="muted">Lee `assets/fonts/font_index.json`. Los cambios se escriben en el `.fnt` y quedan persistentes.</div>
+      <hr>
+      <h4>Fuente</h4>
+      <div class="row">
+        <select id="fontSelect" style="min-width:220px"></select>
+        <button id="fontReload">recargar</button>
+      </div>
+      <div class="muted" id="fontInfo"></div>
+      <h4>Glifo activo</h4>
+      <div class="row">
+        <b id="fontGlyphLabel">—</b>
+        <span class="muted" id="fontGlyphMeta"></span>
+      </div>
+      <div class="metricgrid">
+        <label>xoffset<input id="fmXoff" type="number"></label>
+        <label>yoffset<input id="fmYoff" type="number"></label>
+        <label>xadvance<input id="fmAdv" type="number"></label>
+        <label>x atlas<input id="fmX" type="number"></label>
+        <label>y atlas<input id="fmY" type="number"></label>
+        <label>width<input id="fmW" type="number"></label>
+        <label>height<input id="fmH" type="number"></label>
+      </div>
+      <div class="help">Para letras mal colocadas: usá `yoffset` para subir/bajar, `xoffset` para mover lateralmente, `xadvance` para el espacio. `x/y/width/height` sólo si el recorte quedó mal.</div>
+      <div class="row">
+        <button id="fontSave">guardar métrica</button>
+        <button id="fontReset">descartar cambios locales</button>
+      </div>
+      <div class="row">
+        <button id="fontReimport">reimportar en Godot</button>
+        <span id="fontMsg" class="muted"></span>
+      </div>
+      <textarea id="fontOut" readonly style="height:120px"></textarea>
+    </div>
+   </div>
+  </div>
+
 <script>
 // ===== tabs =====
 window.SEL={ char:'mage', dir:'south' };
@@ -414,13 +470,152 @@ function showTab(t){
   document.getElementById('tabRig').classList.toggle('on', t==='rig');
   document.getElementById('tabExt').classList.toggle('on', t==='ext');
   document.getElementById('tabWalk').classList.toggle('on', t==='walk');
+  document.getElementById('tabFonts').classList.toggle('on', t==='fonts');
   document.getElementById('btnTabRig').classList.toggle('on', t==='rig');
   document.getElementById('btnTabExt').classList.toggle('on', t==='ext');
   document.getElementById('btnTabWalk').classList.toggle('on', t==='walk');
+  document.getElementById('btnTabFonts').classList.toggle('on', t==='fonts');
 }
 document.getElementById('btnTabRig').onclick = ()=>showTab('rig');
 document.getElementById('btnTabExt').onclick = ()=>showTab('ext');
 document.getElementById('btnTabWalk').onclick = ()=>showTab('walk');
+document.getElementById('btnTabFonts').onclick = ()=>showTab('fonts');
+</script>
+
+<script>
+// ================= FONTS (BMFont metrics) =================
+(function(){
+const $f = id => document.getElementById(id);
+const cv = $f('fontPreview'), cx = cv.getContext('2d');
+cx.imageSmoothingEnabled = false;
+let index = [], data = null, atlas = new Image(), active = null, dirty = {};
+
+function resPath(p){ return (p||'').replace(/^res:\/\//, '/'); }
+function msg(t, ok=true){ const e=$f('fontMsg'); e.textContent=t; e.style.color=ok?'#5ed18a':'#e06b6b'; }
+function glyphLabel(g){ return g.char===' ' ? 'space' : g.char; }
+
+async function loadIndex(){
+  try{
+    const r = await fetch('/api/fonts'); const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'no pude leer fonts');
+    index = j.fonts||[];
+    $f('fontSelect').innerHTML = index.map(f=>`<option value="${f.id}">${f.display_name||f.id}</option>`).join('');
+    if(index.length) await loadFont(index[0].id);
+  }catch(e){
+    msg('Necesitás tools/serve.py corriendo para editar fuentes: '+e.message, false);
+  }
+}
+
+async function loadFont(id){
+  const r = await fetch('/api/fontmetrics?font='+encodeURIComponent(id));
+  const j = await r.json();
+  if(!j.ok){ msg(j.error||'error cargando font', false); return; }
+  data = j; dirty = {};
+  atlas = new Image();
+  atlas.onload = () => { buildGlyphs(); pickGlyph(data.chars[0]?.char || 'A'); render(); };
+  atlas.onerror = () => msg('No pude cargar atlas '+(j.atlas||j.entry?.atlas), false);
+  atlas.src = resPath(j.atlas || j.entry.atlas) + '?t=' + Date.now();
+  $f('fontInfo').textContent = `${j.entry.font} · ${j.chars.length} glifos · atlas ${j.page_file}`;
+  $f('fontOut').value = JSON.stringify({font:j.entry.id, file:j.entry.font, atlas:j.entry.atlas}, null, 2);
+}
+
+function buildGlyphs(){
+  const wrap = $f('fontGlyphs');
+  wrap.innerHTML = '';
+  for(const g of data.chars){
+    const b = document.createElement('button');
+    b.className = 'glyphbtn';
+    b.textContent = glyphLabel(g);
+    b.title = `${g.char} id=${g.id}`;
+    b.onclick = () => pickGlyph(g.char);
+    b.dataset.ch = g.char;
+    wrap.appendChild(b);
+  }
+}
+
+function currentGlyph(){
+  if(!data || !active) return null;
+  return data.chars.find(g => g.char === active);
+}
+
+function pickGlyph(ch){
+  active = ch;
+  document.querySelectorAll('#fontGlyphs .glyphbtn').forEach(b=>b.classList.toggle('on', b.dataset.ch===ch));
+  const g = currentGlyph(); if(!g) return;
+  $f('fontGlyphLabel').textContent = `'${glyphLabel(g)}'`;
+  $f('fontGlyphMeta').textContent = `id=${g.id}`;
+  $f('fmXoff').value = g.xoffset; $f('fmYoff').value = g.yoffset; $f('fmAdv').value = g.xadvance;
+  $f('fmX').value = g.x; $f('fmY').value = g.y; $f('fmW').value = g.width; $f('fmH').value = g.height;
+  render();
+}
+
+function applyInputsLocal(){
+  const g = currentGlyph(); if(!g) return;
+  g.xoffset=+$f('fmXoff').value||0; g.yoffset=+$f('fmYoff').value||0; g.xadvance=+$f('fmAdv').value||0;
+  g.x=+$f('fmX').value||0; g.y=+$f('fmY').value||0; g.width=Math.max(1,+$f('fmW').value||1); g.height=Math.max(1,+$f('fmH').value||1);
+  dirty[g.char] = {x:g.x,y:g.y,width:g.width,height:g.height,xoffset:g.xoffset,yoffset:g.yoffset,xadvance:g.xadvance};
+  render();
+}
+
+function renderText(text, x, y, scale){
+  const map = new Map(data.chars.map(g=>[g.char,g]));
+  let px=x, py=y, lh=(data.meta.lineHeight||120)*scale;
+  for(const ch of text){
+    if(ch==='\n'){ px=x; py+=lh; continue; }
+    if(ch===' '){ px += 36*scale; continue; }
+    const g = map.get(ch); if(!g){ px += 30*scale; continue; }
+    cx.drawImage(atlas, g.x, g.y, g.width, g.height, px + g.xoffset*scale, py + g.yoffset*scale, g.width*scale, g.height*scale);
+    px += g.xadvance*scale;
+  }
+}
+
+function renderGlyphInspector(g){
+  if(!g) return;
+  const ox=820, oy=210, s=2;
+  cx.strokeStyle='#7cc4ff'; cx.lineWidth=1;
+  cx.strokeRect(ox-1, oy-1, g.width*s+2, g.height*s+2);
+  cx.drawImage(atlas, g.x, g.y, g.width, g.height, ox, oy, g.width*s, g.height*s);
+  cx.fillStyle='#7cc4ff'; cx.fillText(`crop ${g.x},${g.y} ${g.width}x${g.height}`, ox, oy+g.height*s+18);
+  cx.fillText(`offset ${g.xoffset},${g.yoffset} · advance ${g.xadvance}`, ox, oy+g.height*s+36);
+}
+
+function render(){
+  if(!data || !atlas.complete) return;
+  const bg = (data.entry.id||'').includes('shadow') ? '#dac79e' : '#11100f';
+  cx.fillStyle=bg; cx.fillRect(0,0,cv.width,cv.height);
+  cx.font='13px ui-monospace, Consolas, monospace';
+  cx.fillStyle=(data.entry.id||'').includes('shadow') ? '#5a412e' : '#e7d7a2';
+  cx.fillText(data.entry.display_name||data.entry.id, 18, 22);
+  renderText($f('fontSample').value, 24, 42, 0.45);
+  const g = currentGlyph();
+  if(g){
+    cx.strokeStyle='#ffd34f'; cx.beginPath(); cx.moveTo(20, 172); cx.lineTo(760,172); cx.stroke();
+    renderText(g.char.repeat(8), 24, 178, 0.9);
+    renderGlyphInspector(g);
+  }
+}
+
+async function saveGlyph(){
+  const g = currentGlyph(); if(!g) return;
+  applyInputsLocal();
+  const font = $f('fontSelect').value;
+  const body = {font, changes:{[g.char]:dirty[g.char]}};
+  const r = await fetch('/api/fontmetrics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j = await r.json();
+  if(!j.ok){ msg(j.error||'error guardando', false); return; }
+  msg(`guardado ${glyphLabel(g)} (${j.changed} glifo)`);
+  await loadFont(font);
+}
+
+['fmXoff','fmYoff','fmAdv','fmX','fmY','fmW','fmH'].forEach(id=>$f(id).oninput=applyInputsLocal);
+$f('fontSample').oninput=render;
+$f('fontSelect').onchange=e=>loadFont(e.target.value);
+$f('fontReload').onclick=()=>loadIndex();
+$f('fontSave').onclick=saveGlyph;
+$f('fontReset').onclick=()=>loadFont($f('fontSelect').value);
+$f('fontReimport').onclick=()=>msg('Guardado en .fnt. Godot suele reimportar al detectar el cambio; si no, seleccioná el .fnt y Reimport.');
+loadIndex();
+})();
 </script>
 
 <script>

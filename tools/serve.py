@@ -20,6 +20,7 @@ Endpoints:  GET  /api/config | /api/aoe | /api/staffs
 
 import json
 import os
+import re
 import base64
 import urllib.parse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -41,6 +42,10 @@ RIG_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = RIG_DIR / "rig_config.json"
 HAND_OUT = RIG_DIR / "hands"
 AOE_CONFIG = GODOT_ROOT / "assets" / "fx" / "aoe_config.json"
+SPELLS_CFG = RIG_DIR / "spells.json"
+SPELL_ASSETS = GODOT_ROOT / "assets" / "fx" / "spells"
+FONT_DIR = GODOT_ROOT / "assets" / "fonts"
+FONT_INDEX = FONT_DIR / "font_index.json"
 
 # Carpetas de varas: al insertar/animar/borrar una, se escribe en AMBOS proyectos.
 PIXI_STAFFS = PIXI_ROOT / "assets" / "v2_test" / "staffs"
@@ -61,6 +66,99 @@ def _write_json(path: Path, data: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=0), encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _res_to_path(res_path: str) -> Path:
+    if not res_path.startswith("res://"):
+        raise ValueError("ruta res:// invalida")
+    rel = res_path[len("res://"):].replace("/", os.sep)
+    out = (GODOT_ROOT / rel).resolve()
+    if GODOT_ROOT.resolve() not in out.parents and out != GODOT_ROOT.resolve():
+        raise ValueError("ruta fuera del proyecto")
+    return out
+
+
+def _font_index() -> dict:
+    data = _read_json(FONT_INDEX)
+    fonts = data.get("fonts", [])
+    if not isinstance(fonts, list):
+        fonts = []
+    return {"fonts": fonts}
+
+
+def _font_entry(font_id: str) -> dict:
+    for entry in _font_index().get("fonts", []):
+        if entry.get("id") == font_id or entry.get("font") == font_id:
+            return entry
+    raise ValueError(f"font no encontrada en font_index.json: {font_id}")
+
+
+def _parse_bmfont(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    meta = {}
+    chars = []
+    page_file = ""
+    for line in lines:
+        if line.startswith("common "):
+            for key in ("lineHeight", "base", "scaleW", "scaleH"):
+                m = re.search(rf"\b{key}=(-?\d+)", line)
+                if m:
+                    meta[key] = int(m.group(1))
+        elif line.startswith("page "):
+            m = re.search(r'\bfile="([^"]+)"', line)
+            if m:
+                page_file = m.group(1)
+        elif line.startswith("char "):
+            item = {}
+            for key in ("id", "x", "y", "width", "height", "xoffset", "yoffset", "xadvance", "page", "chnl"):
+                m = re.search(rf"\b{key}=(-?\d+)", line)
+                if m:
+                    item[key] = int(m.group(1))
+            if "id" in item:
+                item["char"] = chr(item["id"])
+                chars.append(item)
+    return {"meta": meta, "page_file": page_file, "chars": chars, "line_count": len(lines)}
+
+
+def _apply_bmfont_metrics(path: Path, changes: dict) -> int:
+    if not isinstance(changes, dict):
+        raise ValueError("changes debe ser un objeto")
+    allowed = {"x", "y", "width", "height", "xoffset", "yoffset", "xadvance"}
+    normalized = {}
+    for key, values in changes.items():
+        if not isinstance(values, dict):
+            continue
+        glyph = key if len(key) == 1 else chr(int(key))
+        normalized[ord(glyph)] = {k: int(v) for k, v in values.items() if k in allowed and v is not None}
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    changed = 0
+    out = []
+    for line in lines:
+        if not line.startswith("char "):
+            out.append(line)
+            continue
+        m = re.search(r"\bid=(-?\d+)", line)
+        if not m:
+            out.append(line)
+            continue
+        char_id = int(m.group(1))
+        patch = normalized.get(char_id)
+        if not patch:
+            out.append(line)
+            continue
+        for field, value in patch.items():
+            if re.search(rf"\b{field}=-?\d+", line):
+                line = re.sub(rf"\b{field}=-?\d+", f"{field}={value}", line)
+        changed += 1
+        out.append(line)
+
+    if changed:
+        bak = path.with_suffix(path.suffix + ".bak")
+        bak.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return changed
 
 
 def _staff_count() -> int:
@@ -129,12 +227,27 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         p = self.path.split("?")[0]
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         if p == "/api/config":
             return self._send_json({"ok": True, "config": _read_json(CONFIG_PATH)})
         if p == "/api/aoe":
             return self._send_json({"ok": True, "config": _read_json(AOE_CONFIG)})
         if p == "/api/staffs":
             return self._send_json({"ok": True, "count": _staff_count()})
+        if p == "/api/spellcfg":
+            return self._send_json({"ok": True, "config": _read_json(SPELLS_CFG)})
+        if p == "/api/fonts":
+            return self._send_json({"ok": True, **_font_index()})
+        if p == "/api/fontmetrics":
+            try:
+                font_id = (q.get("font") or [""])[0]
+                entry = _font_entry(font_id)
+                font_path = _res_to_path(entry["font"])
+                parsed = _parse_bmfont(font_path)
+                atlas = entry.get("atlas") or str(Path(entry["font"]).with_suffix(".png"))
+                return self._send_json({"ok": True, "entry": entry, "atlas": atlas, **parsed})
+            except Exception as e:
+                return self._send_json({"ok": False, "error": str(e)}, 400)
         return super().do_GET()
 
     def do_POST(self):
@@ -237,6 +350,37 @@ class Handler(SimpleHTTPRequestHandler):
                         (folder / f"frame_{i:03d}.png").write_bytes(base64.b64decode(b64))
                 print(f"[serve] bolt {kind} vara {n}: {len(frames)} frames (pixi + godot)")
                 return self._send_json({"ok": True, "staff": n, "kind": kind, "frames": len(frames)})
+
+            if p == "/api/spellcfg":
+                data = json.loads(self._body() or b"{}")
+                if not isinstance(data, dict):
+                    raise ValueError("spellcfg no es objeto")
+                _write_json(SPELLS_CFG, data)
+                print(f"[serve] spells.json ({len(data)} varas)")
+                return self._send_json({"ok": True, "saved": len(data)})
+
+            if p == "/api/spellasset":
+                d = json.loads(self._body() or b"{}")
+                n = int(d.get("staff", 0))
+                slot = str(d.get("slot", "")).strip()
+                url = str(d.get("dataURL", ""))
+                if n < 1 or not re.match(r"^[a-z0-9_]+$", slot) or not url:
+                    raise ValueError("staff/slot/dataURL invalidos")
+                b64 = url.split(",", 1)[1] if "," in url else url
+                out_dir = SPELL_ASSETS / f"staff{n}"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out = out_dir / f"{slot}.png"
+                out.write_bytes(base64.b64decode(b64))
+                rel = str(out.relative_to(GODOT_ROOT)).replace("\\", "/")
+                print(f"[serve] spell asset -> {rel}")
+                return self._send_json({"ok": True, "path": rel})
+
+            if p == "/api/fontmetrics":
+                d = json.loads(self._body() or b"{}")
+                entry = _font_entry(str(d.get("font", "")))
+                changed = _apply_bmfont_metrics(_res_to_path(entry["font"]), d.get("changes", {}))
+                print(f"[serve] font metrics {entry.get('id')}: {changed} glifos")
+                return self._send_json({"ok": True, "changed": changed, "font": entry.get("font")})
         except Exception as e:
             return self._send_json({"ok": False, "error": str(e)}, 400)
         self.send_error(404)

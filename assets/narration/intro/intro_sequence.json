@@ -1,0 +1,37 @@
+{
+  "id": "intro_numen_origen",
+  "title": "El Numen y el origen",
+  "next_scene": "res://scenes/main.tscn",
+  "audio_enabled": false,
+  "voice": "res://assets/narration/intro/voice_intro.mp3",
+  "music": "res://assets/narration/intro/music_intro.mp3",
+  "voice_volume_db": 0.0,
+  "music_volume_db": -24.0,
+  "fade_in_seconds": 2.4,
+  "fade_out_seconds": 1.0,
+  "duration": 0.0,
+  "crawl_pixels_per_second": 22.0,
+  "crawl_line_spacing": 10.0,
+  "crawl_average_char_width_ratio": 0.43,
+  "auto_finish_when_voice_ends": true,
+  "allow_skip": true,
+  "cues": [
+    {
+      "id": "intro",
+      "start": 0.0,
+      "duration": 0.0,
+      "image": "res://assets/narration/intro/splash_001.png",
+      "image_scale_mode": "fit",
+      "text_start_y_ratio": 1.05,
+      "crawl_pixels_per_second": 22.0,
+      "font_size": 28,
+      "text": [
+        "Hubo un mundo de reinos y caminos, como todos los mundos. Pero por esta tierra corría una fuerza invisible: el Numen, el aliento de toda magia. Pocos nacían con su chispa; esos pocos eran magos. El Numen no brotaba parejo: en ciertos puntos subía a la superficie y manaba, y se lo podía beber — los llamaron los nudos. Allí se juntó la gente del don, y sobre la veta levantaron torres. Nadie preguntaba de dónde venía el Numen. Pero tenía un origen… y un precio.",
+        "Su origen fue una guerra que nadie vio. Antes del mundo hubo dos: Oriael, la fuente de toda luz, y Morvath, que venía de abajo y todo lo pudría. Oriael pudo destruirlo; pero Morvath ya había tocado el mundo entero, y matarlo era matar todo lo vivo. Así que eligió no vencer: se vertió en la tierra y se hizo árbol —Vaelroth—, y sus raíces se cerraron sobre Morvath, conteniéndolo abajo. Y aquí lo esencial: el mismo árbol que lo encierra es el que da el Numen. El sello y la fuente son uno. La magia fluye porque hay un dios vertido en la tierra, sosteniendo una puerta que no puede soltar.",
+        "En cada mago, la chispa tomaba una forma: el Temple, su don y su clan a la vez. Cinco fueron los clanes: los Karreth, de fuerza y honor; los Cindrael, de saber y memoria; los Maelvorn, artífices que ponían magia en la materia; los Threnvar, que vigilaban la linde por donde se filtra lo que no debe nombrarse; y los Caelreth, que guardaban el orden. Y lejísimos, en torno al árbol, velaban los Custodios: guardianes de un Numen tan vasto que la muerte los había olvidado. Mientras estuvieran, la puerta de abajo seguiría cerrada.",
+        "Faltaba el lugar donde aprenderlo. Lo halló Killaeth: sobre uno de los grandes nudos alzó una Torre, y a ella vinieron los cinco clanes a aprender el arte de doblar la luz. Mil años duró su edad de oro, y nadie creyó que algo pudiera tocarla. Pero en las lindes del mundo algo se filtraba desde abajo, y el frío ganaba terreno —una mano de ancho cada cien años. De eso, en la Torre, casi nadie quiso saber.",
+        "Y en la cima de aquella edad, un Threnvar llamado Vorhael, sabio entre los sabios, se cansó de solo contener. Halló un libro —el Threnodion, sembrado por la sombra— que prometía cerrar el inframundo para siempre. No mentía: solo callaba qué fabricaba al cerrar. Vorhael leyó, y al leer, fue leído; la corrupción lo tomó como una idea que uno cree propia. Y bajó a tocar la raíz del mundo, creyendo que sellaba lo que en verdad abría. Entonces, hace diez mil años, el cielo se tiñó de rojo. Cayó uno de los cuatro que guardan la raíz, y así supo el mundo que lo que no muere puede morir. Cuatro eran. Quedaron tres. A Vorhael lo tragó la tierra, y nunca más volvió. Y la edad de oro… se quebró bajo el primer eclipse."
+      ]
+    }
+  ]
+}

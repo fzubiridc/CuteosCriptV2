@@ -21,6 +21,7 @@ var size := 16.0
 var proj_spd := 150.0
 var minion := ""
 var use_sprite := false
+var _glow: PointLight2D = null   # aura propia (hija): autoilumina al jefe en la oscuridad, como los mobs
 
 var pat_idx := 0
 var pat_t := 0.0
@@ -89,6 +90,18 @@ func _apply_visual() -> void:
 		visual.polygon = PackedVector2Array([
 			Vector2(-size, -size), Vector2(size, -size),
 			Vector2(size, size), Vector2(-size, size)])
+	# Aura propia: el jefe se autoilumina en la oscuridad (los mobs ya lo hacen via enemy.gd; el boss no la tenía).
+	# Más fuerte/grande y rojiza que la de un mob para que imponga y se vea desde lejos. Hija → se libera con el boss.
+	if _glow == null:
+		_glow = PointLight2D.new()
+		_glow.texture = load("res://assets/fx/light_radial.tres")   # = textura de luz del player/mobs
+		_glow.color = Color(1.0, 0.42, 0.38)        # rojo cálido amenazante
+		_glow.scale = LightCfg.floor_scale()         # achatado elíptico (vista 3/4), como las otras luces de piso
+		_glow.energy = 2.4                           # más fuerte que un mob (~1.3)
+		_glow.texture_scale = 1.3                    # radio mayor que un mob
+		_glow.height = 30.0                          # altura > mob (22) → ilumina el cuerpo, más alto que un mob
+		LightField.add_dynamic(_glow)                # lo registra en el sistema de luz por píxel
+		add_child(_glow)
 
 func _base_tint() -> Color:
 	if use_sprite:

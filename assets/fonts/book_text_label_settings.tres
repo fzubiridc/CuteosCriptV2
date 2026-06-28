@@ -1,0 +1,11 @@
+[gd_resource type="LabelSettings" format=3 uid="uid://dg3d24wvjhr8p"]
+
+[ext_resource type="FontFile" path="res://assets/fonts/EB_Garamond_Variable.ttf" id="1_umh05"]
+
+[resource]
+line_spacing = 6.0
+paragraph_spacing = 8.0
+font = ExtResource("1_umh05")
+font_size = 22
+font_color = Color(0.16862746, 0.12941177, 0.09411765, 1)
+outline_color = Color(0, 0, 0, 0)

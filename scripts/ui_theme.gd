@@ -19,10 +19,24 @@ const DIR := "res://assets/ui/"
 const DIR_HD := "res://assets/ui_hd/"
 const FONT_PIXEL_PATH := "res://assets/ui/fonts/PressStart2P-Regular.ttf"
 const FONT_BODY_PATH := "res://assets/ui/fonts/VT323-Regular.ttf"
+const FONT_TITLE_PATH := "res://assets/fonts/Cinzel_Variable.ttf"
+const FONT_NARRATIVE_PATH := "res://assets/fonts/EB_Garamond_Variable.ttf"
+const TITLE_LABEL_SETTINGS_PATH := "res://assets/fonts/title_label_settings.tres"
+const SECTION_HEADER_LABEL_SETTINGS_PATH := "res://assets/fonts/section_header_label_settings.tres"
+const NARRATIVE_LABEL_SETTINGS_PATH := "res://assets/fonts/narrative_label_settings.tres"
+const DIALOGUE_LABEL_SETTINGS_PATH := "res://assets/fonts/dialogue_label_settings.tres"
+const BOOK_TEXT_LABEL_SETTINGS_PATH := "res://assets/fonts/book_text_label_settings.tres"
 
 static var _cached: Theme
 static var _font_pixel: FontFile
 static var _font_body: FontFile
+static var _font_title: FontFile
+static var _font_narrative: FontFile
+static var _settings_title: LabelSettings
+static var _settings_section_header: LabelSettings
+static var _settings_narrative: LabelSettings
+static var _settings_dialogue: LabelSettings
+static var _settings_book_text: LabelSettings
 
 static func font_pixel() -> FontFile:
 	if _font_pixel == null:
@@ -34,6 +48,41 @@ static func font_body() -> FontFile:
 		_font_body = load(FONT_BODY_PATH)
 	return _font_body
 
+static func font_title() -> FontFile:
+	if _font_title == null:
+		_font_title = load(FONT_TITLE_PATH)
+	return _font_title
+
+static func font_narrative() -> FontFile:
+	if _font_narrative == null:
+		_font_narrative = load(FONT_NARRATIVE_PATH)
+	return _font_narrative
+
+static func title_settings() -> LabelSettings:
+	if _settings_title == null:
+		_settings_title = load(TITLE_LABEL_SETTINGS_PATH)
+	return _settings_title
+
+static func section_header_settings() -> LabelSettings:
+	if _settings_section_header == null:
+		_settings_section_header = load(SECTION_HEADER_LABEL_SETTINGS_PATH)
+	return _settings_section_header
+
+static func narrative_settings() -> LabelSettings:
+	if _settings_narrative == null:
+		_settings_narrative = load(NARRATIVE_LABEL_SETTINGS_PATH)
+	return _settings_narrative
+
+static func dialogue_settings() -> LabelSettings:
+	if _settings_dialogue == null:
+		_settings_dialogue = load(DIALOGUE_LABEL_SETTINGS_PATH)
+	return _settings_dialogue
+
+static func book_text_settings() -> LabelSettings:
+	if _settings_book_text == null:
+		_settings_book_text = load(BOOK_TEXT_LABEL_SETTINGS_PATH)
+	return _settings_book_text
+
 static func get_theme() -> Theme:
 	if _cached != null:
 		return _cached
@@ -41,6 +90,7 @@ static func get_theme() -> Theme:
 	# Fuente base retro (VT323 se lee chico, así que va con cuerpo grande).
 	t.default_font = font_body()
 	t.default_font_size = 20
+	_add_typography_roles(t)
 
 	# Paneles → marco de madera/oro (panel_frame.png, 96×96, 9-slice 28).
 	var panel := _tex_box(DIR + "panel_frame.png", 28, 28, 28, 28, 26)
@@ -69,6 +119,46 @@ static func get_theme() -> Theme:
 
 	_cached = t
 	return t
+
+static func _add_typography_roles(t: Theme) -> void:
+	t.set_type_variation("FontTitle", "Label")
+	t.set_font("font", "FontTitle", font_title())
+	t.set_font_size("font_size", "FontTitle", 32)
+	t.set_color("font_color", "FontTitle", HEADER_TXT)
+	t.set_color("font_outline_color", "FontTitle", Color(0, 0, 0, 0.9))
+	t.set_constant("outline_size", "FontTitle", 3)
+
+	t.set_type_variation("DisplayTitle", "Label")
+	t.set_font("font", "DisplayTitle", font_title())
+	t.set_font_size("font_size", "DisplayTitle", 42)
+	t.set_color("font_color", "DisplayTitle", GOLD)
+	t.set_color("font_outline_color", "DisplayTitle", Color(0, 0, 0, 0.92))
+	t.set_constant("outline_size", "DisplayTitle", 4)
+
+	t.set_type_variation("FontSectionHeader", "Label")
+	t.set_font("font", "FontSectionHeader", font_title())
+	t.set_font_size("font_size", "FontSectionHeader", 24)
+	t.set_color("font_color", "FontSectionHeader", GOLD)
+	t.set_color("font_outline_color", "FontSectionHeader", Color(0, 0, 0, 0.9))
+	t.set_constant("outline_size", "FontSectionHeader", 3)
+
+	for role in ["FontNarrativeBody", "FontDialogue", "FontBookText", "FontItemDescription"]:
+		t.set_type_variation(role, "Label")
+		t.set_font("font", role, font_narrative())
+		t.set_font_size("font_size", role, 22)
+		t.set_color("font_color", role, PARCHMENT)
+		t.set_color("font_outline_color", role, Color(0, 0, 0, 0.8))
+		t.set_constant("outline_size", role, 2)
+
+	t.set_type_variation("FontSmallUI", "Label")
+	t.set_font("font", "FontSmallUI", font_body())
+	t.set_font_size("font_size", "FontSmallUI", 20)
+	t.set_color("font_color", "FontSmallUI", PARCHMENT)
+
+	t.set_type_variation("RichNarrativeBody", "RichTextLabel")
+	t.set_font("normal_font", "RichNarrativeBody", font_narrative())
+	t.set_font_size("normal_font_size", "RichNarrativeBody", 22)
+	t.set_color("default_color", "RichNarrativeBody", PARCHMENT)
 
 ## StyleBoxTexture genérico con márgenes de textura (9-slice) y de contenido.
 static func _tex_box(path: String, ml: int, mt: int, mr: int, mb: int, content := 12) -> StyleBoxTexture:
@@ -108,6 +198,59 @@ static func ninepatch(path: String, ml: int, mt: int, mr: int, mb: int) -> NineP
 	return n
 
 ## Label con la fuente pixel (Press Start 2P) — para títulos/etiquetas.
+static func title_label(text: String, size: int = 32, color: Color = HEADER_TXT) -> Label:
+	var l := Label.new()
+	l.text = text
+	apply_title(l, size, color)
+	return l
+
+static func section_header_label(text: String, size: int = 24, color: Color = GOLD) -> Label:
+	var l := Label.new()
+	l.text = text
+	apply_section_header(l, size, color)
+	return l
+
+static func narrative_label(text: String, size: int = 22, color: Color = PARCHMENT) -> Label:
+	var l := Label.new()
+	l.text = text
+	apply_narrative(l, size, color)
+	return l
+
+static func apply_title(label: Label, size := -1, color: Color = HEADER_TXT) -> void:
+	_apply_label_settings(label, title_settings(), size, color)
+
+static func apply_section_header(label: Label, size := -1, color: Color = GOLD) -> void:
+	_apply_label_settings(label, section_header_settings(), size, color)
+
+static func apply_narrative(label: Label, size := -1, color: Color = PARCHMENT) -> void:
+	_apply_label_settings(label, narrative_settings(), size, color)
+
+static func apply_dialogue(label: Label, size := -1, color: Color = PARCHMENT) -> void:
+	_apply_label_settings(label, dialogue_settings(), size, color)
+
+static func apply_book_text(label: Label, size := -1, color: Color = Color("2b2118")) -> void:
+	_apply_label_settings(label, book_text_settings(), size, color)
+
+static func apply_item_description(label: Label, size := -1, color: Color = PARCHMENT) -> void:
+	_apply_label_settings(label, narrative_settings(), size, color)
+
+static func apply_small_ui(label: Label, size := -1, color: Color = PARCHMENT) -> void:
+	label.add_theme_font_override("font", font_body())
+	if size > 0:
+		label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", color)
+
+static func apply_rich_narrative(label: RichTextLabel, size := 22, color: Color = PARCHMENT) -> void:
+	label.add_theme_font_override("normal_font", font_narrative())
+	label.add_theme_font_size_override("normal_font_size", size)
+	label.add_theme_color_override("default_color", color)
+
+static func _apply_label_settings(label: Label, settings: LabelSettings, size: int, color: Color) -> void:
+	label.label_settings = settings.duplicate()
+	if size > 0:
+		label.label_settings.font_size = size
+	label.label_settings.font_color = color
+
 static func px_label(text: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text

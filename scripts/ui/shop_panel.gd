@@ -62,11 +62,11 @@ func _build_shop() -> void:
 	vb.add_theme_constant_override("separation", 8)
 	root.add_child(vb)
 	var t := Label.new(); t.text = "MERCADER"; t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	t.add_theme_color_override("font_color", Color("ffd84f")); t.add_theme_font_size_override("font_size", 22)
+	UiTheme.apply_section_header(t, 26, Color("ffd84f"))
 	vb.add_child(t)
 	var coins := Label.new(); coins.text = "Tus monedas: ◉ %d" % int(p.coins)
 	coins.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	coins.add_theme_color_override("font_color", Color("ffd84f"))
+	UiTheme.apply_small_ui(coins, 20, Color("ffd84f"))
 	vb.add_child(coins)
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", 10)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -77,7 +77,7 @@ func _build_shop() -> void:
 	heal.pressed.connect(_buy_heal); vb.add_child(heal)
 	if p.bag.size() > 0:
 		var sl := Label.new(); sl.text = "VENDER (tu mochila):"
-		sl.add_theme_color_override("font_color", Color("8a8496")); vb.add_child(sl)
+		UiTheme.apply_small_ui(sl, 18, Color("8a8496")); vb.add_child(sl)
 		var srow := HBoxContainer.new(); srow.add_theme_constant_override("separation", 6)
 		vb.add_child(srow)
 		for j in p.bag.size():
@@ -98,7 +98,7 @@ func _shop_card(it: Dictionary, idx: int) -> Control:
 	var nm := Label.new(); nm.text = String(it.get("name", "ítem"))
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nm.add_theme_color_override("font_color", Color(Items.rarity_data(it.get("rarity", "comun")).color))
+	UiTheme.apply_section_header(nm, 18, Color(Items.rarity_data(it.get("rarity", "comun")).color))
 	card.add_child(nm)
 	var b := Button.new()
 	if it.get("sold", false):

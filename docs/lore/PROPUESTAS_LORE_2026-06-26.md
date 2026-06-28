@@ -1,3 +1,10 @@
+> ⚠️ **DOCUMENTO SUPERSEDED — NO ES CANON.**
+> Esto es material **v3 (premisa vieja: *La Cárcel del Cuteo*)**: torre-mundo donde se vive, eclipse que enloquece, seis clanes `-nir` (Colnir/Kilnir/Durnir/Jernir/Fernir/Skarun), dualidad cómica "Cuteo", Piso 0 → Piso −1.
+> Quedó **SUPERSEDED por `docs/lore/BIBLIA_NARRATIVA.md` (v4)** y `docs/lore/FLUJO_JUEGO_BASE.md`. La premisa actual es *La Torre de Killaeth*: fantasía oscura SERIA, clanes por Temple (Karreth/Cindrael/Maelvorn/Threnvar/Caelreth), Veyran de protagonista, Sorin/Liraen/Vhorrak/Morvath, el árbol Vaelroth, el Nudo, el eclipse rojo.
+> Se conserva solo como **historia y banco de textos viejos**. **NO usar como fuente de verdad.** Para escribir o auditar lore, andá a la biblia v4.
+
+---
+
 # Propuestas de Lore — 2026-06-26 (EN REVISIÓN, **no canon todavía**)
 
 > Generado por 4 agentes en paralelo sobre el canon existente (`docs/PLAN_NARRATIVO.md` + el `LORE.md` raíz del pixi).

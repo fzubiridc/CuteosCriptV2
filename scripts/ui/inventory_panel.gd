@@ -118,7 +118,7 @@ func _build_inventory_hd() -> void:
 	head_tex.set_anchors_preset(Control.PRESET_FULL_RECT)
 	head_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	head.add_child(head_tex)
-	var head_lbl := UiTheme.px_label("INVENTARIO", 22, UiTheme.HEADER_TXT)
+	var head_lbl := UiTheme.title_label("INVENTARIO", 30, UiTheme.HEADER_TXT)
 	head_lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	head_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -163,13 +163,11 @@ func _build_bag_panel() -> Control:
 
 	var head := HBoxContainer.new()
 	vb.add_child(head)
-	head.add_child(UiTheme.px_label("BOLSA", 13, UiTheme.GOLD))
+	head.add_child(UiTheme.section_header_label("BOLSA", 18, UiTheme.GOLD))
 	var sp := Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
 	_bag_count = Label.new()
-	_bag_count.add_theme_font_override("font", UiTheme.font_body())
-	_bag_count.add_theme_font_size_override("font_size", 22)
-	_bag_count.add_theme_color_override("font_color", UiTheme.COUNT)
+	UiTheme.apply_small_ui(_bag_count, 22, UiTheme.COUNT)
 	head.add_child(_bag_count)
 
 	vb.add_child(_divider())
@@ -189,7 +187,7 @@ func _build_equip_panel() -> Control:
 	const CENTER := Vector2(330, 480)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
-	vb.add_child(UiTheme.px_label("EQUIPO", 13, UiTheme.GOLD))
+	vb.add_child(UiTheme.section_header_label("EQUIPO", 18, UiTheme.GOLD))
 	vb.add_child(_divider())
 
 	var doll := HBoxContainer.new()
@@ -401,9 +399,7 @@ func _equip_slot(label_text: String, it) -> Control:
 	var lbl := Label.new()
 	lbl.text = label_text
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_override("font", UiTheme.font_body())
-	lbl.add_theme_font_size_override("font_size", 16)
-	lbl.add_theme_color_override("font_color", UiTheme.MUTED_WARM)
+	UiTheme.apply_small_ui(lbl, 16, UiTheme.MUTED_WARM)
 	box.add_child(lbl)
 	return box
 

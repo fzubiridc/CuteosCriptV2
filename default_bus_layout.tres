@@ -1,20 +1,13 @@
-[gd_resource type="AudioBusLayout" format=3]
+[gd_resource type="AudioBusLayout" format=3 uid="uid://b5u8lk05mmv8c"]
 
 [sub_resource type="AudioEffectReverb" id="AudioEffectReverb_world"]
 predelay_msec = 90.0
 room_size = 0.75
 damping = 0.4
 spread = 0.6
-dry = 1.0
 wet = 0.18
 
 [resource]
-bus/0/name = &"Master"
-bus/0/solo = false
-bus/0/mute = false
-bus/0/bypass_fx = false
-bus/0/volume_db = 0.0
-bus/0/send = &"Master"
 bus/1/name = &"World"
 bus/1/solo = false
 bus/1/mute = false

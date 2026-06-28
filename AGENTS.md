@@ -4,8 +4,8 @@ Juego **Godot 4.6** isométrico 2D tipo Diablo-like / dungeon-crawler. Rama de t
 Port a Godot del original en Pixi (el pixi es legacy; este proyecto ya va por delante).
 
 ## Leé esto antes de tocar (en orden)
-1. **`docs/project_memory_2026-06-26.md`** — estado confirmado, decisiones tomadas, fixes que NO revertir, lista "no tocar". (Actualizado al 2026-06-27.)
-2. **`docs/architecture_notes_2026-06-26.md`** — cómo funciona cada sistema (escena, dungeon y sus módulos, muros, niebla, luz, IA, audio, FX). (Actualizado al 2026-06-27.)
+1. **`docs/project_memory.md`** — estado confirmado, decisiones tomadas, fixes que NO revertir, lista "no tocar". (Actualizado al 2026-06-27.)
+2. **`docs/architecture_notes.md`** — cómo funciona cada sistema (escena, dungeon y sus módulos, muros, niebla, luz, IA, audio, FX). (Actualizado al 2026-06-27.)
 3. Planes puntuales (algunos parcialmente implementados): `docs/spell_fx_plan.md`, `docs/visibility_darkness_plan.md`, `docs/PLAN_NARRATIVO.md`, `docs/lore/`.
 
 > `docs/code_audit_2026-06-26.md` y `docs/cleanup_candidates_2026-06-26.md` son **snapshots de la revisión del 26-jun**, históricos: su deuda principal (god-objects `dungeon.gd`/`hud.gd`, path 2.5D muerto, director static) **ya se resolvió**. No los leas como estado actual.
@@ -25,7 +25,7 @@ Port a Godot del original en Pixi (el pixi es legacy; este proyecto ya va por de
 - **`assets/`** — tiles iso, fx, sfx, hero/staffs, mobs, ui (incluye `ui/loading.png` = boot splash), `story/` (intro narrativa, pendiente).
 
 ## Reglas duras
-- Main scene = **`scenes/main.tscn`**; `ISO=true` es el único path vivo; `Dungeon.use_test_map` debe quedar en **false**.
+- Arranque = **`scenes/menu.tscn`** (menú de inicio: título + tarjeta animada del Archimago + récords/continuar; al jugar hace `change_scene_to_file` a `main.tscn`). Escena de juego = **`scenes/main.tscn`**; `ISO=true` es el único path vivo; `Dungeon.use_test_map` debe quedar en **false**.
 - **No tocar `addons/godot_ai/`** (vendor/plugin).
 - **Commits/push: solo cuando Felipe lo pide** (no por iniciativa propia).
 - **Validación:** Felipe prueba jugando (más rápido). Los agentes validan con **compile-check headless** (`godot --headless --path . --import`, exit 0 + sin `SCRIPT ERROR`/`Parse Error`); **no abrir el juego ni screenshotear** salvo que Felipe lo pida.
@@ -34,5 +34,15 @@ Port a Godot del original en Pixi (el pixi es legacy; este proyecto ya va por de
 - **Muros = `WallSegment`** (fuente lógica): NW/NE traseros, SE/SW fachada; `neighbor()` depende de la **paridad de fila** (TileSet STACKED). Salas = **paralelogramos** (`carve_iso_room`), no rects cartesianos.
 - Refactor de un módulo grande → mové la lógica preservando la API pública (otros archivos dependen de `dungeon.*`, etc.) y dejá un wrapper.
 
+## Protocolo de cierre (Definition of Done)
+Al cerrar cualquier tarea que cambie código del juego (`scripts/`, `scenes/`, `shaders/`, `project.godot`):
+1. Mirá el `git status` real de lo que tocaste.
+2. Cambió el **estado** del juego (feature, sistema, bug vivo, deuda saldada) → actualizá `docs/project_memory.md` y el bloque **"Estado en una línea"** de abajo.
+3. Cambió **cómo funciona** un sistema (no solo qué hace) → actualizá `docs/architecture_notes.md`.
+4. Decisión tomada o revertida → anotala en `docs/project_memory.md` (decisiones / "no tocar").
+5. **Convención de nombres:** los docs vivos van **sin fecha** (`project_memory.md`, `architecture_notes.md`) — editá el archivo vivo, nunca crees una copia fechada. Solo los snapshots históricos llevan fecha (`code_audit_2026-06-26.md`, `cleanup_candidates_2026-06-26.md`) y no se actualizan.
+
+Si el cambio es trivial o no altera nada documentado, **decilo en una línea y cerrá** — no inventes updates ni marques como hecho lo que no está en el repo. Un Stop hook (`.claude/hooks/check-memory.mjs`) te recuerda esto si tocás código sin tocar `docs/`.
+
 ## Estado en una línea
-Juego iso funcional y pulido, todo en `iso-merge`. `dungeon.gd` partido en **gen/decor/fog**, `hud` en paneles, **CombatDirector** autoload, mercader desacoplado por señal. Features recientes: **audio inmersivo** (buses+reverb+SFX posicional), **bolt de fuego por vara**, **FX de combate** (burn, números de daño, fogatas, luz propia de mobs), **boot splash**. Deuda viva: nav marca piso-con-muro sólido, `place_torches` asume salas cartesianas, el boss nunca se oculta, sandboxes sin mover, tilesets `iso_dungeon_v*` chatarra. Ver `docs/`.
+Juego iso funcional y pulido, todo en `iso-merge`. `dungeon.gd` partido en **gen/decor/fog**, `hud` en paneles, **CombatDirector** autoload, mercader desacoplado por señal. Features recientes: **audio inmersivo** (buses+reverb+SFX posicional), **bolt de fuego por vara**, **FX de combate** (burn, números de daño, fogatas, luz propia de mobs), **boot splash**, **aura propia del boss** (se ve en la oscuridad), **FX de hechizos data-driven** (tab web ✨Hechizos `tools/spell_tool.html` → `tools/rig/spells.json` → `SpellLibrary`→`ElementProfile`→`SpellFX` por vara, modo `external` que aumenta el bolt existente sin pisar el arte; WYSIWYG, ver `docs/spell_fx_plan.md`). Deuda viva: nav marca piso-con-muro sólido, `place_torches` asume salas cartesianas, el boss nunca se oculta, sandboxes sin mover, tilesets `iso_dungeon_v*` chatarra. Ver `docs/`.

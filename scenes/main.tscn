@@ -6,20 +6,19 @@
 [ext_resource type="Script" uid="uid://cfqv4dqd0fyr" path="res://scripts/hud.gd" id="4_jyhfs"]
 [ext_resource type="Script" uid="uid://udis8eyyu8b4" path="res://scripts/lighting_debug.gd" id="9_85g3d"]
 [ext_resource type="Script" uid="uid://i1evqkbxkm0l" path="res://scripts/speed_debug.gd" id="10_speed"]
-[ext_resource type="Script" path="res://scripts/staff_debug.gd" id="17_staffdbg"]
 [ext_resource type="Texture2D" uid="uid://bvernyq5nt33p" path="res://assets/ui/hp_mana_bar/vida-mana-base.png" id="11_hud_shell"]
 [ext_resource type="Texture2D" uid="uid://gsgyqyn35cv2" path="res://assets/ui/hp_mana_bar/vida-barra.png" id="12_hud_life_fill"]
 [ext_resource type="Shader" uid="uid://cpvvrr8yll4f4" path="res://shaders/hud_liquid.gdshader" id="13_hud_liquid_shader"]
 [ext_resource type="Texture2D" uid="uid://dbayja4kf0sbf" path="res://assets/ui/hp_mana_bar/mana-barra.png" id="14_hud_mana_fill"]
 [ext_resource type="Script" uid="uid://df7ssk8fb2fd3" path="res://scripts/dash_indicator.gd" id="14_jbj1t"]
-[ext_resource type="FontFile" uid="uid://co1gbiwyk3hb1" path="res://assets/ui/fonts/VT323-Regular.ttf" id="15_hud_font"]
 [ext_resource type="Texture2D" uid="uid://cpckfmus5bp0" path="res://assets/ui/exp_bar/barrabasevacia1.png" id="16_xp_base"]
+[ext_resource type="Script" uid="uid://bmjlp43l4x5df" path="res://scripts/staff_debug.gd" id="17_staffdbg"]
 [ext_resource type="Texture2D" uid="uid://7x6se4h4nse3" path="res://assets/ui/exp_bar/fill2.png" id="17_xp_fill"]
 [ext_resource type="Texture2D" uid="uid://8hco5shwx1u6" path="res://assets/ui/exp_bar/tapas3.png" id="18_xp_caps"]
 [ext_resource type="Shader" uid="uid://cdw3sbqq23e6q" path="res://shaders/hud_xp_fill.gdshader" id="19_xp_shader"]
-[ext_resource type="Texture2D" path="res://assets/ui/boss_bar/barravida.png" id="20_boss_base"]
-[ext_resource type="Texture2D" path="res://assets/ui/boss_bar/fillbarravida.png" id="21_boss_fill"]
-[ext_resource type="Shader" path="res://shaders/boss_bar_fill.gdshader" id="22_boss_shader"]
+[ext_resource type="Texture2D" uid="uid://ba0u0toy1vw1d" path="res://assets/ui/boss_bar/barravida.png" id="20_boss_base"]
+[ext_resource type="Texture2D" uid="uid://d2s4pruh47xdp" path="res://assets/ui/boss_bar/fillbarravida.png" id="21_boss_fill"]
+[ext_resource type="Shader" uid="uid://q6jaulr0eoqu" path="res://shaders/boss_bar_fill.gdshader" id="22_boss_shader"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_boss_fill"]
 shader = ExtResource("22_boss_shader")
@@ -76,7 +75,6 @@ script = ExtResource("1_sugp2")
 [node name="Dungeon" type="TileMapLayer" parent="." unique_id=1328865758]
 position = Vector2(1.2846222, -0.092300415)
 script = ExtResource("2_jyhfs")
-use_test_map = false
 
 [node name="Player" parent="." unique_id=1147600288 instance=ExtResource("3_jkv2x")]
 position = Vector2(160, 112)
@@ -293,7 +291,6 @@ offset_bottom = 98.0
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 5
-theme_override_fonts/font = ExtResource("15_hud_font")
 theme_override_font_sizes/font_size = 28
 text = "1"
 horizontal_alignment = 1
@@ -308,7 +305,6 @@ offset_bottom = 97.0
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_fonts/font = ExtResource("15_hud_font")
 theme_override_font_sizes/font_size = 18
 text = "0 / 100"
 horizontal_alignment = 1
@@ -376,7 +372,6 @@ offset_bottom = 154.0
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_fonts/font = ExtResource("15_hud_font")
 theme_override_font_sizes/font_size = 16
 text = "100 / 100"
 horizontal_alignment = 1
@@ -391,7 +386,6 @@ offset_bottom = 154.0
 theme_override_colors/font_color = Color(0.945, 0.902, 0.8, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_fonts/font = ExtResource("15_hud_font")
 theme_override_font_sizes/font_size = 16
 text = "100 / 100"
 horizontal_alignment = 1

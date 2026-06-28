@@ -60,3 +60,6 @@ _tilesets_src/
 # Python cache
 __pycache__/
 *.pyc
+
+# Claude Code — config local por-máquina (el .claude/settings.json compartido SÍ se versiona)
+.claude/settings.local.json

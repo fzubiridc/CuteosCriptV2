@@ -11,6 +11,7 @@ static var _boom_frames: SpriteFrames
 
 const BOLT_KB := 140.0   # empuje del bolt al pegarle a un mob
 const FRIENDLY_COL := Color(0.55, 0.9, 1.0)   # azul del orbe del jugador: viaje + impacto + disco (congruente)
+const USE_SPELL_FX := true   # engancha el FX nuevo (SpellFX: estela ribbon + particulas GPU) por vara si hay perfil
 
 var velocity := Vector2.ZERO
 var damage := 12
@@ -24,6 +25,11 @@ var z_height := 0.0
 
 var _orb_sprite: Sprite2D
 var _trail: CPUParticles2D
+var _spellfx: SpellFX   # FX nuevo por vara (estela ribbon + particulas), modo external
+var _fx_impact_scale := 1.0          # escala de la explosion (tool Hechizos: sImpacto)
+var _fx_impact_fps := 0.0            # fps de la explosion (fpsImpacto); 0 = default
+var _fx_bolt_fps := 0.0              # fps del viaje (fpsViaje); 0 = default
+var _fx_light_col := Color(0, 0, 0, 0)  # color de luz del elemento (a=0 = sin override)
 var _use_power := false
 var _t := 0.0
 
@@ -172,6 +178,30 @@ func set_bolt_frames(travel: Array, impact: Array, scale_mul := 1.0) -> void:
 		_trail.color_ramp = ramp
 		_trail.color = Color(1, 1, 1, 1)
 
+## Engancha el FX nuevo (SpellFX) ALREDEDOR del bolt existente, sin reemplazarlo (core_mode
+## "external"): suma estela ribbon + particulas GPU. El perfil sale de SpellLibrary (tool
+## "Hechizos"). Sin perfil (vara no configurada) no se llama → comportamiento actual intacto.
+func set_element(profile: ElementProfile) -> void:
+	if not USE_SPELL_FX or profile == null:
+		return
+	_spellfx = SpellFX.new()
+	_spellfx.profile = profile
+	add_child(_spellfx)
+	if _orb_sprite:
+		_spellfx.position = _orb_sprite.position
+	if _trail:   # la estela inline (CPUParticles) la reemplaza el SpellFX
+		_trail.emitting = false
+		_trail.visible = false
+	# La tool "Hechizos" tambien maneja LUZ + fps + escala de impacto del bolt existente (WYSIWYG):
+	_fx_impact_scale = profile.impact_scale
+	_fx_impact_fps = profile.impact_fps
+	_fx_bolt_fps = profile.bolt_fps
+	_fx_light_col = profile.light_color
+	if glow:
+		glow.color = profile.light_color
+		glow.energy = profile.light_energy
+		glow.texture_scale = 0.42 * profile.light_radius_scale
+
 func _physics_process(delta: float) -> void:
 	_t += delta
 	if glow:
@@ -188,13 +218,17 @@ func _physics_process(delta: float) -> void:
 		var use_bolt := not _bolt_travel.is_empty()
 		var frames: Array = _bolt_travel if use_bolt else _get_power_frames()
 		if not frames.is_empty():
-			_orb_sprite.texture = frames[int(_t * 1000.0 / 90.0) % frames.size()]
+			var bfps: float = _fx_bolt_fps if _fx_bolt_fps > 0.0 else 11.0   # fpsViaje (tool) o default ~11
+			_orb_sprite.texture = frames[int(_t * bfps) % frames.size()]
 		_orb_sprite.rotation = velocity.angle()
 		var f: float = clampf(life * 3.5, 0.0, 1.0)   # difumina en el último tramo
 		_orb_sprite.modulate.a = f
 		var base_s: float = _bolt_scale if use_bolt else 0.6
 		var sh: float = 0.85 + f * 0.15
 		_orb_sprite.scale = Vector2(base_s, base_s) * sh
+	if _spellfx and _orb_sprite:   # el FX sigue la altura visual del orbe + su direccion
+		_spellfx.position = _orb_sprite.position
+		_spellfx.set_velocity(velocity)
 	var step := velocity * delta
 	var space := get_world_2d().direct_space_state
 	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + step, 1)
@@ -260,7 +294,7 @@ func _impact(on_wall := false) -> void:
 		var sf := SpriteFrames.new()
 		sf.add_animation("boom")
 		sf.set_animation_loop("boom", false)
-		sf.set_animation_speed("boom", 18.0)
+		sf.set_animation_speed("boom", _fx_impact_fps if _fx_impact_fps > 0.0 else 18.0)
 		for t in _bolt_impact:
 			sf.add_frame("boom", t)
 		boom.sprite_frames = sf
@@ -268,6 +302,7 @@ func _impact(on_wall := false) -> void:
 	else:
 		boom.sprite_frames = _get_boom_frames()
 		boom.scale = Vector2(0.85, 0.85)
+	boom.scale *= _fx_impact_scale   # sImpacto (tool Hechizos): escala CUALQUIER impacto (propio o powerboom)
 	boom.animation = "boom"
 	boom.z_index = 41
 	boom.material = FxMaterials.mix_unshaded()
@@ -279,6 +314,8 @@ func _impact(on_wall := false) -> void:
 	# Mismo azul que el orbe en viaje (FRIENDLY_COL) y energy MODERADA: con energy alta (3.2)
 	# el azul se saturaba a BLANCO; a ~1.6 conserva el tono, congruente con la luz de viaje.
 	var fx_col := (Color(1.0, 0.55, 0.2) if not _bolt_impact.is_empty() else FRIENDLY_COL)
+	if _fx_light_col.a > 0.0:   # la tool "Hechizos" define el color de luz del elemento
+		fx_col = _fx_light_col
 	var lt := PointLight2D.new()
 	lt.texture = load("res://assets/fx/light_radial.tres")
 	lt.color = fx_col

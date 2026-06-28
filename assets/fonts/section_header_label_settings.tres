@@ -1,0 +1,11 @@
+[gd_resource type="LabelSettings" format=3 uid="uid://dmkjt17k8asnc"]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Cinzel_Variable.ttf" id="1_umi0l"]
+
+[resource]
+line_spacing = 2.0
+font = ExtResource("1_umi0l")
+font_size = 24
+font_color = Color(1, 0.84705883, 0.30980393, 1)
+outline_size = 3
+outline_color = Color(0, 0, 0, 0.9019608)

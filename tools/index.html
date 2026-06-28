@@ -29,17 +29,19 @@
     <div class="sub">Todo en un solo server: <code>py tools/serve.py</code> (:8765, auto-guardado). El arte del pixi se sirve bajo <code>/pixi/</code>.</div>
     <div id="tabbar">
       <button data-t="rig" class="on">🪄 Rig / Varas</button>
+      <button data-t="spell">✨ Hechizos</button>
       <button data-t="wall">🧱 Wall Origin</button>
       <button data-t="aoe">🔥 AoE Glyph</button>
     </div>
   </header>
   <div class="frames">
     <iframe id="f-rig" src="rigtool.html"></iframe>
+    <iframe id="f-spell" src="spell_tool.html" hidden></iframe>
     <iframe id="f-wall" src="wall_origin_tool.html" hidden></iframe>
     <iframe id="f-aoe" src="aoe_glyph_tool.html" hidden></iframe>
   </div>
 <script>
-  const tabs={rig:document.getElementById('f-rig'), wall:document.getElementById('f-wall'), aoe:document.getElementById('f-aoe')};
+  const tabs={rig:document.getElementById('f-rig'), spell:document.getElementById('f-spell'), wall:document.getElementById('f-wall'), aoe:document.getElementById('f-aoe')};
   function show(t){
     for(const k in tabs) tabs[k].hidden = (k!==t);
     document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));

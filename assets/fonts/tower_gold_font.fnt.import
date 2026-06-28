@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://da2lh7gygbr5g"
+path="res://.godot/imported/tower_gold_font.fnt-495e8636fc3dcd72173afe96a5e91399.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/tower_gold_font.fnt"
+dest_files=["res://.godot/imported/tower_gold_font.fnt-495e8636fc3dcd72173afe96a5e91399.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

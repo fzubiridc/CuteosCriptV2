@@ -55,6 +55,7 @@ var _prev_stats_dmg := -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_apply_typography()
 	boss_ui.visible = false
 	up_panel.visible = false
 	inv_panel.visible = false
@@ -81,6 +82,24 @@ func _ready() -> void:
 	# Tienda: panel propio (construido 100% por código) que cuelga del HUD.
 	_shop = ShopPanel.new()
 	add_child(_shop)
+
+func _apply_typography() -> void:
+	for control in [boss_ui, up_panel, inv_panel, pause_panel, death_panel, $XPBar, $LifeManaPreview]:
+		if control is Control:
+			control.theme = UiTheme.get_theme()
+	UiTheme.apply_title(boss_name, 28, UiTheme.HEADER_TXT)
+	UiTheme.apply_section_header(up_title, 24, UiTheme.GOLD)
+	UiTheme.apply_section_header($InventoryPanel/Title, 24, UiTheme.GOLD)
+	UiTheme.apply_section_header($InventoryPanel/BagTitle, 20, UiTheme.GOLD)
+	UiTheme.apply_narrative($InventoryPanel/EquipLabel, 18, UiTheme.PARCHMENT)
+	UiTheme.apply_narrative($InventoryPanel/Hint, 18, UiTheme.PARCHMENT)
+	UiTheme.apply_title(death_title, 42, UiTheme.GOLD)
+	UiTheme.apply_dialogue(death_sub, 23, UiTheme.PARCHMENT)
+	UiTheme.apply_small_ui(stats, 18, UiTheme.PARCHMENT)
+	UiTheme.apply_small_ui(xp_value, 16, UiTheme.PARCHMENT)
+	UiTheme.apply_small_ui(level_value, 16, UiTheme.PARCHMENT)
+	UiTheme.apply_small_ui(life_preview_value, 14, UiTheme.PARCHMENT)
+	UiTheme.apply_small_ui(mana_preview_value, 14, UiTheme.PARCHMENT)
 
 # ---------------- Layout responsive (HUD diseñado a 1152×648 → centrado a cualquier res) ----------------
 func _layout_responsive() -> void:

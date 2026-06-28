@@ -1,5 +1,5 @@
 > ⚠ **AVISO DE OBSOLESCENCIA:** este es un **PLAN / doc histórico** (snapshot de diseño 2026-06-26) y **puede divergir del código actual** sin que se avise aquí. Las notas inline (p. ej. la "CORRECCIÓN/auditoría") son parches sobre el plan, no garantía de paridad.
-> La **fuente viva** del comportamiento real es: **AGENTS.md** + **docs/architecture_notes_2026-06-26.md** + el **código** (`dungeon.gd`, `enemy.gd`, `scripts/visibility_manager.gd`, `light_cfg.gd`). Ante cualquier duda, mandá el código.
+> La **fuente viva** del comportamiento real es: **AGENTS.md** + **docs/architecture_notes.md** + el **código** (`dungeon.gd`, `enemy.gd`, `scripts/visibility_manager.gd`, `light_cfg.gd`). Ante cualquier duda, mandá el código.
 
 # Oscuridad & Visibilidad — Plan (estilo Diablo 2)
 

@@ -20,6 +20,7 @@ var _portrait_textures: Array[Texture2D] = []
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	theme = UiTheme.get_theme()
 	_build()
 	_start_portrait_animation()
 
@@ -71,13 +72,11 @@ func _build_title(parent: VBoxContainer) -> void:
 	parent.add_child(title_wrap)
 
 	_title = Label.new()
-	_title.text = "LA CÁRCEL DEL CUTEO"
+	_title.text = "LA TORRE DE KILLAETH"
 	_title.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_title.add_theme_font_override("font", _spaced_font(6))
-	_title.add_theme_font_size_override("font_size", 42)
-	_title.add_theme_color_override("font_color", GOLD)
+	UiTheme.apply_title(_title, 42, GOLD)
 	_title.add_theme_color_override("font_shadow_color", Color("4a2a10"))
 	_title.add_theme_constant_override("shadow_offset_x", 3)
 	_title.add_theme_constant_override("shadow_offset_y", 3)
@@ -181,10 +180,12 @@ func _label(text: String, color: Color, font_size: int, spacing := 0) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	if spacing > 0:
-		label.add_theme_font_override("font", _spaced_font(spacing))
+	if text.contains("\n"):
+		UiTheme.apply_narrative(label, font_size + 5, color)
+	elif spacing > 0 and text.length() <= 28:
+		UiTheme.apply_section_header(label, font_size + 2, color)
+	else:
+		UiTheme.apply_small_ui(label, font_size, color)
 	return label
 
 
@@ -192,7 +193,7 @@ func _button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.add_theme_font_override("font", _spaced_font(2))
+	button.add_theme_font_override("font", UiTheme.font_body())
 	button.add_theme_font_size_override("font_size", 16)
 	button.add_theme_color_override("font_color", GOLD)
 	button.add_theme_color_override("font_hover_color", GOLD)
@@ -224,15 +225,6 @@ func _line_style() -> StyleBoxFlat:
 	return style
 
 
-func _spaced_font(pixels: int) -> FontVariation:
-	var variation := FontVariation.new()
-	var monospace := SystemFont.new()
-	monospace.font_names = PackedStringArray(["Courier New", "Courier", "monospace"])
-	variation.base_font = monospace
-	variation.spacing_glyph = pixels
-	return variation
-
-
 func _spacer(height: int) -> Control:
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, height)
@@ -242,7 +234,7 @@ func _spacer(height: int) -> Control:
 func _on_new() -> void:
 	SaveSystem.clear_run()
 	GameState.reset_run()
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	get_tree().change_scene_to_file("res://scenes/narration_player.tscn")
 
 
 func _on_continue() -> void:
