@@ -74,7 +74,7 @@ centered = false
 libraries/ = ExtResource("4_fjrip")
 
 [node name="Light" type="PointLight2D" parent="." unique_id=1888546320]
-position = Vector2(1.0999756, 1.0999985)
+position = Vector2(0, 4)
 color = Color(1, 0.86, 0.62, 1)
 energy = 2.6
 shadow_enabled = true

@@ -41,6 +41,11 @@ func _ready() -> void:
 	flat.set_pixel(0, 0, Color(0.5, 0.5, 1.0))   # normal (0,0,1)
 	entity_material.set_shader_parameter("normal_tex", ImageTexture.create_from_image(flat))
 	entity_material.set_shader_parameter("relief_floor", 1.0)   # solo falloff, sin relieve
+	entity_material.set_shader_parameter("wall_base_projection", false)
+	entity_material.set_shader_parameter("wall_span_projection", false)
+	entity_material.set_shader_parameter("wall_span_count", 0)
+	entity_material.set_shader_parameter("wall_face_offset", false)
+	entity_material.set_shader_parameter("wall_debug_view", 0)
 
 func _process(_delta: float) -> void:
 	_packed = pack_lights()

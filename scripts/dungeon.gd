@@ -17,6 +17,7 @@ const ROOM_COUNT := 20
 const USE_DOORS := true
 const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmentos de muro). Off en producción.
 
+const DEBUG_WALL_SPAN_LINES := true   # cruz roja: pies proyectados al muro (validar la proyección iso)
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
 var grid: Array = []
@@ -104,6 +105,11 @@ var _wall_origin: Dictionary = {}   # source → Vector2 (texture_origin)
 var _wall_variants: Dictionary = {} # base_src → Array[int] (pool de variantes, incluye el base)
 var _variant_base: Dictionary = {}  # variant_src → base_src (para layer front/back y reveal)
 var _wall_segments: Array = []   # Fase 1: lista de WallSegment (muro = lado de celda)
+const WALL_SPAN_MAX := 96
+var _wall_spans_all: Array = []
+var _wall_span_a := PackedVector2Array()
+var _wall_span_b := PackedVector2Array()
+var _wall_span_debug_root: Node2D
 var _corner_sprites: Array = []  # Fase 2: piezas extra de celdas con 3 bordes (Sprite2D permanente)
 # Fase 3: reveal por habitación (reemplaza el viejo cutout). Cada celda de piso pertenece
 # a una sala (rect de procgen); al entrar, la fachada trasera de esa sala baja a semitransparente
@@ -415,6 +421,141 @@ func _wall_edge_for(src: int) -> PackedVector2Array:
 		SRC_WALL_SW: return PackedVector2Array([b, l])
 	return PackedVector2Array()
 
+## Segmentos base reales de los muros: el shader los usa para proyectar cada fragmento
+## a la linea lógica piso↔muro, en vez de adivinar solo desde UV/silueta.
+func _wall_edge_for_side(side: int) -> PackedVector2Array:
+	var t := Vector2(0, -64)
+	var r := Vector2(128, 0)
+	var b := Vector2(0, 64)
+	var l := Vector2(-128, 0)
+	match side:
+		WallSegment.Side.NW: return PackedVector2Array([l, t])
+		WallSegment.Side.NE: return PackedVector2Array([t, r])
+		WallSegment.Side.SE: return PackedVector2Array([r, b])
+		WallSegment.Side.SW: return PackedVector2Array([b, l])
+	return PackedVector2Array()
+
+func _rebuild_wall_spans() -> void:
+	_wall_spans_all = []
+	for seg in _wall_segments:
+		var edge := _wall_edge_for_side(seg.side)
+		if edge.size() < 2:
+			continue
+		var src := _base_for_side(seg.side)
+		var layer := _wall_layer_for(src)
+		if layer == null:
+			continue
+		var cell_origin := layer.map_to_local(seg.interior_cell)
+		var a := layer.to_global(cell_origin + edge[0])
+		var b := layer.to_global(cell_origin + edge[1])
+		_wall_spans_all.append({"a": a, "b": b, "mid": (a + b) * 0.5, "side": seg.side, "cell": seg.interior_cell})
+	if _wall_span_a.size() != WALL_SPAN_MAX:
+		_wall_span_a.resize(WALL_SPAN_MAX)
+		_wall_span_b.resize(WALL_SPAN_MAX)
+
+func _dist_point_segment_sq(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var pf := _screen_to_floor(to_local(p))
+	var af := _screen_to_floor(to_local(a))
+	var bf := _screen_to_floor(to_local(b))
+	var ab := bf - af
+	var denom := ab.length_squared()
+	if denom <= 0.0001:
+		return pf.distance_squared_to(af)
+	var t: float = clampf((pf - af).dot(ab) / denom, 0.0, 1.0)
+	return pf.distance_squared_to(af + ab * t)
+
+func _closest_point_on_segment(p: Vector2, a: Vector2, b: Vector2) -> Vector2:
+	var pf := _screen_to_floor(to_local(p))
+	var af := _screen_to_floor(to_local(a))
+	var bf := _screen_to_floor(to_local(b))
+	var ab := bf - af
+	var denom := ab.length_squared()
+	if denom <= 0.0001:
+		return a
+	var t: float = clampf((pf - af).dot(ab) / denom, 0.0, 1.0)
+	return to_global(_floor_to_screen(af + ab * t))
+
+func _screen_to_floor(p: Vector2) -> Vector2:
+	return Vector2((p.y / 64.0 + p.x / 128.0) * 0.5, (p.y / 64.0 - p.x / 128.0) * 0.5)
+
+func _floor_to_screen(p: Vector2) -> Vector2:
+	return Vector2(128.0 * (p.x - p.y), 64.0 * (p.x + p.y))
+
+func _apply_wall_floor_basis() -> void:
+	if _iso_wall_mat_solid == null:
+		return
+	var o := to_global(Vector2.ZERO)
+	_iso_wall_mat_solid.set_shader_parameter("wall_floor_origin", o)
+	_iso_wall_mat_solid.set_shader_parameter("wall_floor_u_axis", to_global(Vector2(128, 64)) - o)
+	_iso_wall_mat_solid.set_shader_parameter("wall_floor_v_axis", to_global(Vector2(-128, 64)) - o)
+
+func _update_wall_span_uniforms() -> void:
+	if _iso_wall_mat_solid == null:
+		return
+	if _wall_span_a.size() != WALL_SPAN_MAX:
+		_wall_span_a.resize(WALL_SPAN_MAX)
+		_wall_span_b.resize(WALL_SPAN_MAX)
+	var pl = GameState.player
+	var p := Vector2.ZERO
+	if pl != null and is_instance_valid(pl) and pl is Node2D:
+		# Ancla = marcador "Feet" (mismo que usa la sombra de contacto y la luz, ahora unificados),
+		# no el origen del cuerpo → la cruz/proyección cae justo en los pies.
+		var feet := (pl as Node2D).get_node_or_null("Feet") as Node2D
+		p = feet.global_position if feet != null else (pl as Node2D).global_position
+	var spans := _wall_spans_all.duplicate()
+	spans.sort_custom(func(a, b): return _dist_point_segment_sq(p, a.a, a.b) < _dist_point_segment_sq(p, b.a, b.b))
+	var count: int = mini(spans.size(), WALL_SPAN_MAX)
+	for i in count:
+		_wall_span_a[i] = spans[i].a
+		_wall_span_b[i] = spans[i].b
+	_iso_wall_mat_solid.set_shader_parameter("wall_span_count", count)
+	_iso_wall_mat_solid.set_shader_parameter("wall_span_a", _wall_span_a)
+	_iso_wall_mat_solid.set_shader_parameter("wall_span_b", _wall_span_b)
+	_refresh_wall_span_debug(spans, count, p)
+
+func _refresh_wall_span_debug(spans: Array, count: int, player_pos: Vector2) -> void:
+	if not DEBUG_WALL_SPAN_LINES:
+		return
+	if _wall_span_debug_root == null or not is_instance_valid(_wall_span_debug_root):
+		_wall_span_debug_root = Node2D.new()
+		_wall_span_debug_root.name = "WallSpanDebug"
+		_wall_span_debug_root.top_level = true
+		_wall_span_debug_root.z_as_relative = false
+		_wall_span_debug_root.z_index = 2040
+		add_child(_wall_span_debug_root)
+	for c in _wall_span_debug_root.get_children():
+		c.queue_free()
+	# Solo la cruz roja: pies del jugador proyectados al segmento base del muro más cercano (en
+	# espacio iso). Si cae en la base del muro frente a vos, la proyección está bien.
+	if count > 0:
+		var nearest: Dictionary = spans[0]
+		var q := _closest_point_on_segment(player_pos, nearest.a, nearest.b)
+		_add_debug_line(PackedVector2Array([q + Vector2(-12, 0), q + Vector2(12, 0)]), Color(1.0, 0.0, 0.0, 1.0), 8.0)
+		_add_debug_line(PackedVector2Array([q + Vector2(0, -12), q + Vector2(0, 12)]), Color(1.0, 0.0, 0.0, 1.0), 8.0)
+
+func _add_debug_line(points: PackedVector2Array, color: Color, width: float) -> void:
+	var ln := Line2D.new()
+	ln.top_level = true
+	ln.z_as_relative = false
+	ln.z_index = 2041
+	ln.width = width
+	ln.default_color = color
+	ln.points = points
+	_wall_span_debug_root.add_child(ln)
+
+func _wall_span_debug_color(side: int, rank: int) -> Color:
+	var alpha := 0.95 if rank < 12 else 0.45
+	match side:
+		WallSegment.Side.NW:
+			return Color(1.0, 0.2, 0.8, alpha)
+		WallSegment.Side.NE:
+			return Color(0.1, 0.95, 1.0, alpha)
+		WallSegment.Side.SE:
+			return Color(1.0, 0.85, 0.1, alpha)
+		WallSegment.Side.SW:
+			return Color(0.2, 1.0, 0.35, alpha)
+	return Color(1.0, 1.0, 1.0, alpha)
+
 ## Carga una textura de muro (load normal; fallback a PNG crudo si Godot no la importó aún).
 func _load_wall_tex(path: String) -> Texture2D:
 	var t := load(path) as Texture2D
@@ -446,6 +587,17 @@ func _make_wall_mat() -> ShaderMaterial:
 	flat.set_pixel(0, 0, Color(0.5, 0.5, 1.0))
 	m.set_shader_parameter("normal_tex", ImageTexture.create_from_image(flat))
 	m.set_shader_parameter("relief_floor", 1.0)
+	m.set_shader_parameter("wall_base_projection", true)
+	m.set_shader_parameter("wall_span_projection", true)
+	m.set_shader_parameter("wall_span_count", 0)
+	m.set_shader_parameter("wall_floor_origin", to_global(Vector2.ZERO))
+	m.set_shader_parameter("wall_floor_u_axis", to_global(Vector2(128, 64)) - to_global(Vector2.ZERO))
+	m.set_shader_parameter("wall_floor_v_axis", to_global(Vector2(-128, 64)) - to_global(Vector2.ZERO))
+	m.set_shader_parameter("wall_face_offset", true)
+	m.set_shader_parameter("wall_face_offset_px", 28.0)
+	m.set_shader_parameter("wall_face_offset_start", 32.0)
+	m.set_shader_parameter("wall_face_offset_full", 220.0)
+	m.set_shader_parameter("wall_debug_view", 0)
 	m.set_shader_parameter("use_face_normal", true)   # cara plana direccional (mira a la cámara)
 	return m
 
@@ -527,6 +679,7 @@ func _paint_iso() -> void:
 				set_cell(Vector2i(x, y), ISO_FLOOR_SRC, Vector2i(0, 0))
 	_compute_door_faces()   # qué celda/cara lleva tile de puerta (usa _wall_segments + get_door_specs)
 	_paint_walls()
+	_rebuild_wall_spans()
 	update_internals()
 	if _iso_walls:
 		_iso_walls.update_internals()
@@ -806,6 +959,8 @@ func _update_iso_wall_mat(packed: Dictionary) -> void:
 	var face_n := Vector3(0.0, 1.0, LightCfg.get_v("wall_face_z"))
 	if _iso_wall_mat_solid != null:
 		LightField.apply_lights(_iso_wall_mat_solid, packed)
+		_apply_wall_floor_basis()
+		_update_wall_span_uniforms()
 		_iso_wall_mat_solid.set_shader_parameter("relief_floor", face_floor)
 		_iso_wall_mat_solid.set_shader_parameter("face_normal", face_n)
 		_iso_wall_mat_solid.set_shader_parameter("light_boost", boost)

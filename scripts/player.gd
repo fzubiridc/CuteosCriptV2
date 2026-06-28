@@ -102,6 +102,12 @@ func _ready() -> void:
 	cam.ignore_rotation = true
 	cam.make_current()
 	_setup_light()
+	# Ancla unificada: la luz sale del MISMO punto que la sombra de contacto y la proyección al
+	# muro = el marcador Feet. Así un solo punto (mover Feet) controla los tres.
+	var _feet := get_node_or_null("Feet") as Node2D
+	var _lt := get_node_or_null("Light") as Node2D
+	if _feet and _lt:
+		_lt.position = _feet.position
 	CastShadow.attach(self, body)          # sombra proyectada PRO + contacto (auto-ancla a los pies)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
 	# así la luz le llega "por los pies" y la sombra del muro no lo oscurece.

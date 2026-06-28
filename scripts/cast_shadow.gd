@@ -194,6 +194,9 @@ func _process(_dt: float) -> void:
 		# Evita que la sombra quede por debajo y la entidad parezca flotar.
 		var fpy0: float = _feet_py(tex, h)
 		foot_global = _src.global_position + Vector2(0, (fpy0 - h * 0.5) * bscale)
+	# Contacto CLAVADO en los pies (marcador Feet, SIN cast_lift) → pegado a los pies.
+	var contact_local: Vector2 = to_local(foot_global)
+	# Proyectadas (siluetas): ahí sí aplica el nudge cast_lift.
 	foot_global.y -= lift
 	var foot_local: Vector2 = to_local(foot_global)
 
@@ -201,7 +204,7 @@ func _process(_dt: float) -> void:
 	# de antorchas) y simple. Blob de 64px → /64.
 	var cw: float = w * bscale / 64.0 * _k_contact_size
 	_contact.visible = true
-	_contact.position = foot_local
+	_contact.position = contact_local
 	_contact.scale = Vector2(cw, cw * _k_contact_flat)
 	_contact.modulate = Color(0.0, 0.0, 0.0, _k_contact_alpha)
 
