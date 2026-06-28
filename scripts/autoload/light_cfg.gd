@@ -34,6 +34,8 @@ const DEFS := {
 	# hasta mover el slider). Bajo = luz más SUAVE/difusa que llega más lejos; alto = halo chico y duro.
 	"light_falloff": {"min": 0.5, "max": 4.0, "def": 2.0, "label": "Gradiente caída (entidades/muros)", "group": "Jugador"},
 	"player_soft": {"min": 0.5, "max": 8.0, "def": 2.0, "label": "Suavidad charco piso (2=horneado, >2 gaussiano difuso)", "group": "Jugador"},
+	# Ancla de los pies (Y, px): mueve juntos la luz + la sombra de contacto + la proyección al muro.
+	"feet_y": {"min": -16.0, "max": 32.0, "def": 0.0, "label": "Ancla pies Y (+ = más abajo)", "group": "Jugador"},
 	# --- Mobs: luz propia (aura suave) + a qué distancia se revelan (un poco más que tu luz) ---
 	"mob_reveal_dist": {"min": 0.0, "max": 800.0, "def": 340.0, "label": "Mob: distancia a la que se ven", "group": "Mobs"},
 	"mob_glow_energy": {"min": 0.0, "max": 3.0, "def": 0.9, "label": "Mob: energía del aura", "group": "Mobs"},
@@ -49,6 +51,11 @@ const DEFS := {
 	# --- Direccionalidad de cara de muro iso (que la cara apague la luz del lado opuesto) ---
 	"wall_face_z":     {"min": 0.0, "max": 2.0, "def": 0.6, "label": "Cara: lift de altura (bajo=back más oscuro)", "group": "Muros (luz)"},
 	"wall_face_floor": {"min": 0.0, "max": 1.0, "def": 0.2, "label": "Cara: luz mín. de cara trasera (1=sin direccional)", "group": "Muros (luz)"},
+	# Óvalo de luz del muro: tamaño AL TOCAR como fracción del radio de la luz (atado al charco del
+	# piso). Bajá w hasta que el ancho del óvalo coincida con el del círculo del piso al tocar.
+	"wall_oval_w": {"min": 0.2, "max": 2.0, "def": 0.85, "label": "Óvalo muro: ancho (× radio piso)", "group": "Muros (luz)"},
+	"wall_oval_h": {"min": 0.2, "max": 3.0, "def": 1.10, "label": "Óvalo muro: alto (× radio piso)", "group": "Muros (luz)"},
+	"wall_oval_curve": {"min": 0.2, "max": 2.0, "def": 0.5, "label": "Óvalo muro: curva crecim. (<1=rápido al ppio)", "group": "Muros (luz)"},
 	# --- Antorchas: posición/montaje sobre el borde de muro iso (tuning en vivo) ---
 	"torch_flame_x":     {"min": -60.0,  "max": 60.0,  "def": 0.0,   "label": "Antorcha llama X", "group": "Antorchas (posición)"},
 	"torch_flame_y":     {"min": -110.0, "max": 20.0,  "def": -40.0, "label": "Antorcha llama Y (− sube)", "group": "Antorchas (posición)"},

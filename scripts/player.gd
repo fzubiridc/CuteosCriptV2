@@ -102,12 +102,7 @@ func _ready() -> void:
 	cam.ignore_rotation = true
 	cam.make_current()
 	_setup_light()
-	# Ancla unificada: la luz sale del MISMO punto que la sombra de contacto y la proyección al
-	# muro = el marcador Feet. Así un solo punto (mover Feet) controla los tres.
-	var _feet := get_node_or_null("Feet") as Node2D
-	var _lt := get_node_or_null("Light") as Node2D
-	if _feet and _lt:
-		_lt.position = _feet.position
+	_apply_feet_anchor()                   # ancla unificada (luz+sombra+proyección) + knob feet_y
 	CastShadow.attach(self, body)          # sombra proyectada PRO + contacto (auto-ancla a los pies)
 	# Foot-light: el rig se dibuja UNSHADED y se tinta por LightField cada frame,
 	# así la luz le llega "por los pies" y la sombra del muro no lo oscurece.
@@ -130,6 +125,20 @@ func _on_light_cfg_changed() -> void:
 	var light := get_node_or_null("Light") as PointLight2D
 	if light:
 		_apply_light_tex(light)
+	_apply_feet_anchor()
+
+## Ancla de los pies = marcador Feet en (0, FEET_BASE_Y + knob feet_y). Mueve el marcador (la
+## sombra de contacto y la proyección al muro lo leen cada frame → lo siguen) y resincroniza la
+## luz a ese punto. Un solo knob (feet_y, tecla L) baja/sube los tres juntos.
+const FEET_BASE_Y := 4.0
+func _apply_feet_anchor() -> void:
+	var feet := get_node_or_null("Feet") as Node2D
+	if feet == null:
+		return
+	feet.position = Vector2(0, FEET_BASE_Y + LightCfg.get_v("feet_y"))
+	var light := get_node_or_null("Light") as Node2D
+	if light:
+		light.position = feet.position
 
 ## player_soft = 2.0 (default) → usa el charco HORNEADO (look actual intacto). Si lo movés, genera
 ## el charco por código desde la curva (1-d)^player_soft → manejás el difuminado del charco del piso.

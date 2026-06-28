@@ -51,6 +51,15 @@ uniform float wall_face_offset_start = 32.0;
 uniform float wall_face_offset_full = 220.0;
 // Debug manual: 1 = UV del tile, 2 = linea de base detectada.
 uniform int wall_debug_view = 0;
+// ÓVALO de luz del muro (idea de Felipe): elipse VERTICAL simétrica centrada en la proyección de
+// la luz sobre el muro (la del jugador = la cruz roja), que se ensancha (w) y sube (h) a medida
+// que la luz se acerca al muro. Es óvalo (no círculo) por el achatado iso.
+// El tamaño AL TOCAR el muro = FRACCIÓN del radio de la luz (rad) → atado al charco del piso: si
+// cambia el radio del piso, cambia el del muro solo. Así los bordes piso/pared se unen al tocar.
+uniform float wall_oval_w = 0.85;   // ancho (medio) al tocar = wall_oval_w * rad
+uniform float wall_oval_h = 1.10;   // alto al tocar = wall_oval_h * rad
+uniform float wall_oval_curve = 0.5;  // curva de crecimiento (exponente): <1 = ensancha rápido al
+                                      // principio y frena llegando al muro (ease-out); 1 = lineal
 
 varying vec2 world_pos;
 varying vec2 world_y_axis;
@@ -137,21 +146,53 @@ vec2 closest_on_segment_floor(vec2 p, vec2 a, vec2 b) {
 	return floor_to_screen(closest_on_segment(pf, af, bf));
 }
 
-vec2 wall_span_base_pos(vec2 p) {
+vec2 wall_span_base_pos(vec2 p, out vec2 out_a, out vec2 out_b) {
 	vec2 best = p;
+	out_a = p;
+	out_b = p;
 	float best_d = 1e20;
+	vec2 pf = screen_to_floor(p);
 	for (int i = 0; i < MAX_WALL_SPANS; i++) {
 		if (i >= wall_span_count) { break; }
 		vec2 q = closest_on_segment_floor(p, wall_span_a[i], wall_span_b[i]);
-		vec2 pf = screen_to_floor(p);
 		vec2 qf = screen_to_floor(q);
 		float d = dot(pf - qf, pf - qf);
 		if (d < best_d) {
 			best_d = d;
 			best = q;
+			out_a = wall_span_a[i];
+			out_b = wall_span_b[i];
 		}
 	}
 	return best;
+}
+
+// Segmento base directamente DEBAJO del fragmento (misma columna x en pantalla). A diferencia del
+// "más cercano" (Voronoi → costuras diagonales), esto es continuo dentro de una pared: cada pixel
+// usa la base de SU propia pared, y el cambio ocurre recién en el borde real entre paredes.
+bool wall_span_below(vec2 p, out vec2 out_a, out vec2 out_b, out vec2 out_base) {
+	float best_dy = 1e20;
+	bool found = false;
+	for (int i = 0; i < MAX_WALL_SPANS; i++) {
+		if (i >= wall_span_count) { break; }
+		vec2 a = wall_span_a[i];
+		vec2 b = wall_span_b[i];
+		float minx = min(a.x, b.x);
+		float maxx = max(a.x, b.x);
+		if (p.x < minx || p.x > maxx) { continue; }
+		float t = (abs(b.x - a.x) < 0.001) ? 0.0 : (p.x - a.x) / (b.x - a.x);
+		float by = mix(a.y, b.y, t);     // y de la base del muro en esa columna
+		float dy = by - p.y;             // >0 = base por debajo del fragmento (el muro sube desde ahí)
+		if (dy < -2.0) { continue; }     // base por encima del fragmento → no es su pared
+		if (dy < best_dy) {
+			best_dy = dy;
+			out_a = a;
+			out_b = b;
+			out_base = vec2(p.x, by);
+			found = true;
+		}
+	}
+	return found;
 }
 
 void fragment() {
@@ -168,10 +209,19 @@ void fragment() {
 	float right_a = texture(TEXTURE, vec2(0.96, 0.94)).a;
 	float center_bottom_a = texture(TEXTURE, vec2(0.5, 0.985)).a;
 	vec2 light_sample_pos = world_pos;
+	vec2 span_a = world_pos;   // segmento base del muro del fragmento (para centrar el óvalo)
+	vec2 span_b = world_pos;
 	float wall_z = 0.0;
 	if (wall_span_projection && wall_span_count > 0) {
-		light_sample_pos = wall_span_base_pos(world_pos);
-		wall_z = length(world_pos - light_sample_pos);
+		// Segmento base DEBAJO del fragmento (continuo → sin costuras diagonales); si no hay
+		// ninguno en la columna, cae al "más cercano".
+		vec2 base_below;
+		if (wall_span_below(world_pos, span_a, span_b, base_below)) {
+			light_sample_pos = base_below;
+		} else {
+			light_sample_pos = wall_span_base_pos(world_pos, span_a, span_b);
+		}
+		wall_z = max(light_sample_pos.y - world_pos.y, 0.0);
 	} else if (wall_base_projection) {
 		float base_y = wall_base_y_px(UV, tex_size, left_a, right_a, center_bottom_a);
 		float y_px = UV.y * tex_size.y;
@@ -202,31 +252,42 @@ void fragment() {
 		n = normalize(n);
 	}
 
+	bool oval_mode = (wall_span_projection && wall_span_count > 0);
 	vec3 acc = ambient;
 	for (int i = 0; i < MAX_LIGHTS; i++) {
 		if (i >= light_count) { break; }
 		float rad = light_radius[i];
 		if (rad <= 0.0) { continue; }
 		vec2 lpos = light_pos[i];
-		if (wall_face_offset) {
-			float od = length(lpos - light_sample_pos);
-			float ot = smoothstep(wall_face_offset_start, wall_face_offset_full, od);
-			lpos += offset_dir * wall_face_offset_px * ot;
+		vec2 delta = lpos - light_sample_pos;   // luz → base (para el facing direccional)
+		float att;
+		if (oval_mode) {
+			// ÓVALO VERTICAL en el muro, CENTRADO en la proyección de ESTA luz sobre el muro
+			// (la del jugador = la cruz roja). Se ensancha y sube cuanto más cerca está la luz del
+			// muro (c). Es elipse axis-aligned en pantalla → óvalo vertical simétrico, sin inclinar.
+			vec2 center = closest_on_segment_floor(lpos, span_a, span_b);
+			float dist = distance(lpos, center);                  // luz → muro (perpendicular)
+			float c = clamp(1.0 - dist / rad, 0.0, 1.0);
+			if (c <= 0.0) { continue; }
+			vec2 off = world_pos - center;                        // fragmento vs centro del óvalo
+			// Tamaño = fracción del radio (atado al charco) × crecimiento NO-LINEAL al acercarse:
+			// pow(c, curve) con curve<1 ensancha rápido al principio y frena llegando al muro.
+			float g = pow(c, wall_oval_curve);
+			float aw = rad * wall_oval_w * mix(0.25, 1.0, g);     // medio-ancho
+			float ah = rad * wall_oval_h * mix(0.30, 1.0, g);     // alto
+			float e = (off.x * off.x) / (aw * aw) + (off.y * off.y) / (ah * ah);
+			att = pow(clamp(1.0 - e, 0.0, 1.0), light_falloff) * light_energy[i] * c;
+		} else {
+			float d = length(delta);
+			if (d >= rad) { continue; }
+			att = pow(1.0 - d / rad, light_falloff) * light_energy[i];
 		}
-		vec2 delta = lpos - light_sample_pos;
-		float d = wall_base_projection ? length(vec3(delta, wall_z)) : length(delta);
-		if (d >= rad) { continue; }
-		float att = pow(1.0 - d / rad, light_falloff) * light_energy[i];
-		// Direccionalidad de la cara.
+		// Direccionalidad de la cara (no iluminar la cara desde atrás del muro).
 		float ndl;
 		if (use_face_normal) {
-			// Facing 2D PURO: independiente de distancia y de la ALTURA de la luz. Clave →
-			// una luz cercana DETRÁS del muro no debe iluminar la cara por su componente de
-			// altura (ese era el bug). >0 = luz del lado que mira la cara; <0 = detrás.
 			float facing = dot(normalize(face_normal.xy), normalize(delta));
 			ndl = clamp(facing, 0.0, 1.0);
 		} else {
-			// Relieve por normal-map: luz en (dx, dy, altura) contra la normal del ladrillo.
 			vec3 ldir = normalize(vec3(delta, max(light_height[i], 1.0)));
 			ndl = max(dot(n, ldir), 0.0);
 		}

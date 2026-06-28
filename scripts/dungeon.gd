@@ -17,7 +17,7 @@ const ROOM_COUNT := 20
 const USE_DOORS := true
 const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmentos de muro). Off en producción.
 
-const DEBUG_WALL_SPAN_LINES := true   # cruz roja: pies proyectados al muro (validar la proyección iso)
+const DEBUG_WALL_SPAN_LINES := false   # true = cruz roja: pies proyectados al muro (validar proyección iso)
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
 var grid: Array = []
@@ -436,7 +436,8 @@ func _wall_edge_for_side(side: int) -> PackedVector2Array:
 	return PackedVector2Array()
 
 func _rebuild_wall_spans() -> void:
-	_wall_spans_all = []
+	# 1) Crudo: un segmento por WallSegment (arista de rombo por celda).
+	var raw: Array = []
 	for seg in _wall_segments:
 		var edge := _wall_edge_for_side(seg.side)
 		if edge.size() < 2:
@@ -448,10 +449,42 @@ func _rebuild_wall_spans() -> void:
 		var cell_origin := layer.map_to_local(seg.interior_cell)
 		var a := layer.to_global(cell_origin + edge[0])
 		var b := layer.to_global(cell_origin + edge[1])
-		_wall_spans_all.append({"a": a, "b": b, "mid": (a + b) * 0.5, "side": seg.side, "cell": seg.interior_cell})
+		raw.append({"a": a, "b": b, "side": seg.side})
+	# 2) Fusionar los segmentos COLINEALES del mismo lado en UN tramo por muro (el muro como una
+	#    unidad continua) → la proyección del shader no salta entre piezas = sin costuras diagonales.
+	_wall_spans_all = _merge_wall_spans(raw)
 	if _wall_span_a.size() != WALL_SPAN_MAX:
 		_wall_span_a.resize(WALL_SPAN_MAX)
 		_wall_span_b.resize(WALL_SPAN_MAX)
+
+## Agrupa los segmentos por (lado, línea sobre la que yacen) y reduce cada grupo a UN span con los
+## endpoints extremos → un muro recto pasa de N piezas a una sola línea continua.
+func _merge_wall_spans(raw: Array) -> Array:
+	var groups := {}
+	for s in raw:
+		var d: Vector2 = s.b - s.a
+		if d.length() < 0.001:
+			continue
+		var dn := d.normalized()
+		var nrm := Vector2(-dn.y, dn.x)              # normal → offset perpendicular de la línea
+		var off: float = roundf(s.a.dot(nrm) / 3.0)  # tol ~3px: misma línea = mismo offset
+		var key := "%d_%d" % [int(s.side), int(off)]
+		if not groups.has(key):
+			groups[key] = {"dir": dn, "side": int(s.side), "min_t": 1e20, "max_t": -1e20, "pa": s.a, "pb": s.b}
+		var g = groups[key]
+		for p in [s.a, s.b]:
+			var t: float = p.dot(g.dir)
+			if t < g.min_t:
+				g.min_t = t
+				g.pa = p
+			if t > g.max_t:
+				g.max_t = t
+				g.pb = p
+	var out: Array = []
+	for key in groups:
+		var g = groups[key]
+		out.append({"a": g.pa, "b": g.pb, "mid": (g.pa + g.pb) * 0.5, "side": g.side, "cell": Vector2i.ZERO})
+	return out
 
 func _dist_point_segment_sq(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var pf := _screen_to_floor(to_local(p))
@@ -593,7 +626,7 @@ func _make_wall_mat() -> ShaderMaterial:
 	m.set_shader_parameter("wall_floor_origin", to_global(Vector2.ZERO))
 	m.set_shader_parameter("wall_floor_u_axis", to_global(Vector2(128, 64)) - to_global(Vector2.ZERO))
 	m.set_shader_parameter("wall_floor_v_axis", to_global(Vector2(-128, 64)) - to_global(Vector2.ZERO))
-	m.set_shader_parameter("wall_face_offset", true)
+	m.set_shader_parameter("wall_face_offset", false)   # nudge lateral por cara: OFF (deformaba la mancha)
 	m.set_shader_parameter("wall_face_offset_px", 28.0)
 	m.set_shader_parameter("wall_face_offset_start", 32.0)
 	m.set_shader_parameter("wall_face_offset_full", 220.0)
@@ -966,3 +999,6 @@ func _update_iso_wall_mat(packed: Dictionary) -> void:
 		_iso_wall_mat_solid.set_shader_parameter("light_boost", boost)
 		_iso_wall_mat_solid.set_shader_parameter("cap", LightCfg.LIGHT_CAP * boost)   # cap de luz (antes literal 1.4)
 		_iso_wall_mat_solid.set_shader_parameter("light_falloff", LightCfg.get_v("light_falloff"))
+		_iso_wall_mat_solid.set_shader_parameter("wall_oval_w", LightCfg.get_v("wall_oval_w"))
+		_iso_wall_mat_solid.set_shader_parameter("wall_oval_h", LightCfg.get_v("wall_oval_h"))
+		_iso_wall_mat_solid.set_shader_parameter("wall_oval_curve", LightCfg.get_v("wall_oval_curve"))
