@@ -17,7 +17,6 @@ const ROOM_COUNT := 20
 const USE_DOORS := true
 const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmentos de muro). Off en producción.
 
-const DEBUG_WALL_SPAN_LINES := false   # true = cruz roja: pies proyectados al muro (validar proyección iso)
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
 var grid: Array = []
@@ -109,7 +108,6 @@ const WALL_SPAN_MAX := 96
 var _wall_spans_all: Array = []
 var _wall_span_a := PackedVector2Array()
 var _wall_span_b := PackedVector2Array()
-var _wall_span_debug_root: Node2D
 var _corner_sprites: Array = []  # Fase 2: piezas extra de celdas con 3 bordes (Sprite2D permanente)
 # Fase 3: reveal por habitación (reemplaza el viejo cutout). Cada celda de piso pertenece
 # a una sala (rect de procgen); al entrar, la fachada trasera de esa sala baja a semitransparente
@@ -497,17 +495,6 @@ func _dist_point_segment_sq(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var t: float = clampf((pf - af).dot(ab) / denom, 0.0, 1.0)
 	return pf.distance_squared_to(af + ab * t)
 
-func _closest_point_on_segment(p: Vector2, a: Vector2, b: Vector2) -> Vector2:
-	var pf := _screen_to_floor(to_local(p))
-	var af := _screen_to_floor(to_local(a))
-	var bf := _screen_to_floor(to_local(b))
-	var ab := bf - af
-	var denom := ab.length_squared()
-	if denom <= 0.0001:
-		return a
-	var t: float = clampf((pf - af).dot(ab) / denom, 0.0, 1.0)
-	return to_global(_floor_to_screen(af + ab * t))
-
 func _screen_to_floor(p: Vector2) -> Vector2:
 	return Vector2((p.y / 64.0 + p.x / 128.0) * 0.5, (p.y / 64.0 - p.x / 128.0) * 0.5)
 
@@ -544,50 +531,6 @@ func _update_wall_span_uniforms() -> void:
 	_iso_wall_mat_solid.set_shader_parameter("wall_span_count", count)
 	_iso_wall_mat_solid.set_shader_parameter("wall_span_a", _wall_span_a)
 	_iso_wall_mat_solid.set_shader_parameter("wall_span_b", _wall_span_b)
-	_refresh_wall_span_debug(spans, count, p)
-
-func _refresh_wall_span_debug(spans: Array, count: int, player_pos: Vector2) -> void:
-	if not DEBUG_WALL_SPAN_LINES:
-		return
-	if _wall_span_debug_root == null or not is_instance_valid(_wall_span_debug_root):
-		_wall_span_debug_root = Node2D.new()
-		_wall_span_debug_root.name = "WallSpanDebug"
-		_wall_span_debug_root.top_level = true
-		_wall_span_debug_root.z_as_relative = false
-		_wall_span_debug_root.z_index = 2040
-		add_child(_wall_span_debug_root)
-	for c in _wall_span_debug_root.get_children():
-		c.queue_free()
-	# Solo la cruz roja: pies del jugador proyectados al segmento base del muro más cercano (en
-	# espacio iso). Si cae en la base del muro frente a vos, la proyección está bien.
-	if count > 0:
-		var nearest: Dictionary = spans[0]
-		var q := _closest_point_on_segment(player_pos, nearest.a, nearest.b)
-		_add_debug_line(PackedVector2Array([q + Vector2(-12, 0), q + Vector2(12, 0)]), Color(1.0, 0.0, 0.0, 1.0), 8.0)
-		_add_debug_line(PackedVector2Array([q + Vector2(0, -12), q + Vector2(0, 12)]), Color(1.0, 0.0, 0.0, 1.0), 8.0)
-
-func _add_debug_line(points: PackedVector2Array, color: Color, width: float) -> void:
-	var ln := Line2D.new()
-	ln.top_level = true
-	ln.z_as_relative = false
-	ln.z_index = 2041
-	ln.width = width
-	ln.default_color = color
-	ln.points = points
-	_wall_span_debug_root.add_child(ln)
-
-func _wall_span_debug_color(side: int, rank: int) -> Color:
-	var alpha := 0.95 if rank < 12 else 0.45
-	match side:
-		WallSegment.Side.NW:
-			return Color(1.0, 0.2, 0.8, alpha)
-		WallSegment.Side.NE:
-			return Color(0.1, 0.95, 1.0, alpha)
-		WallSegment.Side.SE:
-			return Color(1.0, 0.85, 0.1, alpha)
-		WallSegment.Side.SW:
-			return Color(0.2, 1.0, 0.35, alpha)
-	return Color(1.0, 1.0, 1.0, alpha)
 
 ## Carga una textura de muro (load normal; fallback a PNG crudo si Godot no la importó aún).
 func _load_wall_tex(path: String) -> Texture2D:
