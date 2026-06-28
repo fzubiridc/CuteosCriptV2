@@ -183,7 +183,9 @@ bool wall_span_below(vec2 p, out vec2 out_a, out vec2 out_b, out vec2 out_base) 
 		float t = (abs(b.x - a.x) < 0.001) ? 0.0 : (p.x - a.x) / (b.x - a.x);
 		float by = mix(a.y, b.y, t);     // y de la base del muro en esa columna
 		float dy = by - p.y;             // >0 = base por debajo del fragmento (el muro sube desde ahí)
-		if (dy < -2.0) { continue; }     // base por encima del fragmento → no es su pared
+		// Margen: la cara frontal del sprite cae UN POCO debajo de la línea base (el rombo). Sin este
+		// margen, esa franja de abajo no encontraba su base → caía al fallback → quedaba oscura.
+		if (dy < -40.0) { continue; }    // base muy por encima del fragmento → no es su pared
 		if (dy < best_dy) {
 			best_dy = dy;
 			out_a = a;
@@ -262,20 +264,28 @@ void fragment() {
 		vec2 delta = lpos - light_sample_pos;   // luz → base (para el facing direccional)
 		float att;
 		if (oval_mode) {
-			// ÓVALO VERTICAL en el muro, CENTRADO en la proyección de ESTA luz sobre el muro
-			// (la del jugador = la cruz roja). Se ensancha y sube cuanto más cerca está la luz del
-			// muro (c). Es elipse axis-aligned en pantalla → óvalo vertical simétrico, sin inclinar.
+			// ÓVALO en el muro, CENTRADO en la proyección de ESTA luz sobre el muro (la del jugador
+			// = la cruz roja). Se ensancha y sube cuanto más cerca está la luz del muro (c).
 			vec2 center = closest_on_segment_floor(lpos, span_a, span_b);
 			float dist = distance(lpos, center);                  // luz → muro (perpendicular)
 			float c = clamp(1.0 - dist / rad, 0.0, 1.0);
 			if (c <= 0.0) { continue; }
 			vec2 off = world_pos - center;                        // fragmento vs centro del óvalo
+			// SKEW iso: en vez de ejes de pantalla, el eje "ancho" sigue la DIRECCIÓN de la base del
+			// muro (diagonal, distinta por cara NE/NW/SE/SW) y el "alto" es vertical → la elipse se
+			// acuesta sobre el muro en perspectiva (un óvalo chato no se ve como franja recta torcida).
+			vec2 wdir = normalize(span_b - span_a);
+			float along = (abs(wdir.x) > 0.001) ? off.x / wdir.x : off.x;  // distancia a lo largo del muro
+			float up = off.y - along * wdir.y;                             // alto vertical (sacado el along)
+			// Solo se apaga hacia ARRIBA: la base y la franja de abajo (up>0, bajo el centro) quedan
+			// iluminadas → no más línea oscura en la unión muro/piso.
+			float up_h = max(-up, 0.0);
 			// Tamaño = fracción del radio (atado al charco) × crecimiento NO-LINEAL al acercarse:
 			// pow(c, curve) con curve<1 ensancha rápido al principio y frena llegando al muro.
 			float g = pow(c, wall_oval_curve);
-			float aw = rad * wall_oval_w * mix(0.25, 1.0, g);     // medio-ancho
-			float ah = rad * wall_oval_h * mix(0.30, 1.0, g);     // alto
-			float e = (off.x * off.x) / (aw * aw) + (off.y * off.y) / (ah * ah);
+			float aw = rad * wall_oval_w * mix(0.25, 1.0, g);     // medio-ancho (a lo largo del muro)
+			float ah = rad * wall_oval_h * mix(0.30, 1.0, g);     // alto (vertical)
+			float e = (along * along) / (aw * aw) + (up_h * up_h) / (ah * ah);
 			att = pow(clamp(1.0 - e, 0.0, 1.0), light_falloff) * light_energy[i] * c;
 		} else {
 			float d = length(delta);

@@ -53,8 +53,10 @@ var _gen_room_cells: Array = []
 const ISO := true
 const NATIVE_WALLS := false  # false = caras de muro UNSHADED (no reciben sombra → sin self-shadow). El PISO
 							 # sí es nativo y recibe la sombra del occluder → sombra natural en el piso.
-const WALL_SHADOWS := true   # los muros proyectan sombra (occluder) SOBRE EL PISO. Como las caras son
-							 # unshaded, no se auto-sombrean. Robusto: sombra natural sin self-shadow.
+const WALL_SHADOWS := false  # OFF (2026-06-28): con cuartos cerrados la luz no se fuga, así que los muros
+							 # NO necesitan proyectar sombra sobre el piso → evita la banda oscura en la unión
+							 # pared/piso. TODA la lógica del occluder queda intacta (polígonos + instalación);
+							 # re-activar = volver a `true`. (Antes true: sombra del occluder sobre el piso nativo.)
 const WallSegment := preload("res://scripts/wall_segment.gd")
 const ISO_TILESET := preload("res://assets/iso/iso_pixel.tres")
 # Muros = TILES del TileSet. El texture_origin de cada pieza se afina en el EDITOR de TileSet
@@ -309,7 +311,7 @@ func _ensure_wall_variants() -> void:
 				ISO_TILESET.add_source(src, vid)   # add_source ANTES: el tile hereda la occlusion layer del TileSet
 				var td := src.get_tile_data(Vector2i(0, 0), 0)
 				td.texture_origin = Vector2i(origin)
-				if edge.size() > 0 and ISO_TILESET.get_occlusion_layers_count() > 0:
+				if WALL_SHADOWS and edge.size() > 0 and ISO_TILESET.get_occlusion_layers_count() > 0:
 					var occ := OccluderPolygon2D.new()
 					occ.closed = false
 					occ.cull_mode = OccluderPolygon2D.CULL_DISABLED
@@ -588,6 +590,8 @@ func _install_iso_occluders() -> void:
 		ts.add_occlusion_layer()
 	# light_mask 0 → ningún occluder de muro proyecta sombra (mata self-shadow + gigantes).
 	ts.set_occlusion_layer_light_mask(0, 1 if WALL_SHADOWS else 0)
+	if not WALL_SHADOWS:
+		return   # ni siquiera instalamos los polígonos → cero occluders de muro (cuartos cerrados)
 	# Esquinas del rombo de piso (centro de celda): Top, Right, Bottom, Left.
 	var t := Vector2(0, -64)
 	var r := Vector2(128, 0)

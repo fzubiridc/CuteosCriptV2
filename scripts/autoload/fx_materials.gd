@@ -10,7 +10,7 @@ static var _mix: CanvasItemMaterial
 
 ## ADD + UNSHADED: suma destello (glow aditivo) sin recibir la luz de la escena. Para orbes
 ## glow, fuego del AoE y discos/flashes de impacto. Lazy-init cacheado (se crea al 1er uso).
-static func add_unshaded() -> CanvasItemMaterial:
+func add_unshaded() -> CanvasItemMaterial:
 	if _add == null:
 		_add = CanvasItemMaterial.new()
 		_add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -19,7 +19,7 @@ static func add_unshaded() -> CanvasItemMaterial:
 
 ## Solo UNSHADED (blend normal): arte con glow propio que no debe oscurecerse con la luz del
 ## mundo (animación `power`/`powerboom` del orbe del mago, estela del dash). Lazy-init cacheado.
-static func mix_unshaded() -> CanvasItemMaterial:
+func mix_unshaded() -> CanvasItemMaterial:
 	if _mix == null:
 		_mix = CanvasItemMaterial.new()
 		_mix.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
