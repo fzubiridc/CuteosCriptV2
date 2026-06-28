@@ -56,6 +56,10 @@ var dash_t := 0.0
 var dash_cd_t := 0.0
 var aoe_cd_t := 0.0
 var dash_vel := Vector2.ZERO
+
+# --- Barra de habilidades (slots clásicos 1-4, ver AbilityDefs) ---
+var skill_slots: Array = AbilityDefs.DEFAULT_SLOTS.duplicate()   # ids de habilidad por slot ("" = vacío)
+var skill_cd := [0.0, 0.0, 0.0, 0.0]                             # cooldown restante por slot
 static var _px_tex: Texture2D            # 1×1 blanco compartido (partícula del dash)
 var ifr := 0.0
 
@@ -130,18 +134,29 @@ func _apply_light_tex(light: PointLight2D) -> void:
 		if pool != null:
 			light.texture = pool
 			return
-	# Charco elíptico (achatado en Y → vista 3/4) con falloff tuneable.
-	var s := 256
-	var img := Image.create_empty(s, s, false, Image.FORMAT_RGBA8)
+	# Charco elíptico (achatado en Y → vista 3/4) con caída GAUSSIANA: el perímetro se DIFUMINA en
+	# vez de cortar en un círculo nítido (lo que pidió Felipe). La pow(1-d,p) anterior, aun en su
+	# máximo (p=4), dejaba un borde demasiado definido. La gaussiana tiene una cola larga y suave;
+	# le restamos el valor del borde para que llegue a 0 sin dejar un anillo en el límite de la
+	# textura. player_soft controla el ancho (sigma): más alto = más difuso/extendido.
+	# RGBAH (half float) en vez de RGBA8: con 8 bits el degradé gaussiano quantiza en escalones y,
+	# como el light_pool se samplea NEAREST y escalado, esos escalones se ven como ANILLOS
+	# concéntricos. En punto flotante cada texel difiere apenas → degradé continuo, sin aros.
+	var s := 320
+	var img := Image.create_empty(s, s, false, Image.FORMAT_RGBAH)
 	var c := Vector2(s / 2.0, s / 2.0)
 	var maxd := s / 2.0
+	var sigma := clampf(0.12 * p, 0.12, 0.9)          # p=4 → 0.48 (bien difuso); p=8 → 0.9
+	var two_sig2 := 2.0 * sigma * sigma
+	var edge := exp(-1.0 / two_sig2)                  # valor en el borde → restado para llegar a 0 sin anillo
+	var inv := 1.0 / maxf(1.0 - edge, 0.0001)
 	for y in s:
 		for x in s:
 			var off := Vector2(x, y) - c
 			off.y *= 2.0   # achatado Y (mismo look 3/4 que el charco horneado)
 			var d := off.length() / maxd
-			var a := clampf(1.0 - d, 0.0, 1.0)
-			a = pow(a, p)
+			var g := exp(-(d * d) / two_sig2)
+			var a := clampf((g - edge) * inv, 0.0, 1.0)
 			img.set_pixel(x, y, Color(1, 1, 1, a))
 	light.texture = ImageTexture.create_from_image(img)
 
@@ -185,7 +200,7 @@ func to_save() -> Dictionary:
 		"crit": crit, "atkspd_mul": atkspd_mul, "defense": defense,
 		"hp": hp, "mana": mana, "coins": coins, "xp": xp, "level": level,
 		"xp_to_next": xp_to_next, "potions": potions,
-		"equip": equip, "bag": bag,
+		"equip": equip, "bag": bag, "skill_slots": skill_slots,
 	}
 
 func load_save(d: Dictionary) -> void:
@@ -202,11 +217,15 @@ func load_save(d: Dictionary) -> void:
 	potions = int(d.get("potions", 1))
 	equip = d.get("equip", equip)
 	bag = d.get("bag", [])
+	var saved_slots: Variant = d.get("skill_slots", null)
+	if saved_slots is Array and saved_slots.size() == skill_slots.size():
+		skill_slots = (saved_slots as Array).duplicate()
 	hp = mini(int(d.get("hp", max_hp())), max_hp())
 	mana = float(d.get("mana", max_mana))
 	_refresh_weapon()
 	GameState.coins_changed.emit(coins)
 	GameState.xp_changed.emit(xp, level)
+	GameState.skills_changed.emit()
 
 func _weapon_type_data() -> Dictionary:
 	var w = equip.get("arma", null)
@@ -363,8 +382,11 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("dash"): _try_dash()
 	if Input.is_action_pressed("attack"): _try_attack()
 	if Input.is_action_just_pressed("potion"): _use_potion()
-	# E = interact con prioridad: si no hay nada para interactuar cerca, lanza el AoE.
-	if Input.is_action_just_pressed("interact") and not _interactable_near(): _try_aoe()
+	# Barra de habilidades (slots 1-4). El Meteoro/AoE migró acá (slot 1); E quedó solo para
+	# interactuar (cofres/mercader, que escuchan E ellos mismos).
+	for i in 4:
+		if Input.is_action_just_pressed("skill_%d" % (i + 1)):
+			_cast_slot(i)
 	if shake_t > 0.0:
 		shake_t -= delta
 		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amt * (shake_t / 0.25)
@@ -382,6 +404,9 @@ func _tick_timers(delta: float) -> void:
 	dash_cd_t = maxf(0.0, dash_cd_t - delta)
 	ifr = maxf(0.0, ifr - delta)
 	no_cast_t += delta
+	for i in skill_cd.size():
+		if skill_cd[i] > 0.0:
+			skill_cd[i] = maxf(0.0, skill_cd[i] - delta)
 
 func _regen_mana(delta: float) -> void:
 	if no_cast_t > 0.6 and mana < max_mana:
@@ -564,6 +589,108 @@ func _try_aoe() -> void:
 	var a := AOE.new()
 	get_parent().add_child(a)
 	a.setup(get_global_mouse_position(), int(attack_damage() * AOE_DMG_MUL), 1.0)
+
+# --- Barra de habilidades --------------------------------------------------------
+## Dispara la habilidad del slot i (0-3) si está lista (cooldown) y hay maná. El cooldown y
+## el coste salen de AbilityDefs; el EFECTO de cada id vive en _cast_ability (un solo lugar).
+func _cast_slot(i: int) -> void:
+	if i < 0 or i >= skill_slots.size():
+		return
+	var id: String = skill_slots[i]
+	if id == "" or not AbilityDefs.has(id):
+		return
+	if skill_cd[i] > 0.0:
+		return
+	var d := AbilityDefs.get_def(id)
+	var cost := float(d.get("mana", 0.0))
+	if mana < cost:
+		return
+	if not _cast_ability(id):   # la habilidad puede abortar (heal a vida llena, sin dirección…)
+		return
+	mana -= cost
+	skill_cd[i] = float(d.get("cooldown", 0.0))
+	no_cast_t = 0.0
+
+## Efecto de cada habilidad. Devuelve true si se ejecutó (consume maná + dispara cooldown).
+func _cast_ability(id: String) -> bool:
+	match id:
+		"meteor":
+			var a := AOE.new()
+			get_parent().add_child(a)
+			a.setup(get_global_mouse_position(), int(attack_damage() * AOE_DMG_MUL), 1.0)
+			return true
+		"nova":
+			# Orbes arcanos en abanico completo (achatados al plano iso). Vuelan rectos.
+			var n := 14
+			for k in n:
+				var ang := TAU * float(k) / float(n)
+				var dir := Vector2(cos(ang), sin(ang) * 0.5)
+				if dir.length() < 0.001:
+					continue
+				var p := PROJECTILE.instantiate()
+				get_parent().add_child(p)
+				if Dungeon.ISO:
+					p.scale = Vector2(1.4, 1.4)
+				p.setup(global_position + Vector2(0, 4.0), dir.normalized(), attack_damage(), true, 230.0)
+			Audio.play("cast", -4.0)
+			return true
+		"heal":
+			if hp >= max_hp():
+				return false
+			var amt := int(max_hp() * 0.35)
+			heal(amt)
+			GameState.floater(global_position, "+%d" % amt, Color(0.6, 1.0, 0.7))
+			Audio.play("heal")
+			return true
+		"blink":
+			var dir := _aim_dir(global_position)
+			if dir == Vector2.ZERO:
+				return false
+			# Reusa la mecánica del dash (move_and_slide → no atraviesa muros), más rápido/largo.
+			dash_vel = Vector2(dir.x, dir.y * 0.5).normalized() * (float(Data.BALANCE.dash_speed) * 1.45)
+			dash_t = 0.16
+			ifr = maxf(ifr, dash_t + 0.06)
+			Audio.play("dash")
+			return true
+		"frost":
+			# Estallido glacial: daño + empuje en un radio alrededor del jugador, con anillo visual.
+			var r := 160.0
+			var dmg := int(attack_damage() * 1.6)
+			for nn in get_parent().get_children():
+				if (nn is Enemy or nn is Boss) and is_instance_valid(nn):
+					var off: Vector2 = (nn as Node2D).global_position - global_position
+					if off.length() < r:
+						nn.take_damage(dmg, off.normalized() * 130.0, false, Color(0.6, 0.92, 1.0))
+			_spawn_frost_ring(r)
+			Audio.play("boom", -6.0)
+			return true
+		"dash":
+			_try_dash()
+			return false   # el dash maneja su propio cooldown/feel; el slot no lo duplica
+	return false
+
+## Anillo de escarcha que se expande y se desvanece (visual del Estallido Glacial).
+func _spawn_frost_ring(radius: float) -> void:
+	var ring := Sprite2D.new()
+	ring.texture = load("res://assets/fx/light_radial.tres")
+	ring.material = FxMaterials.add_unshaded()
+	ring.modulate = Color(0.6, 0.92, 1.0, 0.85)
+	ring.z_index = 5
+	ring.global_position = global_position + Vector2(0, 4.0)
+	ring.scale = LightCfg.floor_scale() * 0.2
+	get_parent().add_child(ring)
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", LightCfg.floor_scale() * (radius / 80.0), 0.32).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.34).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(ring.queue_free)
+
+## Asigna una habilidad a un slot (panel de habilidades). id="" limpia el slot.
+func assign_skill(slot: int, id: String) -> void:
+	if slot < 0 or slot >= skill_slots.size():
+		return
+	skill_slots[slot] = id
+	GameState.skills_changed.emit()
 
 ## Dirección de apuntado: hacia el mouse.
 func _aim_dir(from: Vector2) -> Vector2:

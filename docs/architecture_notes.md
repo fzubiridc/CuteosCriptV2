@@ -258,6 +258,35 @@ Player (player.gd):
 - `scripts/campfire.gd` (`class_name Campfire`, `scenes/campfire.tscn`) — fogata: sprite animado (unshaded)
   + luz cálida con parpadeo + crepitar posicional. `DungeonDecor.place_campfires` la coloca ~1/3 de salas.
 
+## 10.bis. Barra de habilidades (NUEVO 2026-06-28) — `scripts/ui/skill_bar.gd` + `scripts/ability_defs.gd` + `player.gd`
+```
+AbilityDefs (RefCounted, class_name) — registro data-driven: LIST{id→{name,desc,cooldown,mana,color}},
+  DEFAULT_SLOTS, ids(), icon(id) (PNG del autor en assets/ui/skills/<id>.png o gema generada).
+player.gd — skill_slots[4] (ids) + skill_cd[4] (cooldown restante, decrementa en _tick_timers).
+  Input skill_1..4 (teclas 1-4) → _cast_slot(i): chequea cooldown+maná, llama _cast_ability(id) (efecto),
+  setea skill_cd[i]=cooldown y resta maná. _cast_ability(id) (match): meteor (=AOE), nova (orbes radiales),
+  heal (maná→vida), blink (dash al cursor, reusa move_and_slide → no cruza muros), frost (PBAoE daño+empuje
+  + anillo visual), dash (delega a _try_dash). assign_skill(slot,id) → GameState.skills_changed.
+  Persistido en to_save/load_save ("skill_slots").
+SkillBar (Control, hijo del HUD) — barra de 4 slots abajo-centro (arriba de la XP): bg slot.png + ícono +
+  overlay de cooldown que se DRENA (offset_top) + segundos + tecla. Atenúa el ícono sin maná. Panel de
+  asignación (tecla skills_menu=K): pausa, elegís slot + habilidad → player.assign_skill. Lee GameState.player.
+CAMBIO: el AoE ya NO se castea con E (interact); migró al slot 1 (meteor). E quedó solo para interactuar.
+```
+
+## 4.bis. Cull de luces por proximidad (NUEVO 2026-06-28) — `light_field.pack_lights`
+El pack para el shader topa en `MAX_LIGHTS=64` con estáticas primero y auras de mob (`_dynamic`) al final →
+en pisos con muchas antorchas/fogatas las auras quedaban fuera y el mob salía negro. Fix: `LIGHT_CULL_DIST=560`
+descarta luces a más de esa distancia (+ su radio) del jugador — no iluminan ningún píxel en pantalla (cámara
+clavada, zoom 4) pero robaban slots. La luz del jugador (dist 0) nunca se descarta. NO cambia el modelo de luz;
+`sample()` (CPU, sin cap de slots) queda igual. La luz NATIVA del piso (PointLight2D) no se ve afectada.
+
+## 3.bis. Minimapa = radar centrado en el jugador (CAMBIO 2026-06-28) — `minimap.gd`
+El minimapa chico ahora es un **radar de tamaño FIJO** (`MINI_VIEW=150`) con el jugador clavado al centro como
+punto; el mapa se desliza. Implementado con un `AtlasTexture` (`_mini_atlas`) sobre `_tex` cuya `region` sigue
+la celda del jugador (`MINI_TILES=28` de ancho). El shader circular enmascara por UV del box (sin cambios). El
+mapa grande (tecla M) sigue siendo vista general con marcadores absolutos.
+
 ## 11. PENDIENTES / deuda que SIGUE (verificado contra el código)
 - **nav AStarGrid**: el "piso-con-muro" queda caminable; el borde real lo bloquea la colisión de perímetro,
   no el nav (ver ⚠ en §1).

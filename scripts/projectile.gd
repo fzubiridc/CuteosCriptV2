@@ -177,6 +177,9 @@ func set_bolt_frames(travel: Array, impact: Array, scale_mul := 1.0) -> void:
 			Color(1.0, 0.3, 0.05, 0.0)])
 		_trail.color_ramp = ramp
 		_trail.color = Color(1, 1, 1, 1)
+	# El orbe ya tiene su escala FINAL del bolt → re-reseteo la interpolacion (setup() la dejo
+	# en la escala del orbe 'power', mas grande) para que el 1er frame NO aparezca gigante.
+	reset_physics_interpolation()
 
 ## Engancha el FX nuevo (SpellFX) ALREDEDOR del bolt existente, sin reemplazarlo (core_mode
 ## "external"): suma estela ribbon + particulas GPU. El perfil sale de SpellLibrary (tool
@@ -299,6 +302,10 @@ func _impact(on_wall := false) -> void:
 			sf.add_frame("boom", t)
 		boom.sprite_frames = sf
 		boom.scale = Vector2(0.7, 0.7)
+		# El impacto de la vara tiene DIRECCIÓN (igual que el bolt en viaje): lo rotamos a la
+		# dirección de vuelo, asumiendo que el arte de viaje e impacto están alineados (mismo
+		# eje de referencia). El powerboom default es radial → NO se rota (queda abajo).
+		boom.rotation = velocity.angle()
 	else:
 		boom.sprite_frames = _get_boom_frames()
 		boom.scale = Vector2(0.85, 0.85)

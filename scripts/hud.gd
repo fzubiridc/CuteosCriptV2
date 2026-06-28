@@ -28,6 +28,7 @@ class_name HUD
 # Paneles extraídos (instanciados como hijos en _ready y coordinados desde acá).
 var _shop: ShopPanel
 var _inv: InventoryPanel
+var _skills: SkillBar
 
 var _choices: Array = []
 var _displayed_xp_ratio := 0.0
@@ -82,6 +83,9 @@ func _ready() -> void:
 	# Tienda: panel propio (construido 100% por código) que cuelga del HUD.
 	_shop = ShopPanel.new()
 	add_child(_shop)
+	# Barra de habilidades (slots 1-4 con cooldowns + panel de asignación tecla K).
+	_skills = SkillBar.new()
+	add_child(_skills)
 
 func _apply_typography() -> void:
 	for control in [boss_ui, up_panel, inv_panel, pause_panel, death_panel, $XPBar, $LifeManaPreview]:

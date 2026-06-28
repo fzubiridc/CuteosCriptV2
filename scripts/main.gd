@@ -30,6 +30,11 @@ var _exit: Area2D
 var _exit_open := false
 
 func _ready() -> void:
+	# Pantalla de carga: el procgen del piso (dungeon.generate + spawns) corre SÍNCRONO y bloquea
+	# el frame → sin esto se ve un hueco "vacío". Mostramos el loader, esperamos UN frame para que
+	# se dibuje, y recién ahí hacemos el trabajo pesado (que congela el frame, ya con el loader visible).
+	var loading := _show_loading_overlay()
+	await get_tree().process_frame
 	GameState.boss_died.connect(_on_boss_died)
 	var sky_img := "res://assets/bg/eclipse_vista.png" if ECLIPSE else "res://assets/bg/night_vista.png"
 	var sky := ParallaxBg.new().init(sky_img, -100, 0.0, Color.WHITE, BG_ZOOM, BG_YOFF, BG_PARALLAX_Y)
@@ -57,30 +62,38 @@ func _ready() -> void:
 	var vm := VISIBILITY_MANAGER.new()   # tipado vía preload; gatea objetos del mundo (cofres/decor/mercader) por celda vista; los mobs se auto-gatean en enemy.gd
 	add_child(vm)
 	vm.setup(dungeon)
-	if OS.is_debug_build():   # botón de regen solo en debug, igual que los paneles de debug
-		_add_debug_regen_button()
-
-## Botón DEBUG en pantalla: regenera el piso actual con seed aleatorio (mapa nuevo) sin pasar por
-## el menú y SIN perder la run (mantiene depth/zona/nivel/monedas). Reemplaza la tecla (F9 la
-## intercepta el editor y frena el reproductor). Quitar cuando no se necesite iterar layout.
-func _add_debug_regen_button() -> void:
-	var layer := CanvasLayer.new()
-	layer.layer = 50
-	add_child(layer)
-	var btn := Button.new()
-	btn.text = "⟳ Regenerar mapa (debug)"
-	btn.position = Vector2(16, 60)
-	btn.focus_mode = Control.FOCUS_NONE          # que no robe el foco del teclado (movimiento WASD)
-	btn.pressed.connect(_debug_regen)
-	layer.add_child(btn)
-
-func _debug_regen() -> void:
-	if GameState.mode != GameState.Mode.PLAY:
-		return
-	_build_floor(true)                           # force_new → run_seed nuevo → layout nuevo
-	SaveSystem.save_run(GameState.run, player)
+	_hide_loading_overlay(loading)   # piso listo → desvanece el loader
 
 var _autosave_t := 0.0
+
+## Overlay de carga a pantalla completa (loading.png sobre fondo oscuro), por encima de todo.
+func _show_loading_overlay() -> CanvasLayer:
+	var layer := CanvasLayer.new()
+	layer.layer = 200
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.04, 0.06)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(bg)
+	var tex := load("res://assets/ui/loading.png") as Texture2D
+	if tex != null:
+		var tr := TextureRect.new()
+		tr.texture = tex
+		tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		layer.add_child(tr)
+	add_child(layer)
+	return layer
+
+## Desvanece y libera el overlay de carga.
+func _hide_loading_overlay(layer: CanvasLayer) -> void:
+	if not is_instance_valid(layer):
+		return
+	var tw := create_tween()
+	tw.set_parallel(true)
+	for c in layer.get_children():
+		if c is CanvasItem:
+			tw.tween_property(c, "modulate:a", 0.0, 0.35)
+	tw.chain().tween_callback(layer.queue_free)
 
 func _unhandled_input(event: InputEvent) -> void:
 	# ESC durante la partida → vuelve al menú (con SALIR). Guarda la run primero.

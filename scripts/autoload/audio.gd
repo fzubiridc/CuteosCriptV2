@@ -141,6 +141,10 @@ func _make_ambient(path: String, vol_db: float) -> AudioStreamPlayer:
 	return p
 
 func _process(delta: float) -> void:
+	# is_instance_valid ANTES del cast: al volver al menú (ESC) GameState.player apunta a un
+	# nodo ya liberado; `as Node2D` sobre un objeto freed crashea ("cast freed object").
+	if not is_instance_valid(GameState.player):
+		return
 	var pl := GameState.player as Node2D
 	if pl == null:   # solo en gameplay (no en el menú)
 		return

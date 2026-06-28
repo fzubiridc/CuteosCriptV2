@@ -33,7 +33,7 @@ const DEFS := {
 	# Gradiente / difuminación de la luz al alejarse. def 2.0 = comportamiento actual (no cambia nada
 	# hasta mover el slider). Bajo = luz más SUAVE/difusa que llega más lejos; alto = halo chico y duro.
 	"light_falloff": {"min": 0.5, "max": 4.0, "def": 2.0, "label": "Gradiente caída (entidades/muros)", "group": "Jugador"},
-	"player_soft": {"min": 0.5, "max": 4.0, "def": 2.0, "label": "Suavidad charco piso (2=actual horneado)", "group": "Jugador"},
+	"player_soft": {"min": 0.5, "max": 8.0, "def": 2.0, "label": "Suavidad charco piso (2=horneado, >2 gaussiano difuso)", "group": "Jugador"},
 	# --- Mobs: luz propia (aura suave) + a qué distancia se revelan (un poco más que tu luz) ---
 	"mob_reveal_dist": {"min": 0.0, "max": 800.0, "def": 340.0, "label": "Mob: distancia a la que se ven", "group": "Mobs"},
 	"mob_glow_energy": {"min": 0.0, "max": 3.0, "def": 0.9, "label": "Mob: energía del aura", "group": "Mobs"},

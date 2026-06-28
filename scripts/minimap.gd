@@ -10,6 +10,8 @@ class_name Minimap
 ## tamaño. La escala de dibujo se adapta para que entre en pantalla.
 
 const REVEAL_RADIUS := 6        # tiles revelados alrededor del jugador
+const MINI_VIEW := 150          # diámetro en px del radar circular (esquina sup. derecha)
+const MINI_TILES := 28.0        # tiles visibles a lo ancho del radar (zoom: menos = más cerca)
 
 const C_UNSEEN := Color(0, 0, 0, 0)
 const C_FLOOR := Color(0.60, 0.56, 0.66, 1.0)
@@ -33,6 +35,7 @@ var _last_cell := Vector2i(-99999, -99999)   # última celda revelada; gate para
 
 var _mini_box: Control
 var _mini_tex: TextureRect
+var _mini_atlas: AtlasTexture   # región del mapa que se muestra en el radar (sigue al jugador)
 var _mini_player: ColorRect
 var _mini_exit: ColorRect
 var _full_root: Control
@@ -89,7 +92,9 @@ func _resync_size() -> void:
 	_apply_layout()
 
 func _build_ui() -> void:
-	# --- Minimapa (esquina sup. derecha) ---
+	# --- Radar (esquina sup. derecha): jugador SIEMPRE al centro, el mapa se desliza ---
+	# Box de tamaño FIJO (no atado al mapa). Adentro, un TextureRect del tamaño del box
+	# muestra un AtlasTexture cuya región sigue al jugador → el mago queda clavado al centro.
 	_mini_box = Control.new()
 	_mini_box.anchor_left = 1.0
 	_mini_box.anchor_right = 1.0
@@ -99,14 +104,30 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.offset_left = -3; bg.offset_top = -3; bg.offset_right = 3; bg.offset_bottom = 3
 	_mini_box.add_child(bg)
-	_mini_tex = _make_map_rect(_mini_box)
+	_mini_atlas = AtlasTexture.new()
+	_mini_atlas.atlas = _tex
+	_mini_atlas.filter_clip = true   # afuera de la región (borde del mapa) = transparente
+	_mini_tex = TextureRect.new()
+	_mini_tex.texture = _mini_atlas
+	_mini_tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_mini_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	_mini_tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_mini_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mini_box.add_child(_mini_tex)
 	_mini_exit = _make_dot(_mini_tex, C_EXIT, 3)
-	_mini_player = _make_dot(_mini_tex, C_PLAYER, 4)
-	# Recorte circular + anillo ornamental dorado (todo en el shader, sin asset).
-	var circ := ShaderMaterial.new()
-	circ.shader = preload("res://shaders/minimap_circle.gdshader")
-	bg.material = circ
-	_mini_tex.material = circ
+	_mini_player = _make_dot(_mini_tex, C_PLAYER, 5)
+	# Recorte circular + anillo ornamental dorado. DOS materiales: el fondo (exterior) dibuja el
+	# aro dorado; el mapa SOLO recorta a círculo (draw_ring=0) → un solo aro, no dos concéntricos.
+	var circ_bg := ShaderMaterial.new()
+	circ_bg.shader = preload("res://shaders/minimap_circle.gdshader")
+	circ_bg.set_shader_parameter("draw_ring", 1.0)
+	circ_bg.set_shader_parameter("box_size", Vector2(MINI_VIEW + 6, MINI_VIEW + 6))   # bg = box + (-3..+3)
+	bg.material = circ_bg
+	var circ_map := ShaderMaterial.new()
+	circ_map.shader = preload("res://shaders/minimap_circle.gdshader")
+	circ_map.set_shader_parameter("draw_ring", 0.0)
+	circ_map.set_shader_parameter("box_size", Vector2(MINI_VIEW, MINI_VIEW))
+	_mini_tex.material = circ_map
 
 	# --- Mapa completo (tecla M) ---
 	_full_root = Control.new()
@@ -133,14 +154,13 @@ func _build_ui() -> void:
 
 ## Posiciona/dimensiona las cajas según el tamaño del grid y la escala actual.
 func _apply_layout() -> void:
-	var mw_px := _mw * _mini_scale
-	var mh_px := _mh * _mini_scale
-	_mini_box.offset_left = -mw_px - 12
+	# Radar: tamaño FIJO (independiente del tamaño del mapa). El mapa se desliza adentro.
+	_mini_box.offset_left = -MINI_VIEW - 12
 	_mini_box.offset_right = -12
 	_mini_box.offset_top = 12
-	_mini_box.offset_bottom = 12 + mh_px
-	_mini_exit.size = Vector2.ONE * (_mini_scale + 1)
-	_mini_player.size = Vector2.ONE * (_mini_scale + 2)
+	_mini_box.offset_bottom = 12 + MINI_VIEW
+	_mini_exit.size = Vector2.ONE * 4
+	_mini_player.size = Vector2.ONE * 6
 
 	var fw := _mw * _full_scale
 	var fh := _mh * _full_scale
@@ -235,13 +255,23 @@ func _reveal(c: Vector2i) -> void:
 			_dirty = true
 
 func _place_markers(cell: Vector2i) -> void:
-	_set_dot(_mini_player, cell, _mini_scale)
-	_set_dot(_full_player, cell, _full_scale)
+	# --- Radar centrado en el jugador: la región del atlas sigue su celda → el mapa se desliza ---
+	var half := MINI_TILES * 0.5
+	_mini_atlas.region = Rect2(cell.x - half, cell.y - half, MINI_TILES, MINI_TILES)
+	var center := Vector2(MINI_VIEW, MINI_VIEW) * 0.5
+	_mini_player.position = center - _mini_player.size * 0.5   # el mago SIEMPRE al centro
 	var exit_seen: bool = _exit_cell.x >= 0 and _in_bounds(_exit_cell) and _dungeon.is_seen_cell(_exit_cell)
-	_mini_exit.visible = exit_seen
+	# Salida: posición relativa al jugador, en px del radar (px por tile = MINI_VIEW / MINI_TILES).
+	var ppt := MINI_VIEW / MINI_TILES
+	var rel := Vector2(_exit_cell - cell) * ppt
+	var in_radar: bool = exit_seen and rel.length() < MINI_VIEW * 0.5 - 4.0
+	_mini_exit.visible = in_radar
+	if in_radar:
+		_mini_exit.position = center + rel - _mini_exit.size * 0.5
+	# --- Mapa completo (M): vista general, marcadores absolutos como siempre ---
+	_set_dot(_full_player, cell, _full_scale)
 	_full_exit.visible = exit_seen
 	if exit_seen:
-		_set_dot(_mini_exit, _exit_cell, _mini_scale)
 		_set_dot(_full_exit, _exit_cell, _full_scale)
 
 func _in_bounds(c: Vector2i) -> bool:

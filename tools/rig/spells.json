@@ -8,7 +8,7 @@
 },
 "sViaje": 1,
 "sImpacto": 1,
-"sTrail": 1,
+"sTrail": 0.5,
 "fpsViaje": 12,
 "fpsImpacto": 18,
 "part": {
@@ -41,8 +41,8 @@
 "accent": "#000000"
 },
 "sViaje": 0.4,
-"sImpacto": 0.2,
-"sTrail": 1,
+"sImpacto": 0.4,
+"sTrail": 0.3,
 "fpsViaje": 12,
 "fpsImpacto": 18,
 "part": {

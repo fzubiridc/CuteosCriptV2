@@ -15,6 +15,12 @@ var _gathered := false
 # tinte plano por sprite. Sin relieve (normal plana) porque no tienen normal-map.
 const LIT_SHADER := preload("res://shaders/wall_face.gdshader")
 const MAX_LIGHTS := 64
+# Más allá de esto (px, + el radio de la luz) una luz no alcanza a iluminar ningún píxel en
+# pantalla (cámara clavada al jugador), pero igual ocuparía un slot de los MAX_LIGHTS. Las
+# antorchas/fogatas de salas lejanas robaban los slots y dejaban afuera el aura propia de los
+# mobs cercanos (cargados al final de la lista) → mobs negros en pisos con muchas luces. Las
+# descartamos por proximidad al jugador. La luz del jugador está a distancia 0: nunca se descarta.
+const LIGHT_CULL_DIST := 560.0
 var entity_material: ShaderMaterial
 var _packed: Dictionary = {}
 
@@ -55,6 +61,13 @@ func pack_lights() -> Dictionary:
 		if not is_instance_valid(_dynamic[i]):
 			_dynamic.remove_at(i)
 	var count := 0
+	# is_instance_valid ANTES del cast: al volver al menú (ESC) GameState.player apunta a un nodo
+	# ya liberado y `as Node2D` sobre un objeto freed crashea ("cast freed object").
+	var pc: Node2D = null
+	if is_instance_valid(GameState.player):
+		pc = GameState.player as Node2D
+	var cull := pc != null
+	var ppos := pc.global_position if cull else Vector2.ZERO
 	for L in get_lights() + _dynamic:
 		if not is_instance_valid(L):
 			continue                       # luz liberada en un regen → no castear un objeto freed (el cast en sí erroraba)
@@ -63,6 +76,9 @@ func pack_lights() -> Dictionary:
 			continue
 		var rad := lp.texture_scale * LightCfg.LIGHT_POOL_RADIUS
 		if rad <= 0.0:
+			continue
+		# Cull por proximidad (ver LIGHT_CULL_DIST): libera slots para las auras de mobs cercanos.
+		if cull and ppos.distance_to(lp.global_position) > LIGHT_CULL_DIST + rad:
 			continue
 		_pk_pos[count] = lp.global_position
 		_pk_col[count] = Vector3(lp.color.r, lp.color.g, lp.color.b)
