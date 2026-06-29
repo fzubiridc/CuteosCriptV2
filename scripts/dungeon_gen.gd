@@ -16,6 +16,7 @@ func _init(dungeon: Dungeon) -> void:
 func gen_grid() -> void:
 	d.rooms.clear()
 	d._gen_room_cells = []
+	d._room_specs = []   # geometría iso por sala (origin/w/d) → la usan los divisores internos
 	d.grid = []
 	for y in d.MAP_H:
 		var row: Array = []
@@ -49,6 +50,7 @@ func gen_grid() -> void:
 				occupied[c + Vector2i(0, -1)] = true
 			d._gen_room_cells.append(cells)
 			d.rooms.append(_cells_bbox(cells))
+			d._room_specs.append({"origin": origin, "w": w, "d": dd})
 			break
 	# Conexión por GRAFO (MST + algunos loops) en vez de cadena lineal sala-a-sala.
 	_connect_rooms()

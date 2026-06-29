@@ -11,12 +11,16 @@ config_version=5
 [application]
 
 config/name="Godot Cuteos Cript"
-run/main_scene="res://scenes/menu.tscn"
+run/main_scene="uid://0c4hpjy5i6r3"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/bg_color=Color(0.05, 0.04, 0.06, 1)
 boot_splash/image="res://assets/ui/loading.png"
 config/icon="res://icon.svg"
 boot_splash/minimum_display_time=1200
+
+[audio]
+
+buses/default_bus_layout="uid://b5u8lk05mmv8c"
 
 [autoload]
 

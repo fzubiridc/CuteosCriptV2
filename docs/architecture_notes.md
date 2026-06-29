@@ -171,6 +171,24 @@ Auras de mob (enemy._glow) = PointLight2D nativo hijo. AHORA con ALTURA (GLOW_HE
 ```
 > **Corrección vs doc viejo**: ya NO es cierto que "el aura no autoilumina al mob". Sí lo hace (height + pisos).
 
+### Óvalo de muro + spans + span POR-INSTANCIA (artefacto T-junction)
+El óvalo de luz de un muro se centra en la **proyección de la luz sobre el SPAN base** del muro (segmento
+piso↔muro). El shader, por fragmento, **adivina a qué muro pertenece** buscando en una lista GLOBAL
+(`wall_span_a/b[]`) el span cuya columna X lo contiene con base justo debajo (`wall_span_below`); fallback
+Voronoi (`wall_span_base_pos`). Los spans se arman de `_wall_segments` con `_merge_wall_spans` (fusiona
+colineales → un tramo por muro, sin costuras dentro de un muro).
+- **Esquinas OK:** dos muros que se encuentran en una esquina tienen spans que **divergen** (rangos X
+  distintos) → cada pixel cae bajo un solo span → sin costura.
+- **T-junction = costura (artefacto histórico):** un muro INTERNO (divisor) que choca contra el *medio* de
+  un muro de perímetro → el span del perímetro **sigue de largo** e invade las columnas del divisor → dos
+  spans compiten por el mismo pixel y `wall_span_below` alterna → **dos óvalos partidos por la diagonal**.
+  El procgen normal NO lo tiene (solo hace esquinas, nunca T-junctions).
+- **FIX (2026-06-29): span POR-INSTANCIA.** `wall_face.gdshader` acepta `instance uniform use_manual_span`
+  + `manual_span_a/b`. Si está prendido, el muro usa ESE span directo (sin adivinar con la lista global).
+  Un muro "puesto a mano" (divisor, puerta) carga su propio span vía `CanvasItem.set_instance_shader_parameter`
+  y NO se mete en `_wall_spans_all` (así el perímetro tampoco lo ve) → cero competencia → sin costura.
+  Default off → todos los muros normales (tiles del perímetro) idénticos. (Probado en `closed_room_test`.)
+
 ## 5. Ordenamiento visual del player
 ```
 Rig = CanvasGroup → Body+Weapon(+Tip)+HandOverlay+StaffArm se compositan ATÓMICO → contra muros van como bloque.

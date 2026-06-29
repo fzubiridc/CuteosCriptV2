@@ -40,6 +40,12 @@ uniform bool wall_span_projection = false;
 uniform int wall_span_count = 0;
 uniform vec2 wall_span_a[MAX_WALL_SPANS];
 uniform vec2 wall_span_b[MAX_WALL_SPANS];
+// Span POR-INSTANCIA (opt-in): un muro "puesto a mano" (divisor) lleva SU PROPIO segmento base → el
+// shader lo usa directo, sin adivinar con la lista global. Mata la competencia de spans en T-junctions
+// (divisor vs muro de perímetro). Default off → los tiles del perímetro no cambian en nada.
+instance uniform bool use_manual_span;
+instance uniform vec2 manual_span_a;
+instance uniform vec2 manual_span_b;
 uniform vec2 wall_floor_origin = vec2(0.0);
 uniform vec2 wall_floor_u_axis = vec2(128.0, 64.0);
 uniform vec2 wall_floor_v_axis = vec2(-128.0, 64.0);
@@ -214,7 +220,14 @@ void fragment() {
 	vec2 span_a = world_pos;   // segmento base del muro del fragmento (para centrar el óvalo)
 	vec2 span_b = world_pos;
 	float wall_z = 0.0;
-	if (wall_span_projection && wall_span_count > 0) {
+	if (use_manual_span) {
+		// Muro con span PROPIO (divisor): no adivina con la lista global → sin competencia en la unión T.
+		span_a = manual_span_a;
+		span_b = manual_span_b;
+		float mt = (abs(span_b.x - span_a.x) < 0.001) ? 0.0 : (world_pos.x - span_a.x) / (span_b.x - span_a.x);
+		light_sample_pos = vec2(world_pos.x, mix(span_a.y, span_b.y, mt));
+		wall_z = max(light_sample_pos.y - world_pos.y, 0.0);
+	} else if (wall_span_projection && wall_span_count > 0) {
 		// Segmento base DEBAJO del fragmento (continuo → sin costuras diagonales); si no hay
 		// ninguno en la columna, cae al "más cercano".
 		vec2 base_below;
@@ -254,7 +267,7 @@ void fragment() {
 		n = normalize(n);
 	}
 
-	bool oval_mode = (wall_span_projection && wall_span_count > 0);
+	bool oval_mode = use_manual_span || (wall_span_projection && wall_span_count > 0);
 	vec3 acc = ambient;
 	for (int i = 0; i < MAX_LIGHTS; i++) {
 		if (i >= light_count) { break; }

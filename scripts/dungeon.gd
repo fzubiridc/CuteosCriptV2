@@ -46,6 +46,9 @@ var room_roles: Dictionary = {}
 # Celdas EXACTAS talladas por cada sala iso (paralela a `rooms`, que guarda sólo el bbox). La
 # usa _assign_rooms para etiquetar room_id por celda real (el bbox de un paralelogramo solapa vecinos).
 var _gen_room_cells: Array = []
+# Geometría iso por sala (origin/w/d), paralela a `rooms`. La llena el procgen (gen_grid) y la usan los
+# divisores internos (DungeonDividers) para ubicar el muro a lo largo de un eje de la sala.
+var _room_specs: Array = []
 
 ## ISO: renderiza el mismo grid como mundo isométrico (piso + muros traseros en
 ## capa hija) con el tileset iso_pixel, en vez del 2.5D top-down. La generación
@@ -155,6 +158,7 @@ func generate() -> void:
 		_paint_iso()
 		_build_iso_nav()
 		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
+		_place_dividers()         # FASE 1: divisor interno de prueba (sala grande subdividida + puerta)
 		_ensure_decor()
 		_decor.place_torches()     # antorchas de sala → luz + sombras proyectadas
 		_decor.place_campfires()   # fogatas cada tanto en el centro de algunas salas (no en la de spawn)
@@ -219,6 +223,46 @@ var _fog: DungeonFog
 func _ensure_fog() -> void:
 	if _fog == null:
 		_fog = DungeonFog.new(self)
+
+# ---------------------------------------------------------------------------
+# Divisores internos de sala → DungeonDividers (scripts/dungeon_dividers.gd). Lazy, igual que los otros.
+# ---------------------------------------------------------------------------
+var _dividers: DungeonDividers
+
+func _ensure_dividers() -> void:
+	if _dividers == null:
+		_dividers = DungeonDividers.new(self)
+
+## FASE 1 (test in-game): subdivide la PRIMERA sala suficientemente grande con un divisor + puerta, para
+## validar el sistema en el dungeon real. Divisor por el eje MÁS LARGO, a la mitad, hueco en el centro.
+## (FASE 2: regla de procgen — qué salas se subdividen, probabilidad, posición del hueco, etc.)
+func _place_dividers() -> void:
+	_ensure_dividers()
+	_dividers.clear()
+	# FASE 2: ~60% de las salas se subdividen con divisor + puerta CERRADA. Divisor por el eje MÁS LARGO
+	# a la mitad; hueco (puerta) en posición al azar (no contra el perímetro). RNG seedeado por piso →
+	# reproducible. Se saltea la sala de SPAWN (para no aparecer encima de un muro de divisor).
+	var spawn_ri := -1
+	if spawn_cell.x >= 0:
+		for i in _gen_room_cells.size():
+			if spawn_cell in _gen_room_cells[i]:
+				spawn_ri = i
+				break
+	for ri in _room_specs.size():
+		if ri == spawn_ri:
+			continue
+		var spec: Dictionary = _room_specs[ri]
+		var w := int(spec["w"])
+		var dd := int(spec["d"])
+		if w < 5 or dd < 6:
+			continue
+		if not Rng.chance(0.6):
+			continue
+		var origin: Vector2i = spec["origin"]
+		if dd >= w:
+			_dividers.add_divider(origin, 0, int(dd / 2.0), 0, w, Rng.range_i(1, w - 2))   # NE por el eje u
+		else:
+			_dividers.add_divider(origin, 1, int(w / 2.0), 0, dd, Rng.range_i(1, dd - 2))  # NW por el eje v
 
 ## API pública preservada (la usan enemy.gd, minimap.gd, visibility_manager.gd): wrappers a DungeonFog.
 func is_cell_visible(world_pos: Vector2) -> bool:
@@ -1010,6 +1054,8 @@ func _process(_delta: float) -> void:
 		if pl != null and is_instance_valid(pl):
 			_fog.update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
 			_fog.update_room_reveal(pl)
+			if _dividers:
+				_dividers.update_cutaway(pl)   # transparencia por legibilidad de los muros de divisor
 	if _decor: _decor.tune_torches_live()
 
 ## Alimenta luz (foot-lit) al material de las caras de muro iso cada frame.

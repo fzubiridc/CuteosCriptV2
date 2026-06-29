@@ -123,6 +123,33 @@ Tanda de notas de Felipe resueltas de una. Todo compila headless (exit 0, sin SC
 3. **Barra de XP**: la bajé 16px; si clipea o querés otra altura, decime el valor.
 4. **Pantalla gris**: ¿implemento el precargado durante la intro mañana (cuando toquemos el intro)?
 
+## 7.ter. Mecánica de DIVISOR / cuartos conectados (2026-06-29, SANDBOX — `closed_room_test.gd`)
+Exploración en el sandbox (NO en el juego real todavía). Idea de Felipe (validada contra D2/BG3): NO conectar
+salas lejanas con teleport, sino **una sala grande subdividida por un muro interno = dos sub-cuartos adyacentes**.
+- **DIVIDER_MODE** en `closed_room_test.gd`: 0 = divisor de VACÍO (muro doble cara). 1 = fila de muros NE interna
+  + cutaway + puerta. 2 = multi-divisor diagnóstico.
+- **CUTAWAY ("transparencia por legibilidad", estilo D2/BG3):** el muro interno queda en su capa normal (z=-1,
+  CERO y-sort); cuando el player queda DETRÁS, en vez de ocluir se **fadea** (`_process`, lado iso v vs v_mid-0.5,
+  anclado a los pies). Resuelve la oclusión del muro interno sin tocar el z-order.
+- **Colisión** alineada al borde NE (tira fina, no la celda entera). **Puerta** en el hueco: sprite DoorNE↔OpenDoorNE,
+  CLICK (Area2D input_pickable) togglea sprite + colisión. (Falta: colisión de la puerta cerrada no bloquea — pendiente,
+  va con la colisión por-pieza.)
+- **Artefacto T-junction RESUELTO** (ver `architecture_notes.md` §óvalo): el divisor pegado al muro NW daba doble óvalo;
+  fix = **span POR-INSTANCIA** en `wall_face.gdshader` (`use_manual_span` + `manual_span_a/b`, default off). Cada muro
+  puesto a mano carga su span y NO entra a `_wall_spans_all`. Confirmado por Felipe ("SE ARREGLÓ").
+- **FASE 1 INTEGRADA AL MAIN + VERIFICADA in-game (2026-06-29, Felipe: "funciona espectacular"):** módulo reusable `scripts/dungeon_dividers.gd`
+  (**DungeonDividers**, lazy como gen/decor/fog). El procgen guarda `d._room_specs` (origin/w/d por sala). `dungeon.generate()`
+  llama `_place_dividers()` tras `_build_iso_boundaries` → subdivide la PRIMERA sala grande (w,d≥5) con un divisor + puerta
+  (eje más largo, hueco al medio). `dungeon._process()` llama `_dividers.update_cutaway(pl)`. Probado headless OK; falta que
+  Felipe lo juegue.
+- **FASE 2 (2026-06-29, VERIFICADA — Felipe "está todo bien"):** regla de procgen en `_place_dividers()` → **~60% de las salas** se
+  subdividen (`Rng.chance(0.6)`, seedeado por piso), hueco/puerta en posición al azar (no contra el perímetro), se SALTEA
+  la sala de spawn. **Puerta CERRADA**, abre con **CLIC DERECHO + proximidad** (`DOOR_NEAR=70`; el clic izq es ATACAR, por
+  eso derecho). **Nav resuelto:** los muros del divisor + la puerta cerrada se marcan sólidos en el AStar de mobs
+  (`_nav_solid`); abrir la puerta libera el nav. (El player no usa AStar → camina libre, lo frena solo la colisión de borde.)
+- **Deuda viva:** la puerta no tiene prompt/beacon visual (Felipe tiene que saber que es clic derecho) → pulido opcional.
+- **Camino "B"** (mapas continuos D2 puros, salas separadas conectadas, flood-fill) queda como evolución futura más grande.
+
 ## 6. Lista "NO TOCAR sin permiso de Felipe"
 - Reescritura grande de procgen / lighting / player / dungeon.
 - Cambio global de iluminación; cambio de arte/tilesets; borrado de assets grandes.
