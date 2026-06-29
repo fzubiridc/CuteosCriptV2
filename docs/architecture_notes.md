@@ -185,9 +185,15 @@ colineales → un tramo por muro, sin costuras dentro de un muro).
   El procgen normal NO lo tiene (solo hace esquinas, nunca T-junctions).
 - **FIX (2026-06-29): span POR-INSTANCIA.** `wall_face.gdshader` acepta `instance uniform use_manual_span`
   + `manual_span_a/b`. Si está prendido, el muro usa ESE span directo (sin adivinar con la lista global).
-  Un muro "puesto a mano" (divisor, puerta) carga su propio span vía `CanvasItem.set_instance_shader_parameter`
-  y NO se mete en `_wall_spans_all` (así el perímetro tampoco lo ve) → cero competencia → sin costura.
-  Default off → todos los muros normales (tiles del perímetro) idénticos. (Probado en `closed_room_test`.)
+- **GENERALIZADO A TODOS LOS MUROS (2026-06-29, mapa continuo):** `_place_wall_pieces` ya NO usa tiles —
+  pinta CADA muro como Sprite2D y le da su span por-instancia (`_apply_wall_span`) = el run al que pertenece
+  (mapa `_wall_span_map` que arma `_merge_wall_spans`, llamado ANTES de `_paint_walls`). Así NINGÚN muro
+  compite (corredores, esquinas, divisores: unificado, sin costura). Los divisores usan el mismo uniform.
+  (~1500-2000 sprites; perf verificada OK.) `_update_wall_span_uniforms` global quedó sin uso.
+- **REVEAL POR-SALA → CUTAWAY POR-MURO (2026-06-29):** `dungeon._update_wall_cutaway` (reemplaza
+  `_fog.update_room_reveal`) transparenta cada frame las FACHADAS que TAPAN al player (índice `_front_walls`
+  cell→[holder], test `_wall_covers`) + sus vecinas (patch suave). Anda en salas Y corredores. Sin CanvasGroup
+  (ojo doble-alpha en solapes). El `dungeon_fog` reveal queda como código muerto.
 
 ## 5. Ordenamiento visual del player
 ```

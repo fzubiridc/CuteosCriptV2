@@ -14,7 +14,7 @@ const ROOM_COUNT := 20
 ## Modo PUERTAS (banco de pruebas de la oscuridad): salas CERRADAS (sin corredores) conectadas por
 ## puertas que TELETRANSPORTAN al tocarlas → cada sala queda aislada. true = puertas; false = corredores
 ## zigzag clásicos. Las puertas siguen el grafo de salas (MST + loops) que arma _connect_rooms.
-const USE_DOORS := true
+const USE_DOORS := false   # MAPA CONTINUO: corredores tallados entre salas (sin teleport). Ver Camino "B".
 const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmentos de muro). Off en producción.
 
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
@@ -128,6 +128,22 @@ var _room_front: Dictionary = {}     # room_id → Array de entradas de fachada 
 									 #   {kind=0, cell} = tile-muro (se swapea a sprite al revelar)
 									 #   {kind=1, holder} = sprite overlay ya existente (solo tween de alpha)
 var _front_src: Dictionary = {}      # cell → source de la pared delantera (para restaurar el tile)
+# (cell → {side → [a,b]}) span del RUN al que pertenece cada muro (global). Lo arma _merge_wall_spans;
+# lo usa _place_wall_pieces para dar a cada muro su span POR-INSTANCIA (sin costuras en las uniones T).
+var _wall_span_map: Dictionary = {}
+# CUTAWAY POR-MURO (mapa continuo): transparenta cualquier FACHADA que tape al player, sea sala o
+# corredor (reemplaza el reveal por-sala). _front_walls: cell → [holder] de fachadas; _cut_active:
+# set de holders fadeándose (para lerpear de vuelta a opaco al dejar de tapar).
+var _front_walls: Dictionary = {}
+var _cut_active: Dictionary = {}
+const CUT_ALPHA := 0.28        # opacidad de una fachada que te tapa
+const CUT_R := 3               # radio en celdas para buscar fachadas cerca del player
+const CUT_HW := 52.0           # medio ancho de la silueta del muro (world) para el test de tapado
+const CUT_H := 116.0           # alto del muro hacia arriba (world)
+const CUT_FOOT := 16.0         # margen hacia abajo de la base
+const CUT_BODY_UP := -18.0     # punto del cuerpo del player sobre los pies (lo que el muro tapa)
+const CUT_NEIGHBORS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]   # vecinos para el patch del cutaway
 
 # Celdas de marcadores (spawn/salida + listas de entidades). spawn_cell/exit_cell las exponen
 # get_spawn_point()/get_exit_cell() (las leen main.gd y minimap.gd); window_cells se resetea por piso.
@@ -503,7 +519,7 @@ func _rebuild_wall_spans() -> void:
 		var cell_origin := layer.map_to_local(seg.interior_cell)
 		var a := layer.to_global(cell_origin + edge[0])
 		var b := layer.to_global(cell_origin + edge[1])
-		raw.append({"a": a, "b": b, "side": seg.side})
+		raw.append({"a": a, "b": b, "side": seg.side, "cell": seg.interior_cell})
 	# 2) Fusionar los segmentos COLINEALES del mismo lado en UN tramo por muro (el muro como una
 	#    unidad continua) → la proyección del shader no salta entre piezas = sin costuras diagonales.
 	_wall_spans_all = _merge_wall_spans(raw)
@@ -514,6 +530,7 @@ func _rebuild_wall_spans() -> void:
 ## Agrupa los segmentos por (lado, línea sobre la que yacen) y reduce cada grupo a UN span con los
 ## endpoints extremos → un muro recto pasa de N piezas a una sola línea continua.
 func _merge_wall_spans(raw: Array) -> Array:
+	_wall_span_map = {}
 	var groups := {}
 	for s in raw:
 		var d: Vector2 = s.b - s.a
@@ -524,8 +541,9 @@ func _merge_wall_spans(raw: Array) -> Array:
 		var off: float = roundf(s.a.dot(nrm) / 3.0)  # tol ~3px: misma línea = mismo offset
 		var key := "%d_%d" % [int(s.side), int(off)]
 		if not groups.has(key):
-			groups[key] = {"dir": dn, "side": int(s.side), "min_t": 1e20, "max_t": -1e20, "pa": s.a, "pb": s.b}
+			groups[key] = {"dir": dn, "side": int(s.side), "min_t": 1e20, "max_t": -1e20, "pa": s.a, "pb": s.b, "cells": []}
 		var g = groups[key]
+		g.cells.append(s.get("cell", Vector2i.ZERO))
 		for p in [s.a, s.b]:
 			var t: float = p.dot(g.dir)
 			if t < g.min_t:
@@ -538,6 +556,11 @@ func _merge_wall_spans(raw: Array) -> Array:
 	for key in groups:
 		var g = groups[key]
 		out.append({"a": g.pa, "b": g.pb, "mid": (g.pa + g.pb) * 0.5, "side": g.side, "cell": Vector2i.ZERO})
+		# Mapa (cell,side) → span del run → cada muro de ese run usa ESTE span por-instancia (sin costura).
+		for cell in g.cells:
+			if not _wall_span_map.has(cell):
+				_wall_span_map[cell] = {}
+			_wall_span_map[cell][g.side] = [g.pa, g.pb]
 	return out
 
 func _dist_point_segment_sq(p: Vector2, a: Vector2, b: Vector2) -> float:
@@ -770,6 +793,8 @@ func _paint_iso() -> void:
 	_fog._pending_room = -99
 	_fog._room_hold = 0
 	_wall_cells = {}
+	_front_walls = {}
+	_cut_active = {}
 	var gh := grid.size()
 	var gw: int = grid[0].size() if gh > 0 else 0
 	# Piso.
@@ -778,8 +803,8 @@ func _paint_iso() -> void:
 			if grid[y][x] == 1:
 				set_cell(Vector2i(x, y), ISO_FLOOR_SRC, Vector2i(0, 0))
 	_compute_door_faces()   # qué celda/cara lleva tile de puerta (usa _wall_segments + get_door_specs)
+	_rebuild_wall_spans()   # ANTES del pintado: arma _wall_span_map (cell,side)→span para el span por-instancia
 	_paint_walls()
-	_rebuild_wall_spans()
 	update_internals()
 	if _iso_walls:
 		_iso_walls.update_internals()
@@ -822,15 +847,15 @@ func _paint_walls() -> void:
 				pieces.append({"src": SRC_CORNER_RIGHT, "front": false}); ne = false; se = false
 		# Bordes sueltos restantes, con VARIACIÓN random por celda. SE/SW = fachada delantera (revelable).
 		# NE antes que NW: en la esquina norte (NW+NE) la 2ª pieza va de overlay ARRIBA → NW sobre NE.
-		if ne: pieces.append({"src": _pick_wall_variant(SRC_WALL_NE), "front": false})
-		if nw: pieces.append({"src": _pick_wall_variant(SRC_WALL_NW), "front": false})
-		if se: pieces.append({"src": _pick_wall_variant(SRC_WALL_SE), "front": true})
-		if sw: pieces.append({"src": _pick_wall_variant(SRC_WALL_SW), "front": true})
+		if ne: pieces.append({"src": _pick_wall_variant(SRC_WALL_NE), "front": false, "side": WallSegment.Side.NE})
+		if nw: pieces.append({"src": _pick_wall_variant(SRC_WALL_NW), "front": false, "side": WallSegment.Side.NW})
+		if se: pieces.append({"src": _pick_wall_variant(SRC_WALL_SE), "front": true, "side": WallSegment.Side.SE})
+		if sw: pieces.append({"src": _pick_wall_variant(SRC_WALL_SW), "front": true, "side": WallSegment.Side.SW})
 		# Tile de puerta en su cara (si ese borde existe y hay source). front si es fachada S/E.
 		if door_side >= 0 and s.has(door_side):
 			var dbase := _base_for_side(door_side)
 			if _door_src.has(dbase):
-				pieces.append({"src": _door_src[dbase], "front": dbase in FRONT_SOURCES})
+				pieces.append({"src": _door_src[dbase], "front": dbase in FRONT_SOURCES, "side": door_side})
 		_place_wall_pieces(c, rid, pieces)
 
 ## Coloca las piezas de una celda: la 1ª como TILE (set_cell), las extra como Sprite2D overlay.
@@ -838,17 +863,88 @@ func _paint_walls() -> void:
 func _place_wall_pieces(c: Vector2i, rid: int, pieces: Array) -> void:
 	if pieces.is_empty():
 		return
-	var prim: Dictionary = pieces[0]
-	_wall_layer_for(prim.src).set_cell(c, prim.src, Vector2i(0, 0))
-	_wall_cells[c] = prim.src
-	if prim.front and rid >= 0:
-		_front_src[c] = prim.src
-		_add_front_entry(rid, {"kind": 0, "cell": c})
-	for i in range(1, pieces.size()):
-		var p: Dictionary = pieces[i]
+	_wall_cells[c] = pieces[0].src
+	# TODOS los muros como Sprite2D (ya no tiles): así cada uno lleva SU span POR-INSTANCIA (use_manual_span)
+	# = el run al que pertenece → el shader no adivina con la lista global → sin costura en las uniones T
+	# (corredores, esquinas, divisores: unificado). Las fachadas (S/E) van como entrada kind:1 → el reveal
+	# las reparenta al CanvasGroup (ya no swapea tile→sprite).
+	for p in pieces:
 		var h := _spawn_wall_sprite(c, p.src, true)
-		if p.front and rid >= 0:
-			_add_front_entry(rid, {"kind": 1, "holder": h})
+		_apply_wall_span(h, c, int(p.get("side", -1)))
+		if p.front:
+			if rid >= 0:
+				_add_front_entry(rid, {"kind": 1, "holder": h})
+			if not _front_walls.has(c):
+				_front_walls[c] = []
+			_front_walls[c].append(h)   # índice de fachadas (incluye corredores) para el cutaway por-muro
+
+## Le pone a un sprite de muro su span POR-INSTANCIA = el run (cell,side) al que pertenece (coords globales).
+func _apply_wall_span(holder: Node2D, cell: Vector2i, side: int) -> void:
+	if side < 0 or not _wall_span_map.has(cell):
+		return
+	var sm: Dictionary = _wall_span_map[cell]
+	if not sm.has(side) or holder == null or holder.get_child_count() == 0:
+		return
+	var ab: Array = sm[side]
+	var ci := holder.get_child(0) as CanvasItem
+	if ci == null:
+		return
+	ci.set_instance_shader_parameter("use_manual_span", true)
+	ci.set_instance_shader_parameter("manual_span_a", ab[0])
+	ci.set_instance_shader_parameter("manual_span_b", ab[1])
+
+## CUTAWAY POR-MURO: cada frame, transparenta las FACHADAS que tapan al player (sala o corredor) y vuelve
+## opacas las que dejaron de taparlo. Reemplaza el reveal por-sala. Solo mira fachadas cerca del player.
+func _update_wall_cutaway(pl) -> void:
+	if pl == null or not is_instance_valid(pl) or not (pl is Node2D):
+		return
+	var n2 := pl as Node2D
+	var feet := n2.get_node_or_null("Feet") as Node2D
+	var pp: Vector2 = feet.global_position if feet != null else n2.global_position
+	var body := pp + Vector2(0, CUT_BODY_UP)
+	var pc := local_to_map(to_local(pp))
+	var covering := {}
+	var cover_cells := {}
+	for dy in range(-CUT_R, CUT_R + 1):
+		for dx in range(-CUT_R, CUT_R + 1):
+			var cell := pc + Vector2i(dx, dy)
+			if not _front_walls.has(cell):
+				continue
+			for h in _front_walls[cell]:
+				if is_instance_valid(h) and _wall_covers(h, pp, body):
+					covering[h] = true
+					_cut_active[h] = true
+					cover_cells[cell] = true
+	# Expandir a las fachadas PEGADAS (vecinos de las celdas que tapan) → patch suave, no un tile suelto.
+	for cell in cover_cells:
+		for nb in CUT_NEIGHBORS:
+			var nc: Vector2i = cell + nb
+			if not _front_walls.has(nc):
+				continue
+			for h2 in _front_walls[nc]:
+				if is_instance_valid(h2):
+					covering[h2] = true
+					_cut_active[h2] = true
+	var done: Array = []
+	for h in _cut_active:
+		if not is_instance_valid(h):
+			done.append(h)
+			continue
+		var target: float = CUT_ALPHA if covering.has(h) else 1.0
+		h.modulate.a = lerpf(h.modulate.a, target, 0.22)
+		if not covering.has(h) and h.modulate.a > 0.985:
+			h.modulate.a = 1.0
+			done.append(h)
+	for h in done:
+		_cut_active.erase(h)
+
+## ¿Esta fachada tapa al player? Su base tiene que estar al SUR/cerca (muro adelante) y su silueta
+## (ancho CUT_HW, alto CUT_H hacia arriba) cubrir el cuerpo del player.
+func _wall_covers(holder: Node2D, pp: Vector2, body: Vector2) -> bool:
+	var base := holder.global_position
+	if base.y < pp.y - 6.0:   # base al norte de los pies → muro detrás del player → no lo tapa
+		return false
+	return absf(body.x - base.x) < CUT_HW and body.y > base.y - CUT_H and body.y < base.y + CUT_FOOT
 
 func _add_front_entry(rid: int, entry: Dictionary) -> void:
 	if not _room_front.has(rid):
@@ -1053,7 +1149,7 @@ func _process(_delta: float) -> void:
 		var pl = GameState.player
 		if pl != null and is_instance_valid(pl):
 			_fog.update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
-			_fog.update_room_reveal(pl)
+			_update_wall_cutaway(pl)           # cutaway por-MURO (reemplaza el reveal por-sala): fachadas que te tapan
 			if _dividers:
 				_dividers.update_cutaway(pl)   # transparencia por legibilidad de los muros de divisor
 	if _decor: _decor.tune_torches_live()

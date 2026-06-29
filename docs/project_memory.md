@@ -148,7 +148,25 @@ salas lejanas con teleport, sino **una sala grande subdividida por un muro inter
   eso derecho). **Nav resuelto:** los muros del divisor + la puerta cerrada se marcan sólidos en el AStar de mobs
   (`_nav_solid`); abrir la puerta libera el nav. (El player no usa AStar → camina libre, lo frena solo la colisión de borde.)
 - **Deuda viva:** la puerta no tiene prompt/beacon visual (Felipe tiene que saber que es clic derecho) → pulido opcional.
-- **Camino "B"** (mapas continuos D2 puros, salas separadas conectadas, flood-fill) queda como evolución futura más grande.
+## 7.quater. MAPA CONTINUO (Camino "B") — EN CURSO (2026-06-29, SIN commitear → ahora pusheado)
+Pivote de diseño (pedido de Felipe): se eliminan las puertas-teleport; todo es **un solo mapa caminable**
+(salas + corredores + divisiones). El cambio de piso sigue siendo el **portal** en `exit_cell` (main.gd) → la
+"escalera" futura es solo reskin del portal.
+- **`USE_DOORS = false`** (dungeon.gd:17): el procgen ahora **talla corredores en L** (2 tiles) entre las salas
+  del grafo (`_connect_rooms`→`_connect`/`carve_h`/`carve_v`) + `_remove_thin_walls`. Sin spawn de Door-teleport.
+- **TODOS los muros = Sprite2D con SPAN POR-INSTANCIA** (antes tiles): `_place_wall_pieces` ya no usa `set_cell`;
+  cada muro lleva el span de su run (mapa `_wall_span_map` que arma `_merge_wall_spans`, llamado ANTES de
+  `_paint_walls`). Mata el artefacto de óvalo en las uniones T de corredores/esquinas/divisores (unificado).
+  Reveal NO se tocó (las fachadas ya entran como kind:1 sprites). **Perf OK** (Felipe lo verificó: ~1500-2000
+  sprites aguantan). Deuda: `_update_wall_span_uniforms` global quedó sin uso (inofensivo).
+- **CUTAWAY POR-MURO** (`_update_wall_cutaway` en dungeon.gd, REEMPLAZA el reveal por-sala): cada frame
+  transparenta las FACHADAS que TAPAN al player (sala o corredor), + sus vecinas pegadas (1 anillo `CUT_NEIGHBORS`)
+  para un patch suave. Índice `_front_walls` (cell→[holder]); test `_wall_covers` (silueta CUT_HW/H/FOOT, tuneable).
+  Resuelve "no me veo en corredores" + "salí de la sala y una punta me tapa". Sin CanvasGroup → ojo doble-alpha
+  en solapes (a vigilar; si molesta, reincorporar). Verificado por Felipe que anda.
+- **PENDIENTE (issue 3):** regla de procgen → una línea de muros con PUERTA debe terminar en muro/esquina, no en
+  un agujero/piso (si no, rodeás la puerta y no tiene sentido). Próximo paso.
+- **Camino "B" puro** (salas separadas + flood-fill de visibilidad) ya no aplica: vamos por mapa continuo real.
 
 ## 6. Lista "NO TOCAR sin permiso de Felipe"
 - Reescritura grande de procgen / lighting / player / dungeon.
