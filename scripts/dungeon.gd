@@ -57,6 +57,9 @@ const WALL_SHADOWS := false  # OFF (2026-06-28): con cuartos cerrados la luz no 
 							 # NO necesitan proyectar sombra sobre el piso → evita la banda oscura en la unión
 							 # pared/piso. TODA la lógica del occluder queda intacta (polígonos + instalación);
 							 # re-activar = volver a `true`. (Antes true: sombra del occluder sobre el piso nativo.)
+## PRUEBA (2026-06-28): pintar las esquinas como DOS muros sueltos (trasero + fachada en sus capas)
+## en vez del sprite de esquina dedicado → para evaluar el look (doble pico vs lighting correcto).
+const CORNERS_AS_TWO_WALLS := true
 const WallSegment := preload("res://scripts/wall_segment.gd")
 const ISO_TILESET := preload("res://assets/iso/iso_pixel.tres")
 # Muros = TILES del TileSet. El texture_origin de cada pieza se afina en el EDITOR de TileSet
@@ -689,17 +692,21 @@ func _paint_walls() -> void:
 		var sw: bool = s.has(WallSegment.Side.SW) and door_side != WallSegment.Side.SW
 		# Piezas a colocar en la celda: [{src, front}]. Esquinas primero (consumen 2 bordes).
 		var pieces: Array = []
-		if nw and ne:
-			pieces.append({"src": SRC_CORNER_TOP, "front": false}); nw = false; ne = false
-		if se and sw:
-			pieces.append({"src": SRC_CORNER_BOTTOM, "front": true}); se = false; sw = false
-		if nw and sw:
-			pieces.append({"src": SRC_CORNER_LEFT, "front": false}); nw = false; sw = false
-		if ne and se:
-			pieces.append({"src": SRC_CORNER_RIGHT, "front": false}); ne = false; se = false
+		# PRUEBA: con CORNERS_AS_TWO_WALLS NO se arman sprites de esquina → los dos bordes caen abajo
+		# como muros sueltos (cada uno a su capa: trasero atrás, fachada adelante).
+		if not CORNERS_AS_TWO_WALLS:
+			if nw and ne:
+				pieces.append({"src": SRC_CORNER_TOP, "front": false}); nw = false; ne = false
+			if se and sw:
+				pieces.append({"src": SRC_CORNER_BOTTOM, "front": true}); se = false; sw = false
+			if nw and sw:
+				pieces.append({"src": SRC_CORNER_LEFT, "front": false}); nw = false; sw = false
+			if ne and se:
+				pieces.append({"src": SRC_CORNER_RIGHT, "front": false}); ne = false; se = false
 		# Bordes sueltos restantes, con VARIACIÓN random por celda. SE/SW = fachada delantera (revelable).
-		if nw: pieces.append({"src": _pick_wall_variant(SRC_WALL_NW), "front": false})
+		# NE antes que NW: en la esquina norte (NW+NE) la 2ª pieza va de overlay ARRIBA → NW sobre NE.
 		if ne: pieces.append({"src": _pick_wall_variant(SRC_WALL_NE), "front": false})
+		if nw: pieces.append({"src": _pick_wall_variant(SRC_WALL_NW), "front": false})
 		if se: pieces.append({"src": _pick_wall_variant(SRC_WALL_SE), "front": true})
 		if sw: pieces.append({"src": _pick_wall_variant(SRC_WALL_SW), "front": true})
 		# Tile de puerta en su cara (si ese borde existe y hay source). front si es fachada S/E.
@@ -806,7 +813,10 @@ func _build_iso_boundaries() -> void:
 	add_child(_iso_bounds)
 	var gh := grid.size()
 	var gw: int = grid[0].size() if gh > 0 else 0
-	var cardinals := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	# 8 vecinos (no solo cardinales): la celda DIAGONAL de una esquina toca el piso solo en
+	# diagonal → sin esto no se bloqueaba y el jugador se escapaba al vacío por el pico.
+	var cardinals := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+		Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
 	for y in gh:
 		for x in gw:
 			if grid[y][x] != 0:

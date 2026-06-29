@@ -73,19 +73,41 @@ func _build_closed_room() -> void:
 	_report()
 
 
-## Coloca 1-2 antorchas sobre paredes TRASERAS (NW/NE) para tunear su posición en vivo
-## desde el Inspector remoto del nodo Dungeon (grupo "Antorchas (tuning en vivo)").
+## TEST DE MUCHAS ANTORCHAS: una antorcha en CADA segmento de pared trasera (NW/NE) + algunas
+## sobre las fachadas (SE/SW), para revisar la luz de antorcha post-fixes de muro (óvalo, cull,
+## sombras). Tunear en vivo desde el panel (tecla L) o el Inspector del nodo Dungeon.
 func _place_test_torches() -> void:
-	var back: Array = []
-	for seg in dungeon._wall_segments:
-		if seg.side == WallSegment.Side.NW or seg.side == WallSegment.Side.NE:
-			back.append(seg)
-	if back.is_empty():
+	# Una antorcha UN TILE AL NORTE de la esquina Este y de la Oeste (no en la esquina misma),
+	# para ver cómo cae la luz sobre el pico de la esquina (donde se juntan dos spans de muro).
+	if _room_cells.is_empty():
 		return
-	dungeon.spawn_wall_torch(back[0].interior_cell, back[0].side)
-	if back.size() > 4:
-		var mi := int(back.size() * 0.5)
-		dungeon.spawn_wall_torch(back[mi].interior_cell, back[mi].side)
+	var east: Vector2i = _room_cells[0]
+	var west: Vector2i = _room_cells[0]
+	for c in _room_cells:
+		var sx := dungeon.map_to_local(c).x
+		if sx > dungeon.map_to_local(east).x:
+			east = c
+		if sx < dungeon.map_to_local(west).x:
+			west = c
+	_torch_north_of(east)
+	_torch_north_of(west)
+
+## Pone una antorcha en la pared trasera (NW/NE) de la celda de la sala que está ~un tile al
+## NORTE (arriba en pantalla) de `corner`.
+func _torch_north_of(corner: Vector2i) -> void:
+	var target := dungeon.map_to_local(corner) + Vector2(0, -128)   # un tile arriba en pantalla
+	var best: Vector2i = corner
+	var best_d := 1e20
+	for c in _room_cells:
+		var d := dungeon.map_to_local(c).distance_squared_to(target)
+		if d < best_d:
+			best_d = d
+			best = c
+	for cell in [best, corner]:   # la celda al norte; si no tiene pared trasera, cae en la esquina
+		for seg in dungeon._wall_segments:
+			if seg.interior_cell == cell and (seg.side == WallSegment.Side.NW or seg.side == WallSegment.Side.NE):
+				dungeon.spawn_wall_torch(seg.interior_cell, seg.side)
+				return
 
 
 ## Conteos al log (Etapa 5).
@@ -149,7 +171,7 @@ func _teleport(inside: bool) -> void:
 	player.velocity = Vector2.ZERO
 	player.reset_physics_interpolation()
 	status_label.text = (
-		"CUARTO ISO 6×12 — PRUEBA DETERMINISTA\n"
-		+ ("CENTRO: fachadas S/E al 22%." if inside else "ESQUINA: revisá el borde recto.")
-		+ "\n\nE: centro/esquina    WASD: caminar"
+		"CUARTO ISO 6×12 — TEST DE MUCHAS ANTORCHAS\n"
+		+ ("CENTRO: mirá la luz de las antorchas en los muros." if inside else "ESQUINA: revisá el borde.")
+		+ "\n\nL: panel de luz    E: centro/esquina    WASD: caminar"
 	)
