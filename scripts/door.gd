@@ -11,7 +11,7 @@ static var _cd_until_ms := 0
 # Zona de hover/click en coords LOCALES (cubre el tile de puerta, que sobresale hacia arriba sobre la
 # celda del piso). Generosa a propósito; ajustable si no coincide con el tile según la cara.
 const HIT_RECT := Rect2(-55, -116, 110, 132)
-const NEAR_DIST := 100.0   # hay que estar PEGADO (≤ esto, px) a la puerta para que aparezca y entre
+const NEAR_DIST := 50.0   # FIX 2: radio de activación reducido a la mitad (era 100) → hay que estar casi TOCANDO la puerta para que aparezca el prompt y se entre
 
 var target_pos := Vector2.ZERO
 var _hover := false

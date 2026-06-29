@@ -48,7 +48,8 @@
 <body>
 <header>
   <h1>🧱 Wall Origin Tool</h1>
-  <span class="hint">Arrastrá la imagen sobre el rombo · <span class="kbd">flechas</span> nudge 1px · <span class="kbd">Shift</span>+flechas 10px · rueda = zoom</span>
+  <span class="hint" id="hintOrigin">Arrastrá la imagen sobre el rombo · <span class="kbd">flechas</span> nudge 1px · <span class="kbd">Shift</span>+flechas 10px · rueda = zoom</span>
+  <span class="hint" id="hintCol" style="display:none">Modo Colisión · <span class="kbd">click</span> agrega vértice · arrastrá un punto para moverlo · <span class="kbd">Z</span> deshace · rueda = zoom</span>
 </header>
 <main>
   <div id="left" class="col">
@@ -64,12 +65,21 @@
 
   <div id="center" class="col">
     <div class="toolbar">
+      <div class="chip" style="gap:2px">
+        <button id="btnModeOrigin" class="primary" style="padding:4px 9px">Origin</button>
+        <button id="btnModeCol" style="padding:4px 9px">Colisión</button>
+      </div>
       <div class="chip"><input type="checkbox" id="cbNeighbors" checked><label for="cbNeighbors">Vecinos</label></div>
       <div class="chip"><input type="checkbox" id="cbGrid" checked><label for="cbGrid">Aristas</label></div>
       <div class="chip"><input type="checkbox" id="cbImg" checked><label for="cbImg">Imagen</label></div>
       <div class="chip"><label>α</label><input type="range" id="alpha" min="0.2" max="1" step="0.05" value="0.92" style="width:70px"></div>
       <button id="btnReset">Centrar vista</button>
-      <button id="btnResetOrigin">Reset origin pieza</button>
+      <!-- Botones de modo Origin -->
+      <button id="btnResetOrigin" class="modeOrigin">Reset origin pieza</button>
+      <!-- Botones de modo Colisión (ocultos por defecto) -->
+      <button id="btnColUndo" class="modeCol" style="display:none">Deshacer punto</button>
+      <button id="btnColClear" class="modeCol" style="display:none">Limpiar polígono</button>
+      <button id="btnColDefault" class="modeCol" style="display:none">Default (banda base)</button>
     </div>
     <canvas id="cv"></canvas>
   </div>
@@ -77,23 +87,40 @@
   <div id="right" class="col">
     <div style="margin-bottom:14px">
       <div class="muted" style="margin-bottom:4px">Pieza: <b id="curName" style="color:var(--txt)">—</b></div>
-      <div class="bigval">origin = (<span id="curX">0</span>, <span id="curY">0</span>)</div>
+      <div class="bigval"><span id="curHdr">origin = (<span id="curX">0</span>, <span id="curY">0</span>)</span></div>
     </div>
-    <div class="row"><label>origin.x</label><input type="number" id="inX" step="1"><span class="muted">+x ⇒ ←</span></div>
-    <div class="row"><label>origin.y</label><input type="number" id="inY" step="1"><span class="muted">+y ⇒ ↑</span></div>
 
-    <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Exportar (pasámelo a mí)</h2>
-    <div class="row" style="gap:6px">
-      <button class="primary" id="btnCopyJson">Copiar JSON</button>
-      <button id="btnCopyTres">Copiar bloque .tres</button>
+    <!-- ===== Panel modo ORIGIN ===== -->
+    <div class="modeOrigin">
+      <div class="row"><label>origin.x</label><input type="number" id="inX" step="1"><span class="muted">+x ⇒ ←</span></div>
+      <div class="row"><label>origin.y</label><input type="number" id="inY" step="1"><span class="muted">+y ⇒ ↑</span></div>
+
+      <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Exportar origin</h2>
+      <div class="row" style="gap:6px">
+        <button class="primary" id="btnCopyJson">Copiar JSON</button>
+        <button id="btnCopyTres">Copiar bloque .tres</button>
+      </div>
+      <textarea id="out" readonly></textarea>
+
+      <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Importar origin</h2>
+      <textarea id="imp" placeholder='Pegá un JSON {"wall_nw":[52,89],...} y apretá Aplicar' style="height:80px;color:var(--accent2)"></textarea>
+      <div class="row" style="margin-top:6px"><button id="btnImport">Aplicar import</button></div>
+
+      <div class="muted" style="margin-top:14px">Si una imagen no carga (ruta), arrastrá el PNG correspondiente sobre el canvas con la pieza seleccionada.</div>
     </div>
-    <textarea id="out" readonly></textarea>
 
-    <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:18px 0 8px">Importar estado</h2>
-    <textarea id="imp" placeholder='Pegá un JSON {"wall_nw":[52,89],...} y apretá Aplicar' style="height:80px;color:var(--accent2)"></textarea>
-    <div class="row" style="margin-top:6px"><button id="btnImport">Aplicar import</button></div>
-
-    <div class="muted" style="margin-top:14px">Si una imagen no carga (ruta), arrastrá el PNG correspondiente sobre el canvas con la pieza seleccionada.</div>
+    <!-- ===== Panel modo COLISIÓN ===== -->
+    <div class="modeCol" style="display:none">
+      <div class="muted" style="margin-bottom:8px">Dibujá el polígono de <b style="color:var(--accent2)">colisión</b> de la pieza: <span class="kbd">click</span> en el canvas agrega un vértice, arrastrá un punto existente para moverlo. Coords <b>cell-local</b> (centro de celda = 0,0). Se auto-guarda en <code style="color:var(--accent)">tools/rig/wall_collision.json</code>.</div>
+      <div class="bigval" style="font-size:14px;margin-bottom:8px"><span id="colCount">0</span> vértices</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <button id="btnColCopy" class="primary">Copiar JSON</button>
+        <button id="btnColSave">Guardar al server</button>
+      </div>
+      <textarea id="colOut" readonly style="height:120px"></textarea>
+      <div class="muted" id="colSaveMsg" style="margin-top:6px;min-height:14px"></div>
+      <div class="muted" style="margin-top:10px">Tip: cargá el <b>Default (banda base)</b> y ajustá los 4 puntos arrastrándolos. La banda cubre el pie del muro sobre la/s arista/s activa/s.</div>
+    </div>
   </div>
 </main>
 
@@ -112,16 +139,36 @@ const DEFAULTS=[
 ];
 
 //==== Geometría iso (coords de mundo relativas al centro de celda) ====
+// MISMO espacio que el occluder del juego (_install_iso_occluders en dungeon.gd):
+// centro de celda = (0,0), rombo de piso Top/Right/Bottom/Left = (0,-64)/(128,0)/(0,64)/(-128,0).
 const V={T:[0,-64],R:[128,0],B:[0,64],L:[-128,0]};
 const EDGE_VERTS={NW:['L','T'],NE:['T','R'],SE:['R','B'],SW:['B','L']};
 const NEIGH={NW:[-128,-64],NE:[128,-64],SE:[128,64],SW:[-128,64]};
 
+//==== Default de colisión por pieza ====
+// Banda fina sobre la/s arista/s de base de la pieza, levantada ~24px (hacia -y) para darle
+// "altura" al pie del muro. Devuelve un polígono cell-local listo para ajustar a mano.
+const COL_BAND_RISE=24; // px que sube la banda desde la arista
+function defaultCollision(p){
+  // Tomamos los vértices únicos de las aristas activas, en orden.
+  const seq=[];
+  p.edges.forEach(e=>{ EDGE_VERTS[e].forEach(k=>{ if(!seq.includes(k)) seq.push(k); }); });
+  const base=seq.map(k=>V[k]);                 // línea base (sobre el piso)
+  const top =base.map(q=>[q[0], q[1]-COL_BAND_RISE]); // misma línea, subida
+  // Polígono cerrado: base de ida + top de vuelta.
+  return base.concat(top.reverse()).map(q=>[Math.round(q[0]),Math.round(q[1])]);
+}
+
 //==== Estado ====
 const STORE='cuteos_wall_origins_v1';
-let pieces=DEFAULTS.map(p=>({...p,o:[...p.o]}));
+const STORE_COL='cuteos_wall_collision_v1';
+let pieces=DEFAULTS.map(p=>({...p,o:[...p.o],col:null})); // col = [[x,y],...] cell-local, o null
 (function load(){ try{const s=JSON.parse(localStorage.getItem(STORE)||'{}');
   pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.o=[s[p.key][0]|0, s[p.key][1]|0]; });}catch(e){} })();
+(function loadCol(){ try{const s=JSON.parse(localStorage.getItem(STORE_COL)||'{}');
+  pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.col=s[p.key].map(pt=>[pt[0]|0,pt[1]|0]); });}catch(e){} })();
 let sel=0;
+let mode='origin';   // 'origin' | 'col'
 let Z=1.7, pan=[0,0];
 const imgs={}; // key -> HTMLImageElement (loaded)
 
@@ -138,6 +185,9 @@ pieces.forEach(loadImg);
 //==== Helpers de proyección ====
 function cc(){ return [cv.width/2+pan[0], cv.height/2+pan[1]]; }
 function w2s(p){ const c=cc(); return [c[0]+Z*p[0], c[1]+Z*p[1]]; }
+// Inversa de w2s: px de pantalla (mx,my) -> coords cell-local. Es la MISMA transformación
+// que usa el origin, invertida:  cell = (screen - centro) / Z.
+function s2w(mx,my){ const c=cc(); return [(mx-c[0])/Z, (my-c[1])/Z]; }
 function diamondPts(center){ return [V.T,V.R,V.B,V.L].map(v=>w2s([center[0]+v[0],center[1]+v[1]])); }
 function poly(pts,close=true){ ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])); if(close)ctx.closePath(); }
 
@@ -193,6 +243,21 @@ function draw(){
     ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
   }
 
+  // overlay del polígono de colisión (modo col)
+  if(mode==='col'){
+    const col=p.col||[];
+    if(col.length){
+      const sp=col.map(q=>w2s(q));
+      poly(sp, col.length>=3);
+      ctx.fillStyle='rgba(255,212,123,0.18)'; if(col.length>=3) ctx.fill();
+      ctx.strokeStyle='#ffd47b'; ctx.lineWidth=2; ctx.stroke();
+      // vértices
+      sp.forEach((q,i)=>{ ctx.beginPath(); ctx.arc(q[0],q[1],i===colHover?6:4,0,7);
+        ctx.fillStyle=i===colHover?'#fff':'#ffd47b'; ctx.fill();
+        ctx.strokeStyle='#14121a'; ctx.lineWidth=1; ctx.stroke(); });
+    }
+  }
+
   // centro de celda (ancla)
   const o=w2s([0,0]);
   ctx.strokeStyle='#fff'; ctx.lineWidth=1;
@@ -204,22 +269,52 @@ function draw(){
 
 //==== Interacción canvas ====
 let drag=null;
+let colHover=-1;        // índice de vértice de colisión bajo el cursor (-1 = ninguno)
+const COL_HIT=8;        // radio en px de pantalla para agarrar un vértice
+// Devuelve el índice del vértice de colisión cerca de (mx,my), o -1.
+function colVertexAt(p,mx,my){
+  const col=p.col||[];
+  for(let i=0;i<col.length;i++){ const s=w2s(col[i]);
+    if(Math.hypot(s[0]-mx,s[1]-my)<=COL_HIT) return i; }
+  return -1;
+}
 cv.addEventListener('mousedown',e=>{
-  const mx=e.offsetX,my=e.offsetY; const p=pieces[sel]; const r=imgRect(p);
+  const mx=e.offsetX,my=e.offsetY; const p=pieces[sel];
+  if(mode==='col'){
+    if(e.button!==0){ drag={mode:'pan',sx:mx,sy:my,so:null,sp:[...pan]}; return; }
+    // ¿agarro un vértice existente? -> lo arrastro. Si no, agrego uno nuevo.
+    const hit=colVertexAt(p,mx,my);
+    if(hit>=0){ drag={mode:'colpt', idx:hit, moved:false}; }
+    else { if(!p.col) p.col=[]; p.col.push(roundPt(s2w(mx,my)));
+      saveCol(); syncCol(); draw(); }
+    return;
+  }
+  const r=imgRect(p);
   const onImg=document.getElementById('cbImg').checked && mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h;
   drag={mode:onImg?'img':'pan', sx:mx, sy:my, so:[...p.o], sp:[...pan]};
 });
 window.addEventListener('mousemove',e=>{
-  if(!drag) return; const rect=cv.getBoundingClientRect();
+  const rect=cv.getBoundingClientRect();
   const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-  if(drag.mode==='img'){ const p=pieces[sel];
+  // hover de vértices (solo en modo col, sin arrastrar)
+  if(mode==='col' && !drag){ const h=colVertexAt(pieces[sel],mx,my);
+    if(h!==colHover){ colHover=h; cv.style.cursor=h>=0?'pointer':'crosshair'; draw(); } }
+  if(!drag) return;
+  if(drag.mode==='colpt'){ const p=pieces[sel];
+    p.col[drag.idx]=roundPt(s2w(mx,my)); drag.moved=true; colHover=drag.idx; syncCol(); draw(); }
+  else if(drag.mode==='img'){ const p=pieces[sel];
     // mover imagen ⇒ origin = origin0 - delta/Z  (imagen = centro - origin)
     p.o=[ Math.round(drag.so[0]-(mx-drag.sx)/Z), Math.round(drag.so[1]-(my-drag.sy)/Z) ];
     syncUI();
   } else { pan=[drag.sp[0]+(mx-drag.sx), drag.sp[1]+(my-drag.sy)]; }
   draw();
 });
-window.addEventListener('mouseup',()=>{ if(drag&&drag.mode==='img') save(); drag=null; });
+window.addEventListener('mouseup',()=>{
+  if(drag&&drag.mode==='img') save();
+  if(drag&&drag.mode==='colpt') saveCol();
+  drag=null;
+});
+function roundPt(p){ return [Math.round(p[0]), Math.round(p[1])]; }
 cv.addEventListener('wheel',e=>{ e.preventDefault();
   const f=e.deltaY<0?1.1:1/1.1; Z=Math.max(0.4,Math.min(6,Z*f)); draw();
 },{passive:false});
@@ -227,7 +322,10 @@ cv.addEventListener('wheel',e=>{ e.preventDefault();
 //==== Teclado (nudge) — mueve la IMAGEN en la dirección de la flecha ====
 window.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-  const p=pieces[sel]; const step=e.shiftKey?10:1; let used=true;
+  const p=pieces[sel];
+  // En modo colisión: Z deshace el último vértice (las flechas no mueven origin).
+  if(mode==='col'){ if(e.key==='z'||e.key==='Z'){ e.preventDefault(); colUndo(); } return; }
+  const step=e.shiftKey?10:1; let used=true;
   if(e.key==='ArrowRight') p.o[0]-=step;       // imagen → derecha
   else if(e.key==='ArrowLeft') p.o[0]+=step;   // imagen → izquierda
   else if(e.key==='ArrowDown') p.o[1]-=step;   // imagen → abajo
@@ -248,7 +346,7 @@ cv.addEventListener('drop',e=>{ e.preventDefault();
 //==== UI ====
 function buildList(){ const el=document.getElementById('pieceList'); el.innerHTML='';
   pieces.forEach((p,i)=>{ const d=document.createElement('div');
-    d.className='piece'+(i===sel?' sel':''); d.onclick=()=>{sel=i;syncUI();draw();};
+    d.className='piece'+(i===sel?' sel':''); d.onclick=()=>{sel=i;colHover=-1;syncUI();syncCol();draw();};
     d.innerHTML=`<span><span class="nm">${p.key}</span><br><span class="ed">${p.edges.join('+')} · ${p.w}×${p.h}</span></span><span class="ov" id="ov_${p.key}">${p.o[0]},${p.o[1]}</span>`;
     el.appendChild(d); });
 }
@@ -282,7 +380,68 @@ document.getElementById('btnImport').onclick=()=>{ try{const s=JSON.parse(docume
 function flash(id,t){const b=document.getElementById(id);const o=b.textContent;b.textContent=t;setTimeout(()=>b.textContent=o,1100);}
 function save(){ const j={}; pieces.forEach(p=>j[p.key]=p.o); localStorage.setItem(STORE,JSON.stringify(j)); buildOut(); }
 
-buildList(); syncUI(); fit();
+//==== COLISIÓN ====
+// Construye el objeto export: { "<key>":[[x,y],...] } solo con piezas que tengan polígono.
+function collisionExport(){ const j={}; pieces.forEach(p=>{ if(p.col&&p.col.length) j[p.key]=p.col.map(q=>[q[0],q[1]]); }); return j; }
+// Persistencia local (backup, por si el server no está).
+function saveColLocal(){ localStorage.setItem(STORE_COL,JSON.stringify(collisionExport())); }
+// Guarda en localStorage + auto-postea al server (mismo patrón que las demás tools).
+function saveCol(){ saveColLocal(); buildColOut(); postCollision(); }
+function colUndo(){ const p=pieces[sel]; if(p.col&&p.col.length){ p.col.pop(); saveCol(); syncCol(); draw(); } }
+function colClear(){ pieces[sel].col=[]; saveCol(); syncCol(); draw(); }
+function colDefault(){ pieces[sel].col=defaultCollision(pieces[sel]); saveCol(); syncCol(); draw(); }
+function buildColOut(){ document.getElementById('colOut').value=JSON.stringify(collisionExport()); }
+function syncCol(){
+  const p=pieces[sel];
+  document.getElementById('colCount').textContent=(p.col?p.col.length:0);
+  buildColOut();
+}
+// POST al server (auto-guardado a tools/rig/wall_collision.json). Silencioso si no hay server.
+let colPostTimer=null;
+function postCollision(){
+  clearTimeout(colPostTimer);
+  colPostTimer=setTimeout(()=>{
+    fetch('/api/wallcollision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collisionExport())})
+      .then(r=>r.json()).then(j=>{ const m=document.getElementById('colSaveMsg');
+        if(m) m.textContent=j.ok?('Guardado en wall_collision.json ('+j.saved+' piezas)'):'Error: '+(j.error||'?'); })
+      .catch(()=>{ const m=document.getElementById('colSaveMsg'); if(m) m.textContent='(server offline — guardado solo local)'; });
+  },250);
+}
+// Carga el JSON existente del server al abrir (para editar). Si falla, queda lo de localStorage.
+function loadCollisionFromServer(){
+  fetch('/api/wallcollision').then(r=>r.json()).then(j=>{
+    if(j&&j.ok&&j.config&&typeof j.config==='object'){
+      pieces.forEach(p=>{ if(Array.isArray(j.config[p.key])) p.col=j.config[p.key].map(pt=>[pt[0]|0,pt[1]|0]); });
+      syncCol(); draw();
+    }
+  }).catch(()=>{});
+}
+
+//==== Cambio de modo Origin / Colisión ====
+function setMode(m){
+  mode=m;
+  document.getElementById('btnModeOrigin').classList.toggle('primary',m==='origin');
+  document.getElementById('btnModeCol').classList.toggle('primary',m==='col');
+  document.querySelectorAll('.modeOrigin').forEach(el=>el.style.display=(m==='origin'?'':'none'));
+  document.querySelectorAll('.modeCol').forEach(el=>el.style.display=(m==='col'?'':'none'));
+  document.getElementById('hintOrigin').style.display=(m==='origin'?'':'none');
+  document.getElementById('hintCol').style.display=(m==='col'?'':'none');
+  document.getElementById('curHdr').style.display=(m==='origin'?'':'none');
+  cv.style.cursor=(m==='col'?'crosshair':'default');
+  colHover=-1;
+  if(m==='col') syncCol();
+  draw();
+}
+document.getElementById('btnModeOrigin').onclick=()=>setMode('origin');
+document.getElementById('btnModeCol').onclick=()=>setMode('col');
+document.getElementById('btnColUndo').onclick=colUndo;
+document.getElementById('btnColClear').onclick=colClear;
+document.getElementById('btnColDefault').onclick=colDefault;
+document.getElementById('btnColCopy').onclick=()=>{navigator.clipboard.writeText(document.getElementById('colOut').value);flash('btnColCopy','¡Copiado!');};
+document.getElementById('btnColSave').onclick=()=>{ postCollision(); flash('btnColSave','Enviado'); };
+
+buildList(); syncUI(); syncCol(); setMode('origin'); fit();
+loadCollisionFromServer();
 </script>
 </body>
 </html>

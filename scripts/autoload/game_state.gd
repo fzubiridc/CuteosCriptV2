@@ -43,13 +43,16 @@ func set_mode(m: Mode) -> void:
 	mode = m
 	mode_changed.emit(m)
 
-## Crea un número flotante en el mundo (daño, avisos).
+## Crea un número/texto flotante. Va en la CanvasLayer "FX" (nivel UI) → NO lo oscurece el
+## CanvasModulate ni las luces del mundo; sigue al punto `pos` (mundo) convertido a pantalla.
 func floater(pos: Vector2, text: String, color: Color = Color.WHITE, is_crit := false) -> void:
 	var scene := get_tree().current_scene
 	if scene == null:
 		return
+	var layer := scene.get_node_or_null("FX")   # CanvasLayer aparte (inmune a luz/ambiente del mundo)
+	var parent: Node = layer if layer != null else scene
 	var f := FLOATER.instantiate()
-	scene.add_child(f)
+	parent.add_child(f)
 	f.setup(pos, text, color, is_crit)
 
 ## Suelta loot al morir una criatura. xp_amount = orbe de XP garantizado.

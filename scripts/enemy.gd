@@ -106,7 +106,7 @@ func setup_type(key: String, is_elite := false) -> void:
 	max_hp = int(d.get("hp", 30))
 	damage = int(d.get("dmg", 8))
 	speed = float(d.get("spd", 60)) * float(Data.BALANCE.speed_mul)
-	size = float(d.get("size", 8))
+	size = float(d.get("size", 8)) * 1.3   # x1.3: mobs más grandes (global)
 	atk_range = float(d.get("range", 0.0))
 	fire_cd = float(d.get("fire_cd", 1.5))
 	proj_spd = float(d.get("proj_spd", 150.0))
@@ -165,7 +165,7 @@ func _apply_visual() -> void:
 	# Barra de vida fina sobre la cabeza (ancho ∝ tamaño; arriba del sprite/polígono).
 	if hpbar:
 		hpbar.width = size * 2.2
-		hpbar.position = Vector2(0, -(size * 1.3 + 8.0))
+		hpbar.position = Vector2(0, -(size * 1.1 + 3.0))   # más cerca de la cabeza
 
 	# Sombra: proyectada PRO (silueta) si hay sprite; de contacto si es polígono.
 	if not _shadow_attached:
@@ -434,7 +434,7 @@ func _melee_think(delta: float, ppos: Vector2, to_player: float, player) -> Vect
 		return global_position
 	return slot                         # persigue su SLOT, no el centro → no se apilan
 
-func take_damage(amount: int, knockback := Vector2.ZERO, is_crit := false, dmg_color := Color(1, 0.9, 0.5)) -> void:
+func take_damage(amount: int, knockback := Vector2.ZERO, is_crit := false, _dmg_color := Color(1, 0.9, 0.5)) -> void:
 	hp -= amount
 	kb += knockback
 	aggro = true
@@ -447,7 +447,7 @@ func take_damage(amount: int, knockback := Vector2.ZERO, is_crit := false, dmg_c
 		visual.color = Color(1, 1, 1)
 	# Anti-spoiler: el número de daño solo aparece si la celda está en tu radio (no delata mobs en la sombra).
 	if path_grid == null or not is_instance_valid(path_grid) or path_grid.is_cell_visible(global_position):
-		GameState.floater(global_position, str(amount), dmg_color, is_crit)
+		GameState.floater(global_position, str(amount), Color.WHITE, is_crit)   # números de daño BLANCOS (crit = dorado por is_crit)
 	if hp <= 0:
 		_die()
 

@@ -7,7 +7,7 @@ class_name Player
 const PROJECTILE := preload("res://scenes/projectile.tscn")
 const AOE := preload("res://scripts/aoe.gd")
 @export var camera_zoom := 4.0   # knob de zoom de cámara (3 = original, más = más cerca)
-@export var rig_scale := 0.4     # escala visual del rig (0.4 = top-down; subir para iso)
+@export var rig_scale := 0.36    # escala visual del rig (achicado un toque; 0.4 era el anterior)
 
 # Mapeo de octantes (de velocity.angle, 0=east, sentido horario)
 const OCTANTS := ["east", "south_east", "south", "south_west", "west", "north_west", "north", "north_east"]

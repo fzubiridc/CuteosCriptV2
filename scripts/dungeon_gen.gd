@@ -191,7 +191,20 @@ func _has_edge(edges: Array, a: int, b: int) -> bool:
 	return false
 
 ## Modo USE_DOORS: por cada arista DIRIGIDA (a→b) del grafo, una puerta en a (en su borde mirando a b)
-## que teletransporta al INTERIOR de b. Devuelve [{from: celda de a, to: celda de aterrizaje en b}].
+## que teletransporta JUSTO AL LADO de la puerta de vuelta de b (lado de adentro). Devuelve
+## [{from: celda de a, to: celda de aterrizaje en b}].
+##
+## FIX 3 (caras opuestas): el grafo es no dirigido, así que cada conexión (a,b) genera DOS specs:
+##   a→b  cuya puerta vive en `from_cell = _room_cell_nearest(a, b_center)` (borde de a que MIRA a b)
+##   b→a  cuya puerta vive en `_room_cell_nearest(b, a_center)`            (borde de b que MIRA a a)
+## Como `from_cell` se deriva de la DIRECCIÓN entre salas (a→b vs b→a son opuestas), las caras de las
+## dos puertas del par quedan automáticamente en lados OPUESTOS (NE↔SW, NW↔SE, etc. — la cara final la
+## resuelve dungeon._compute_door_faces vía neighbor()). Así, al cruzar, salís por una cara y entrás
+## por la opuesta: coherente espacialmente.
+##
+## FIX 1 (spawn pegado a la puerta destino): `land` ES exactamente la celda de la puerta de vuelta de b
+## (b→a usa `_room_cell_nearest(b, a_center)` = mismo cálculo). Aterrizamos UNA sola celda hacia adentro
+## de b desde esa puerta → caés justo al lado de ella, del lado de adentro, no en el centro de la sala.
 func get_door_specs() -> Array:
 	var specs: Array = []
 	if d._room_graph.size() != d.rooms.size() or d._gen_room_cells.size() != d.rooms.size():
@@ -200,13 +213,18 @@ func get_door_specs() -> Array:
 		var a_center := Vector2(d.rooms[a].get_center())
 		for b in d._room_graph[a]:
 			var b_center := Vector2(d.rooms[b].get_center())
-			var from_cell := _room_cell_nearest(a, b_center)        # borde de a hacia b
-			var land := _room_cell_nearest(b, a_center)             # borde de b hacia a
-			# Aterrizar ~2 celdas hacia el centro de b → no caer sobre la puerta de vuelta.
+			var from_cell := _room_cell_nearest(a, b_center)        # borde de a hacia b (cara que mira a b)
+			var land := _room_cell_nearest(b, a_center)             # celda de la puerta de vuelta de b (mira a a)
+			# FIX 1: aterrizar SÓLO ~1 celda hacia el interior de b desde su puerta → spawn pegado a la
+			# puerta de destino (lado de adentro), no en el centro ni encima de la puerta de vuelta.
 			var inward := b_center - Vector2(land)
 			if inward.length() > 0.01:
-				inward = inward.normalized() * 2.0
+				inward = inward.normalized() * 1.0
 			var to_cell := _room_cell_nearest(b, Vector2(land) + inward)
+			# Salvaguarda: si por geometría el aterrizaje cayó sobre la misma puerta de vuelta, empujá una
+			# celda más adentro (evita reentrar a la puerta apenas spawneás).
+			if to_cell == land:
+				to_cell = _room_cell_nearest(b, Vector2(land) + inward * 2.0)
 			specs.append({"from": from_cell, "to": to_cell})
 	return specs
 

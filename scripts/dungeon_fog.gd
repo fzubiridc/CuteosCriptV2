@@ -19,10 +19,15 @@ var _last_vis_cell: Vector2i = Vector2i(-2147483648, -2147483648)
 ## Fase 3: reveal por habitación (reemplaza el viejo cutout). Cada celda de piso pertenece
 ## a una sala (rect de procgen); al entrar, la fachada trasera de esa sala baja a semitransparente
 ## como CONJUNTO (sin dither, sin per-tile flicker). Estilo Baldur's Gate 3 / Divinity OS2.
-const REVEAL_ALPHA := 0.22   # opacidad de la fachada DELANTERA revelada (15-30%), conserva textura/volumen
+const REVEAL_ALPHA := 0.2    # opacidad de la fachada DELANTERA revelada (transparente; uniforme y sin luz vía CanvasGroup + material reveal)
 const ROOM_HYST := 6         # frames que el player debe estar en la sala antes de revelar (anti-flicker)
-var _reveal_sprites: Dictionary = {} # cell → Node2D (tile-muro swapeado a sprite mientras está revelado)
-var _reveal_tw: Dictionary = {}      # cell → Tween activo del fade (para cancelarlo en swaps rápidos)
+# La fachada revelada de la sala activa se composita en UN CanvasGroup atómico y la transparencia
+# se aplica al GRUPO (self_modulate) → los bordes que se solapan se aplanan ANTES del alpha, así no
+# se duplican (no quedan costuras oscuras) y la fachada se ve uniforme. Mismo truco que el rig del player.
+var _reveal_group: CanvasGroup = null
+var _reveal_group_tw: Tween = null
+var _reveal_sprites: Dictionary = {} # cell → holder (tile-fachada swapeado a sprite, vive en el grupo)
+var _reveal_overlays: Array = []     # holders de overlay reparentados al grupo (a devolver al salir)
 var _active_room: int = -1
 var _pending_room: int = -99
 var _room_hold: int = 0
@@ -102,51 +107,71 @@ func update_room_reveal(pl: Node2D) -> void:
 	_active_room = rid
 	_set_room_faded(rid, true)             # revelar la sala en la que entrás
 
-## Aplica/quita el fade a la fachada DELANTERA (S/E) de una sala, como CONJUNTO, con tween.
-## Un tile NO se transparenta individual → al revelar, cada tile-fachada se SWAPEA a un Sprite2D
-## (mismo y-sort/pixel) y se le baja el alpha; al salir, vuelve el alpha a 1 y se restaura el tile.
-## Las fachadas que ya eran overlay (celdas de 3 bordes) solo tweenan su alpha.
+## Revela/oculta la fachada DELANTERA (S/E) de una sala. Al revelar, TODAS sus fachadas se meten en
+## un CanvasGroup y se le baja el alpha al GRUPO (no a cada tile) → uniforme, sin costuras de borde.
 func _set_room_faded(rid: int, faded: bool) -> void:
 	if rid < 0:
 		return
-	var target: float = REVEAL_ALPHA if faded else 1.0
-	var touched := false
+	if faded:
+		_reveal_room(rid)
+	else:
+		_unreveal_room()
+
+func _reveal_room(rid: int) -> void:
+	_clear_reveal_group()   # limpia/restaura cualquier grupo anterior al instante (entrar/salir rápido)
+	var group := CanvasGroup.new()
+	group.name = "RevealGroup"
+	d._iso_walls.add_child(group)   # cuelga del layer de fachada (z+1, sobre el player); en (0,0)
+	_reveal_group = group
 	for e in d._room_front.get(rid, []):
-		if int(e.kind) == 1:                       # overlay ya-sprite: solo tween
-			if is_instance_valid(e.holder):
-				_tween_alpha(e.holder, target)
-			continue
-		var cell: Vector2i = e.cell                # tile-fachada: swap tile↔sprite
-		if faded:
-			if not _reveal_sprites.has(cell):
-				d._iso_walls.erase_cell(cell)
-				_reveal_sprites[cell] = d._spawn_wall_sprite(cell, d._front_src[cell], false)
-				touched = true
-			_reveal_fade(cell, REVEAL_ALPHA, false)
-		elif _reveal_sprites.has(cell):
-			_reveal_fade(cell, 1.0, true)          # tween a opaco y, al terminar, restaurar tile
-	if touched:
-		d._iso_walls.update_internals()
-
-## Tween de alpha de un sprite de reveal. Cancela cualquier tween previo de ESA celda (swaps
-## rápidos entrar/salir). restore=true: al terminar, libera el sprite y repone el tile.
-func _reveal_fade(cell: Vector2i, to_a: float, restore: bool) -> void:
-	if _reveal_tw.has(cell) and _reveal_tw[cell] != null and _reveal_tw[cell].is_valid():
-		_reveal_tw[cell].kill()
-	var h: Node2D = _reveal_sprites[cell]
-	var tw := d.create_tween()
-	tw.tween_property(h, "modulate:a", to_a, 0.18).set_trans(Tween.TRANS_SINE)
-	if restore:
-		var src: int = d._front_src[cell]
-		tw.tween_callback(func() -> void:
+		if int(e.kind) == 1:                       # overlay ya-sprite → reparentar al grupo
+			var h = e.holder
 			if is_instance_valid(h):
-				h.queue_free()
-			_reveal_sprites.erase(cell)
-			_reveal_tw.erase(cell)
-			d._iso_walls.set_cell(cell, src, Vector2i(0, 0))
-			d._iso_walls.update_internals())
-	_reveal_tw[cell] = tw
+				h.get_parent().remove_child(h)
+				group.add_child(h)
+				h.modulate.a = 1.0
+				if h.get_child_count() > 0:        # material sin óvalo mientras está revelado
+					(h.get_child(0) as CanvasItem).material = d._iso_wall_mat_reveal
+				_reveal_overlays.append(h)
+		else:                                       # tile-fachada → swap a sprite DENTRO del grupo (sin óvalo)
+			var cell: Vector2i = e.cell
+			d._iso_walls.erase_cell(cell)
+			_reveal_sprites[cell] = d._spawn_wall_sprite(cell, d._front_src[cell], false, group, true)
+	d._iso_walls.update_internals()
+	group.self_modulate.a = 1.0
+	_reveal_group_tw = d.create_tween()
+	_reveal_group_tw.tween_property(group, "self_modulate:a", REVEAL_ALPHA, 0.18).set_trans(Tween.TRANS_SINE)
 
-func _tween_alpha(node: Node2D, to_a: float) -> void:
-	var tw := d.create_tween()
-	tw.tween_property(node, "modulate:a", to_a, 0.18).set_trans(Tween.TRANS_SINE)
+func _unreveal_room() -> void:
+	if _reveal_group == null or not is_instance_valid(_reveal_group):
+		return
+	if _reveal_group_tw != null and _reveal_group_tw.is_valid():
+		_reveal_group_tw.kill()
+	_reveal_group_tw = d.create_tween()
+	_reveal_group_tw.tween_property(_reveal_group, "self_modulate:a", 1.0, 0.18).set_trans(Tween.TRANS_SINE)
+	_reveal_group_tw.tween_callback(_clear_reveal_group)
+
+## Devuelve los overlays a _iso_walls, restaura los tiles swapeados y libera el grupo. Sincrónico.
+func _clear_reveal_group() -> void:
+	if _reveal_group_tw != null and _reveal_group_tw.is_valid():
+		_reveal_group_tw.kill()
+	_reveal_group_tw = null
+	if _reveal_group == null or not is_instance_valid(_reveal_group):
+		_reveal_group = null
+		_reveal_sprites = {}
+		_reveal_overlays = []
+		return
+	for h in _reveal_overlays:                  # overlays vuelven a su capa, opacos, con el óvalo de nuevo
+		if is_instance_valid(h):
+			h.get_parent().remove_child(h)
+			d._iso_walls.add_child(h)
+			h.modulate.a = 1.0
+			if h.get_child_count() > 0:
+				(h.get_child(0) as CanvasItem).material = d._iso_wall_mat_solid
+	_reveal_overlays = []
+	for cell in _reveal_sprites:                # tiles swapeados → repintar el tile
+		d._iso_walls.set_cell(cell, d._front_src[cell], Vector2i(0, 0))
+	_reveal_sprites = {}
+	_reveal_group.queue_free()
+	_reveal_group = null
+	d._iso_walls.update_internals()

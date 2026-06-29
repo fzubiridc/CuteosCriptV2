@@ -101,6 +101,7 @@ var _iso_walls_back: TileMapLayer   # muros TRASEROS (N/O) — z=-1, DEBAJO del 
 var _iso_astar := AStarGrid2D.new()
 var _iso_bounds: StaticBody2D   # barrera de colisión en el perímetro del piso
 var _iso_wall_mat_solid: ShaderMaterial # material de las caras de muro (unshaded foot-lit)
+var _iso_wall_mat_reveal: ShaderMaterial # idem PERO sin el óvalo (para la fachada transparentada)
 # Registro maestro de TODAS las celdas de muro (cell → source). Lo llena _paint_walls.
 var _wall_cells: Dictionary = {}
 # Datos del tileset precomputados para clonar un tile como Sprite2D (overlay de 3-bordes + reveal).
@@ -260,7 +261,13 @@ func _ensure_iso() -> void:
 	_cache_wall_tile_data()
 	_ensure_wall_variants()   # variantes de muro recto como sources en runtime (reusan origins base)
 	_ensure_door_sources()    # tiles de puerta (1 por cara) como sources, mismo patrón que las variantes
+	_install_iso_collisions() # colisión por-pieza (polígono dibujado en wall_origin_tool → wall_collision.json)
 	_iso_wall_mat_solid = _make_wall_mat()   # caras de muro: unshaded foot-lit
+	_iso_wall_mat_reveal = _make_wall_mat()   # fachada transparentada: NO recibe luz (ni óvalo ni círculo)
+	_iso_wall_mat_reveal.set_shader_parameter("wall_span_projection", false)
+	_iso_wall_mat_reveal.set_shader_parameter("wall_base_projection", false)
+	_iso_wall_mat_reveal.set_shader_parameter("light_count", 0)   # CERO luces → no la ilumina el player ni antorchas
+	_iso_wall_mat_reveal.set_shader_parameter("ambient", Vector3(0.62, 0.62, 0.62))   # brillo fijo uniforme (visible, plano)
 	# NATIVE_WALLS: sin material custom → pipeline LIT nativo. El shader unshaded solo si NATIVE_WALLS=false.
 	var wm: ShaderMaterial = null if NATIVE_WALLS else _iso_wall_mat_solid
 	_iso_walls.material = wm
@@ -625,6 +632,67 @@ func _install_iso_occluders() -> void:
 		td.set_occluder_polygons_count(0, 1)
 		td.set_occluder_polygon(0, 0, occ)
 
+# --- Colisión por-pieza de muro (polígono dibujado en wall_origin_tool → wall_collision.json) ---
+## Clave (la del tool) → source del tileset. Mismo nombre que el texture_origin/occluder.
+const COLL_KEY := {
+	SRC_WALL_NW: "wall_nw", SRC_WALL_NE: "wall_ne", SRC_WALL_SE: "wall_se", SRC_WALL_SW: "wall_sw",
+	SRC_CORNER_TOP: "corner_top", SRC_CORNER_BOTTOM: "corner_bottom",
+	SRC_CORNER_LEFT: "corner_left", SRC_CORNER_RIGHT: "corner_right",
+}
+const WALL_COLLISION_PATH := "res://tools/rig/wall_collision.json"
+var _wall_coll: Dictionary = {}   # key → PackedVector2Array (polígono cell-local)
+
+## Lee wall_collision.json (cell-local, mismo espacio que el occluder). Vacío si no existe.
+func _load_wall_collision() -> void:
+	_wall_coll = {}
+	var g := ProjectSettings.globalize_path(WALL_COLLISION_PATH)
+	if not FileAccess.file_exists(g):
+		return
+	var f := FileAccess.open(g, FileAccess.READ)
+	if f == null:
+		return
+	var data: Variant = JSON.parse_string(f.get_as_text())
+	if not (data is Dictionary):
+		return
+	for k in data:
+		var pts := PackedVector2Array()
+		for p in data[k]:
+			if p is Array and p.size() >= 2:
+				pts.append(Vector2(float(p[0]), float(p[1])))
+		if pts.size() >= 3:
+			_wall_coll[k] = pts
+
+## Instala un polígono de colisión (physics layer 0, capa 1) en cada source de muro que tenga
+## polígono en el JSON. SEGURO: si el JSON está vacío, no hace nada (la barrera de perímetro sigue).
+## Las variantes y puertas reusan el polígono de su borde base.
+func _install_iso_collisions() -> void:
+	_load_wall_collision()
+	if _wall_coll.is_empty():
+		return
+	var ts := ISO_TILESET
+	if ts.get_physics_layers_count() == 0:
+		ts.add_physics_layer()
+		ts.set_physics_layer_collision_layer(0, 1)   # muros en capa 1 (el player la maskea con mask 1)
+		ts.set_physics_layer_collision_mask(0, 0)
+	for sid in COLL_KEY:
+		_set_tile_collision(sid, _wall_coll.get(COLL_KEY[sid], null))
+	for vid in _variant_base:   # variantes → polígono de su base
+		_set_tile_collision(vid, _wall_coll.get(COLL_KEY.get(int(_variant_base[vid]), ""), null))
+	for dbase in _door_src:     # puertas → polígono de su base
+		_set_tile_collision(int(_door_src[dbase]), _wall_coll.get(COLL_KEY.get(int(dbase), ""), null))
+
+func _set_tile_collision(sid: int, pts) -> void:
+	if pts == null:
+		return
+	var src := ISO_TILESET.get_source(sid) as TileSetAtlasSource
+	if src == null:
+		return
+	var td := src.get_tile_data(Vector2i(0, 0), 0)
+	if td == null:
+		return
+	td.set_collision_polygons_count(0, 1)
+	td.set_collision_polygon_points(0, 0, pts)
+
 func _paint_iso() -> void:
 	clear()
 	if _iso_walls:
@@ -638,17 +706,22 @@ func _paint_iso() -> void:
 	# Matar primero los tweens de reveal activos: si no, su callback (restore) corre sobre
 	# sprites ya liberados acá abajo / sobre _iso_walls en pleno regen → crash en regen rápida.
 	_ensure_fog()
-	for tw in _fog._reveal_tw.values():
-		if tw != null and tw.is_valid():
-			tw.kill()
-	for h in _fog._reveal_sprites.values():
+	# Matar el tween de reveal + liberar el grupo (con sus sprites/overlays reparentados) antes del
+	# regen: si no, su callback de restore corre sobre nodos liberados / sobre _iso_walls en pleno regen.
+	if _fog._reveal_group_tw != null and _fog._reveal_group_tw.is_valid():
+		_fog._reveal_group_tw.kill()
+	if _fog._reveal_group != null and is_instance_valid(_fog._reveal_group):
+		_fog._reveal_group.queue_free()   # libera el grupo + sus hijos (sprites de reveal y overlays)
+	for h in _fog._reveal_sprites.values():   # defensivo: sprites sueltos si no hubiera grupo
 		if is_instance_valid(h):
 			h.queue_free()
 	_corner_sprites = []
 	_room_front = {}
 	_front_src = {}
+	_fog._reveal_group = null
+	_fog._reveal_group_tw = null
 	_fog._reveal_sprites = {}
-	_fog._reveal_tw = {}
+	_fog._reveal_overlays = []
 	_fog._active_room = -1
 	_fog._pending_room = -99
 	_fog._room_hold = 0
@@ -747,18 +820,18 @@ func _wall_layer_for(src: int) -> TileMapLayer:
 	var base: int = _variant_base.get(src, src)   # las variantes heredan front/back de su borde base
 	return _iso_walls if base in FRONT_SOURCES else _iso_walls_back
 
-func _spawn_wall_sprite(cell: Vector2i, source: int, permanent: bool) -> Node2D:
+func _spawn_wall_sprite(cell: Vector2i, source: int, permanent: bool, parent: Node = null, reveal := false) -> Node2D:
 	var layer := _wall_layer_for(source)
 	var holder := Node2D.new()
-	holder.position = layer.map_to_local(cell)
+	holder.position = layer.map_to_local(cell)   # layer-local; el grupo del reveal cuelga del layer en (0,0)
 	var spr := Sprite2D.new()
 	spr.texture = _wall_tex.get(source)
 	spr.centered = true
 	spr.offset = -_wall_origin.get(source, Vector2.ZERO)
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	spr.material = null if NATIVE_WALLS else _iso_wall_mat_solid
+	spr.material = null if NATIVE_WALLS else (_iso_wall_mat_reveal if reveal else _iso_wall_mat_solid)
 	holder.add_child(spr)
-	layer.add_child(holder)
+	(parent if parent != null else layer).add_child(holder)
 	if permanent:
 		_corner_sprites.append(holder)
 	return holder

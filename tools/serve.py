@@ -40,6 +40,9 @@ if not PIXI_ROOT.exists():
 RIG_DIR = GODOT_ROOT / "tools" / "rig"
 RIG_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = RIG_DIR / "rig_config.json"
+# Polígono de COLISIÓN por pieza de muro (cell-local), editado a mano en wall_origin_tool.html.
+# Forma: { "<key_pieza>": [[x,y],...] }  (mismas claves que el texture_origin: wall_nw, corner_top, ...)
+WALL_COLLISION_PATH = RIG_DIR / "wall_collision.json"
 HAND_OUT = RIG_DIR / "hands"
 AOE_CONFIG = GODOT_ROOT / "assets" / "fx" / "aoe_config.json"
 SPELLS_CFG = RIG_DIR / "spells.json"
@@ -236,6 +239,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json({"ok": True, "count": _staff_count()})
         if p == "/api/spellcfg":
             return self._send_json({"ok": True, "config": _read_json(SPELLS_CFG)})
+        if p == "/api/wallcollision":
+            return self._send_json({"ok": True, "config": _read_json(WALL_COLLISION_PATH)})
         if p == "/api/fonts":
             return self._send_json({"ok": True, **_font_index()})
         if p == "/api/fontmetrics":
@@ -357,6 +362,15 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("spellcfg no es objeto")
                 _write_json(SPELLS_CFG, data)
                 print(f"[serve] spells.json ({len(data)} varas)")
+                return self._send_json({"ok": True, "saved": len(data)})
+
+            if p == "/api/wallcollision":
+                # Guarda el polígono de colisión por pieza de muro (cell-local) -> wall_collision.json.
+                data = json.loads(self._body() or b"{}")
+                if not isinstance(data, dict):
+                    raise ValueError("wallcollision no es objeto")
+                _write_json(WALL_COLLISION_PATH, data)
+                print(f"[serve] wall_collision.json ({len(data)} piezas)")
                 return self._send_json({"ok": True, "saved": len(data)})
 
             if p == "/api/spellasset":

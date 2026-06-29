@@ -141,10 +141,19 @@ Consumidores:
   Enemy              → SE AUTO-GATEA por DISTANCIA (to_player <= mob_reveal_dist) + is_cell_seen
                        ⚠ disco de distancia, NO celda/LOS
   Boss               → NO se gatea (siempre visible) — decisión, choca con "ocultar info"
-Reveal de FACHADA (ortogonal a la niebla): update_room_reveal + _set_room_faded (alpha-tween, ROOM_HYST=6
-  frames de histéresis). El fog NO apaga caras de muro; el reveal solo baja alpha (REVEAL_ALPHA=0.22) de
-  fachadas DELANTERAS. Tile-fachada → se SWAPEA a Sprite2D para tweenear; overlay ya-sprite → solo tween.
+Reveal de FACHADA (ortogonal a la niebla): update_room_reveal + _set_room_faded (ROOM_HYST=6 frames de
+  histéresis). El fog NO apaga caras de muro. **Reescrito 2026-06-28**: la fachada de la sala activa se
+  compositan en UN **CanvasGroup** atómico (`_reveal_room`/`_unreveal_room`/`_clear_reveal_group`) y el
+  alpha (REVEAL_ALPHA=0.2) se aplica al GRUPO (`self_modulate`) → bordes solapados NO se duplican (sin
+  costuras). Las fachadas usan el material **`_iso_wall_mat_reveal`** (wall shader con `light_count=0` +
+  ambient fijo) → NO reciben luz (sin óvalo/círculo del player), planas. Tile-fachada → swap a Sprite2D
+  DENTRO del grupo (`_spawn_wall_sprite(..., parent, reveal=true)`); overlay → reparentado al grupo.
 ```
+
+> **Colisión de muro (NUEVO 2026-06-28):** además de la barrera de perímetro (`_build_iso_boundaries`, ahora
+> 8-vecinos), hay colisión POR-PIEZA opcional: `dungeon._install_iso_collisions` lee `tools/rig/wall_collision.json`
+> (polígono cell-local por pieza, dibujado en la tab Colisión de `wall_origin_tool.html`) y lo setea como
+> physics polygon del tile (capa 1). Vacío = no-op (sigue la barrera). **Esquinas = dos muros** (`CORNERS_AS_TWO_WALLS`).
 
 ## 4. Luz (LightCfg → LightField → shader)
 ```
