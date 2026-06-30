@@ -1,8 +1,8 @@
 {
-  "id": "intro_numen_origen",
-  "title": "El Numen y el origen",
+  "id": "intro_edad_de_oro",
+  "title": "La edad de oro",
   "next_scene": "res://scenes/main.tscn",
-  "audio_enabled": false,
+  "audio_enabled": true,
   "voice": "res://assets/narration/intro/voice_intro.mp3",
   "music": "res://assets/narration/intro/music_intro.mp3",
   "voice_volume_db": 0.0,
@@ -17,20 +17,39 @@
   "allow_skip": true,
   "cues": [
     {
-      "id": "intro",
+      "id": "luz",
       "start": 0.0,
-      "duration": 0.0,
+      "image": "res://assets/narration/intro/splash_01_luz.png",
+      "image_scale_mode": "fit",
+      "text": [
+        "Hubo un tiempo en que la luz venía cuando se la llamaba. El don dormía en pocos, y a esos pocos la tierra los buscaba: en ciertos puntos el poder brotaba del suelo como agua de un manantial, y donde brotaba, los del don se juntaban, alzaban torres, y aprendían a doblar la luz con las manos."
+      ]
+    },
+    {
+      "id": "torre_nueva",
+      "start": 25.0,
+      "image": "res://assets/narration/intro/splash_02_torre.png",
+      "image_scale_mode": "fit",
+      "text": [
+        "Sobre el mayor de esos manantiales, un mago llamado Killaeth alzó la más alta de las Torres. Mil años duró su luz."
+      ]
+    },
+    {
+      "id": "torre_vieja",
+      "start": 34.0,
       "image": "res://assets/narration/intro/splash_001.png",
       "image_scale_mode": "fit",
-      "text_start_y_ratio": 1.05,
-      "crawl_pixels_per_second": 22.0,
-      "font_size": 28,
       "text": [
-        "Hubo un mundo de reinos y caminos, como todos los mundos. Pero por esta tierra corría una fuerza invisible: el Numen, el aliento de toda magia. Pocos nacían con su chispa; esos pocos eran magos. El Numen no brotaba parejo: en ciertos puntos subía a la superficie y manaba, y se lo podía beber — los llamaron los nudos. Allí se juntó la gente del don, y sobre la veta levantaron torres. Nadie preguntaba de dónde venía el Numen. Pero tenía un origen… y un precio.",
-        "Su origen fue una guerra que nadie vio. Antes del mundo hubo dos: Oriael, la fuente de toda luz, y Morvath, que venía de abajo y todo lo pudría. Oriael pudo destruirlo; pero Morvath ya había tocado el mundo entero, y matarlo era matar todo lo vivo. Así que eligió no vencer: se vertió en la tierra y se hizo árbol —Vaelroth—, y sus raíces se cerraron sobre Morvath, conteniéndolo abajo. Y aquí lo esencial: el mismo árbol que lo encierra es el que da el Numen. El sello y la fuente son uno. La magia fluye porque hay un dios vertido en la tierra, sosteniendo una puerta que no puede soltar.",
-        "En cada mago, la chispa tomaba una forma: el Temple, su don y su clan a la vez. Cinco fueron los clanes: los Karreth, de fuerza y honor; los Cindrael, de saber y memoria; los Maelvorn, artífices que ponían magia en la materia; los Threnvar, que vigilaban la linde por donde se filtra lo que no debe nombrarse; y los Caelreth, que guardaban el orden. Y lejísimos, en torno al árbol, velaban los Custodios: guardianes de un Numen tan vasto que la muerte los había olvidado. Mientras estuvieran, la puerta de abajo seguiría cerrada.",
-        "Faltaba el lugar donde aprenderlo. Lo halló Killaeth: sobre uno de los grandes nudos alzó una Torre, y a ella vinieron los cinco clanes a aprender el arte de doblar la luz. Mil años duró su edad de oro, y nadie creyó que algo pudiera tocarla. Pero en las lindes del mundo algo se filtraba desde abajo, y el frío ganaba terreno —una mano de ancho cada cien años. De eso, en la Torre, casi nadie quiso saber.",
-        "Y en la cima de aquella edad, un Threnvar llamado Vorhael, sabio entre los sabios, se cansó de solo contener. Halló un libro —el Threnodion, sembrado por la sombra— que prometía cerrar el inframundo para siempre. No mentía: solo callaba qué fabricaba al cerrar. Vorhael leyó, y al leer, fue leído; la corrupción lo tomó como una idea que uno cree propia. Y bajó a tocar la raíz del mundo, creyendo que sellaba lo que en verdad abría. Entonces, hace diez mil años, el cielo se tiñó de rojo. Cayó uno de los cuatro que guardan la raíz, y así supo el mundo que lo que no muere puede morir. Cuatro eran. Quedaron tres. A Vorhael lo tragó la tierra, y nunca más volvió. Y la edad de oro… se quebró bajo el primer eclipse."
+        "Las salas no conocían el invierno; la noche cedía con solo nombrarla. Y en verdad… ¿quién iba a mirar hacia abajo, teniendo tanto cielo?"
+      ]
+    },
+    {
+      "id": "arbol",
+      "start": 45.0,
+      "image": "res://assets/narration/intro/splash_03_arbol.png",
+      "image_scale_mode": "fit",
+      "text": [
+        "Porque en las lindes del mundo, donde nadie de la Torre miraba, el color se iba de las cosas desde el suelo hacia arriba, primero la hierba, después la piedra, como si algo de abajo bebiera el mundo a sorbos lentos. Demasiado lento para el miedo. Lo bastante lento para que pareciera paz."
       ]
     }
   ]

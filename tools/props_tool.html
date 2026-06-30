@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Props Tool — colisiones + anclaje de assets iso</title>
+<style>
+  :root{
+    --bg:#14121a; --panel:#1d1a25; --panel2:#262130; --line:#3a3447;
+    --txt:#e7e2f0; --dim:#9a8fb0; --accent:#7bd4ff; --accent2:#ffd47b; --good:#9fe39f; --bad:#ff8f8f;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  header{padding:8px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex:0 0 auto}
+  header h1{font-size:14px;margin:0;font-weight:600;letter-spacing:.3px}
+  header .hint{color:var(--dim);font-size:12px}
+  main{flex:1;display:flex;min-height:0}
+  .col{display:flex;flex-direction:column;min-height:0}
+  #left{width:280px;border-right:1px solid var(--line);flex:0 0 auto;display:flex;flex-direction:column}
+  #leftHead{padding:8px 10px;border-bottom:1px solid var(--line);flex:0 0 auto}
+  #assetList{overflow:auto;flex:1;padding:6px}
+  #center{flex:1;min-width:0;position:relative;background:#0e0c14}
+  #right{width:308px;border-left:1px solid var(--line);overflow:auto;flex:0 0 auto;padding:12px}
+  .asset{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;margin-bottom:2px;border:1px solid transparent}
+  .asset:hover{background:var(--panel2)}
+  .asset.sel{background:var(--panel2);border-color:var(--accent)}
+  .asset.off{opacity:.4}
+  .asset img{width:34px;height:34px;object-fit:contain;image-rendering:pixelated;background:#0e0c14;border-radius:4px;flex:0 0 auto}
+  .asset .nm{font-size:11.5px;font-weight:600;line-height:1.2;word-break:break-word}
+  .asset .meta{font-size:10px;color:var(--dim)}
+  .asset .en{flex:0 0 auto}
+  .grpHdr{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--accent2);margin:8px 4px 4px;font-weight:700}
+  .toolbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:5;pointer-events:none}
+  .toolbar>*{pointer-events:auto}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 9px;display:flex;gap:6px;align-items:center;font-size:12px}
+  .chip label{color:var(--dim);cursor:pointer;user-select:none}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;font-family:inherit}
+  button:hover{border-color:var(--accent)}
+  button.primary{border-color:var(--accent);color:var(--accent)}
+  button.sm{padding:4px 8px;font-size:11px}
+  canvas{display:block;width:100%;height:100%}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:9px}
+  .row label{width:64px;color:var(--dim);flex:0 0 auto}
+  input[type=number]{width:76px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:5px 7px;font-family:inherit;font-variant-numeric:tabular-nums}
+  input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:6px 8px;font-family:inherit}
+  select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:5px 7px;font-family:inherit;flex:1}
+  textarea{width:100%;height:120px;background:#0e0c14;border:1px solid var(--line);color:var(--good);border-radius:6px;padding:8px;font-family:Consolas,monospace;font-size:11.5px;resize:vertical}
+  .kbd{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-family:Consolas,monospace;font-size:11px;color:var(--accent2)}
+  .muted{color:var(--dim);font-size:11.5px;line-height:1.55}
+  .bigval{font-size:16px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+  h2.sub{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:16px 0 8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 Props Tool</h1>
+  <span class="hint" id="hintPos">Posición · arrastrá la imagen para fijar el offset · <span class="kbd">flechas</span> nudge · rueda = zoom</span>
+  <span class="hint" id="hintCol" style="display:none">Colisión · <span class="kbd">click</span> agrega vértice · arrastrá un punto para moverlo · <span class="kbd">Z</span> deshace</span>
+  <span class="hint" id="saveMsg" style="margin-left:auto;color:var(--good)"></span>
+</header>
+<main>
+  <div id="left" class="col">
+    <div id="leftHead">
+      <input type="text" id="filter" placeholder="filtrar por nombre…" style="margin-bottom:6px">
+      <div class="row" style="margin:0;gap:6px;flex-wrap:wrap">
+        <button class="sm" id="btnEnAll">Activar todos</button>
+        <button class="sm" id="btnEnNone">Desactivar todos</button>
+        <span class="muted" id="counts" style="margin-left:auto"></span>
+      </div>
+    </div>
+    <div id="assetList"></div>
+  </div>
+
+  <div id="center" class="col">
+    <div class="toolbar">
+      <div class="chip" style="gap:2px">
+        <button id="btnModePos" class="primary" style="padding:4px 9px">Posición</button>
+        <button id="btnModeCol" style="padding:4px 9px">Colisión</button>
+      </div>
+      <div class="chip"><input type="checkbox" id="cbGrid" checked><label for="cbGrid">Aristas</label></div>
+      <div class="chip"><input type="checkbox" id="cbNeighbors"><label for="cbNeighbors">Vecinos</label></div>
+      <div class="chip"><input type="checkbox" id="cbImg" checked><label for="cbImg">Imagen</label></div>
+      <div class="chip"><label>α</label><input type="range" id="alpha" min="0.2" max="1" step="0.05" value="0.95" style="width:64px"></div>
+      <button id="btnReset">Centrar vista</button>
+      <button id="btnColUndo" class="modeCol" style="display:none">Deshacer punto</button>
+      <button id="btnColClear" class="modeCol" style="display:none">Limpiar</button>
+      <button id="btnColDefault" class="modeCol" style="display:none">Footprint default</button>
+    </div>
+    <canvas id="cv"></canvas>
+  </div>
+
+  <div id="right" class="col">
+    <div style="margin-bottom:12px">
+      <div class="muted" style="margin-bottom:4px">Asset: <b id="curName" style="color:var(--txt)">—</b></div>
+      <div class="muted" id="curDims">—</div>
+    </div>
+
+    <!-- ===== Panel POSICIÓN ===== -->
+    <div class="modePos">
+      <div class="row"><label>Escala</label>
+        <input type="range" id="scaleR" min="0.05" max="1.5" step="0.005" value="0.5" style="flex:1">
+        <input type="number" id="scaleN" step="0.01" min="0.01">
+      </div>
+      <div class="row"><label>Anclaje</label>
+        <select id="anchor">
+          <option value="center">Centro del tile</option>
+          <option value="wall_nw">Muro NW (atrás-izq)</option>
+          <option value="wall_ne">Muro NE (atrás-der)</option>
+          <option value="wall_se">Muro SE (frente-der)</option>
+          <option value="wall_sw">Muro SW (frente-izq)</option>
+        </select>
+      </div>
+      <div class="row"><label>Offset</label>
+        <span class="bigval" style="font-size:14px">(<span id="offX">0</span>, <span id="offY">0</span>)</span>
+        <button class="sm" id="btnOffReset" style="margin-left:auto">Reset</button>
+      </div>
+      <div class="row"><label>Z bias</label><input type="number" id="zBias" step="1" value="0"><span class="muted">orden de dibujo</span></div>
+      <div class="row"><label>Y-sort</label><input type="number" id="ysort" step="2" value="0"><span class="muted">pivote de profundidad · − = te tapa más tarde</span></div>
+      <h2 class="sub">En el generador</h2>
+      <div class="row"><label>Weight</label><input type="number" id="weight" step="0.1" min="0" value="1"><span class="muted">frecuencia de aparición</span></div>
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="enabled"><b>Aparece en el mapa</b></label>
+      <div class="muted">El rombo gris es la celda (256×128). El punto blanco es donde apoya el asset. Arrastrá la imagen para ajustar el offset fino sobre el anclaje elegido.</div>
+    </div>
+
+    <!-- ===== Panel COLISIÓN ===== -->
+    <div class="modeCol" style="display:none">
+      <div class="row" style="margin:0 0 8px;gap:2px">
+        <button id="btnTgtCol" class="primary" style="padding:4px 9px;flex:1">🟥 Colisión</button>
+        <button id="btnTgtOcc" style="padding:4px 9px;flex:1">🟪 Oclusión</button>
+      </div>
+      <div class="muted" id="colHelp" style="margin-bottom:8px"><b style="color:#ff8f8f">Colisión</b> = bloquea al jugador/nav. <span class="kbd">click</span> agrega vértice; arrastrá para mover. Coords <b>cell-local</b>. Auto-guarda en <code style="color:var(--accent)">props.json</code>.</div>
+      <div class="bigval" style="font-size:14px;margin-bottom:8px">Activo: <span id="colCount">0</span> vértices</div>
+      <h2 class="sub">Polígonos</h2>
+      <div id="polyList" style="margin-bottom:6px"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="sm" id="btnPolyAdd">+ Nuevo</button>
+        <button class="sm" id="btnPolyDel">− Borrar</button>
+      </div>
+      <div class="muted">Tip: <b>Footprint default</b> pone un rombo chico en la base del tile; ajustá los 4 puntos arrastrándolos.</div>
+    </div>
+
+    <h2 class="sub">Catálogo (props.json)</h2>
+    <div class="muted" id="catMsg">—</div>
+    <div class="row" style="margin-top:8px"><button id="btnExport">Copiar JSON</button></div>
+    <textarea id="out" readonly style="height:90px"></textarea>
+  </div>
+</main>
+
+<script>
+//==== Geometría iso (igual que wall_origin_tool / occluder del juego) ====
+// centro de celda = (0,0); rombo Top/Right/Bottom/Left = (0,-64)/(128,0)/(0,64)/(-128,0).
+const V={T:[0,-64],R:[128,0],B:[0,64],L:[-128,0]};
+const EDGE_VERTS={NW:['L','T'],NE:['T','R'],SE:['R','B'],SW:['B','L']};
+const NEIGH={NW:[-128,-64],NE:[128,-64],SE:[128,64],SW:[-128,64]};
+// Punto de anclaje (cell-local) donde apoya la BASE del asset. Mismos midpoints que dungeon_decor._edge_midpoint.
+const ANCHOR={center:[0,0],wall_nw:[-64,-32],wall_ne:[64,-32],wall_se:[64,32],wall_sw:[-64,32]};
+
+//==== Estado ====
+const STORE='cuteos_props_v1';
+let assets=[];      // [{path,name,group,w,h, scale,anchor,offset,polys,activePoly,weight,enabled,z}]
+let sel=-1;
+let mode='pos';     // 'pos' | 'col'
+let Z=1.7, pan=[0,0];
+const imgs={};      // path -> HTMLImageElement
+let curImg=null;
+
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+function fit(){ const r=cv.parentElement.getBoundingClientRect(); cv.width=r.width; cv.height=r.height; draw(); }
+window.addEventListener('resize',fit);
+
+//==== Defaults por asset ====
+function defScale(w){ return w>0 ? Math.round(384/w*1000)/1000 : 1.5; } // prominente (~1.5× tile)
+function blankMeta(f){ return {scale:defScale(f.w),anchor:'center',offset:[0,0],polys:[],activePoly:0,opolys:[],oactivePoly:0,weight:1,enabled:true,z:0,ysort:0}; }
+// Footprint default: rombo chico en la base del tile.
+function defaultFootprint(){ return [[0,-14],[44,0],[0,14],[-44,0]]; }
+
+//==== Parser de polígonos (single o multi), igual que wall tool ====
+function parsePolys(raw){
+  if(!Array.isArray(raw)||!raw.length) return [];
+  const isMulti=Array.isArray(raw[0])&&raw[0].length>0&&Array.isArray(raw[0][0]);
+  if(isMulti) return raw.filter(p=>Array.isArray(p)).map(p=>p.map(pt=>[pt[0]|0,pt[1]|0]));
+  return [raw.map(pt=>[pt[0]|0,pt[1]|0])];
+}
+function exportPolys(polys){
+  const valid=polys.filter(pol=>pol&&pol.length>=3);
+  if(!valid.length) return [];
+  if(valid.length===1) return valid[0].map(q=>[q[0],q[1]]);
+  return valid.map(pol=>pol.map(q=>[q[0],q[1]]));
+}
+
+//==== Target de edición de polígonos: 'col' = colisión (bloquea) | 'occ' = oclusión (z-order) ====
+let polyTarget='col';
+function PK(){ return polyTarget==='occ'?'opolys':'polys'; }       // clave del array de polígonos activo
+function AK(){ return polyTarget==='occ'?'oactivePoly':'activePoly'; } // clave del índice activo
+
+//==== Carga inicial: /api/props (descubre + catálogo). Fallback localStorage. ====
+async function init(){
+  let files=[], catalog={};
+  try{
+    const r=await fetch('/api/props'); const j=await r.json();
+    if(j.ok){ files=j.files||[]; catalog=j.catalog||{}; }
+  }catch(e){ document.getElementById('catMsg').textContent='(server offline — usando localStorage)'; }
+  if(!files.length){ try{ const ls=JSON.parse(localStorage.getItem(STORE)||'{}'); catalog=ls.catalog||{}; files=ls.files||[]; }catch(e){} }
+  // Merge: para cada archivo descubierto, su meta del catálogo o un blank.
+  assets=files.map(f=>{
+    const m=catalog[f.path]||{};
+    return {
+      path:f.path, name:f.name, group:f.group, w:f.w, h:f.h,
+      scale:(typeof m.scale==='number')?m.scale:defScale(f.w),
+      anchor:m.anchor||'center',
+      offset:Array.isArray(m.offset)?[m.offset[0]|0,m.offset[1]|0]:[0,0],
+      polys:parsePolys(m.collision||[]), activePoly:0,
+      opolys:parsePolys(m.occlusion||[]), oactivePoly:0,
+      weight:(typeof m.weight==='number')?m.weight:1,
+      enabled:(m.enabled!==undefined)?!!m.enabled:true,
+      z:(typeof m.z==='number')?m.z:0,
+      ysort:(typeof m.ysort==='number')?m.ysort:0,
+    };
+  });
+  if(assets.length) sel=0;
+  buildList(); if(sel>=0) selectAsset(sel,true); setMode('pos'); updateCounts(); fit();
+}
+
+//==== Construcción del catálogo para guardar ====
+function buildCatalog(){
+  const cat={};
+  assets.forEach(a=>{
+    cat[a.path]={ scale:a.scale, anchor:a.anchor, offset:[a.offset[0],a.offset[1]],
+      collision:exportPolys(a.polys), occlusion:exportPolys(a.opolys), weight:a.weight, enabled:a.enabled, z:a.z, ysort:a.ysort };
+  });
+  return cat;
+}
+let saveTimer=null;
+function save(){
+  const cat=buildCatalog();
+  localStorage.setItem(STORE,JSON.stringify({catalog:cat,files:assets.map(a=>({path:a.path,name:a.name,group:a.group,w:a.w,h:a.h}))}));
+  document.getElementById('out').value=JSON.stringify(cat);
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    fetch('/api/props',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat)})
+      .then(r=>r.json()).then(j=>{ flashSave(j.ok?('Guardado · '+j.saved+' assets'):'Error: '+(j.error||'?')); })
+      .catch(()=>flashSave('(server offline — solo local)'));
+  },300);
+}
+function flashSave(t){ const m=document.getElementById('saveMsg'); m.textContent=t; clearTimeout(flashSave._t); flashSave._t=setTimeout(()=>m.textContent='',2000); }
+
+//==== Lista de assets (agrupada, filtrable) ====
+function buildList(){
+  const el=document.getElementById('assetList'); el.innerHTML='';
+  const q=(document.getElementById('filter').value||'').toLowerCase();
+  let curGroup=null;
+  assets.forEach((a,i)=>{
+    if(q && !a.name.toLowerCase().includes(q) && !a.group.toLowerCase().includes(q)) return;
+    if(a.group!==curGroup){ curGroup=a.group; const h=document.createElement('div'); h.className='grpHdr'; h.textContent=a.group; el.appendChild(h); }
+    const d=document.createElement('div');
+    d.className='asset'+(i===sel?' sel':'')+(a.enabled?'':' off'); d.dataset.i=i;
+    d.innerHTML=`<img loading="lazy" src="/${a.path}"><span style="flex:1;min-width:0"><span class="nm">${a.name}</span><br><span class="meta">${a.w}×${a.h} · w${a.weight}</span></span><input class="en" type="checkbox" ${a.enabled?'checked':''}>`;
+    d.onclick=(e)=>{ if(e.target.classList.contains('en')) return; selectAsset(i); };
+    d.querySelector('.en').onchange=(e)=>{ a.enabled=e.target.checked; d.classList.toggle('off',!a.enabled); if(i===sel)document.getElementById('enabled').checked=a.enabled; updateCounts(); save(); };
+    el.appendChild(d);
+  });
+}
+function updateCounts(){
+  const on=assets.filter(a=>a.enabled).length;
+  document.getElementById('counts').textContent=on+'/'+assets.length+' activos';
+}
+
+//==== Selección ====
+function selectAsset(i,force){
+  if(i===sel && !force) return;
+  sel=i; const a=assets[i];
+  document.querySelectorAll('.asset').forEach(d=>d.classList.toggle('sel',+d.dataset.i===i));
+  document.getElementById('curName').textContent=a.name;
+  document.getElementById('curDims').textContent=a.group+' · '+a.w+'×'+a.h+' px';
+  document.getElementById('scaleR').value=a.scale;
+  document.getElementById('scaleN').value=a.scale;
+  document.getElementById('anchor').value=a.anchor;
+  document.getElementById('weight').value=a.weight;
+  document.getElementById('enabled').checked=a.enabled;
+  document.getElementById('zBias').value=a.z;
+  document.getElementById('ysort').value=a.ysort;
+  syncOff(); syncCol();
+  // cargar imagen
+  if(imgs[a.path]){ curImg=imgs[a.path]; draw(); }
+  else { const im=new Image(); im.onload=()=>{ imgs[a.path]=im; if(assets[sel]&&assets[sel].path===a.path){curImg=im;draw();} };
+    im.onerror=()=>{ if(assets[sel]&&assets[sel].path===a.path){curImg=null;draw();} }; im.src='/'+a.path; curImg=null; draw(); }
+}
+function syncOff(){ const a=assets[sel]; document.getElementById('offX').textContent=a.offset[0]; document.getElementById('offY').textContent=a.offset[1]; }
+
+//==== Proyección ====
+function cc(){ return [cv.width/2+pan[0], cv.height/2+pan[1]]; }
+function w2s(p){ const c=cc(); return [c[0]+Z*p[0], c[1]+Z*p[1]]; }
+function s2w(mx,my){ const c=cc(); return [(mx-c[0])/Z,(my-c[1])/Z]; }
+function diamondPts(center){ return [V.T,V.R,V.B,V.L].map(v=>w2s([center[0]+v[0],center[1]+v[1]])); }
+function poly(pts,close=true){ ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])); if(close)ctx.closePath(); }
+function roundPt(p){ return [Math.round(p[0]),Math.round(p[1])]; }
+
+//==== Rect en pantalla del asset: base (bottom-center) en anchor+offset, escalado ====
+function assetRect(a){
+  const ap=ANCHOR[a.anchor]||[0,0];
+  const base=[ap[0]+a.offset[0], ap[1]+a.offset[1]];   // donde apoya el pie (cell-local)
+  const s=w2s(base);
+  const w=Z*a.scale*a.w, h=Z*a.scale*a.h;
+  return {x:s[0]-w/2, y:s[1]-h, w, h, baseScreen:s};
+}
+
+// Dibuja un set de polígonos. `isAct` = es el target activo (editable: con handles, opaco).
+function drawPolySet(polys, col, fillCol, isAct, activeIdx){
+  if(!polys) return;
+  ctx.globalAlpha = isAct ? 1 : 0.4;
+  polys.forEach((pol,pi)=>{
+    if(!pol.length) return;
+    const active = isAct && pi===activeIdx; const sp=pol.map(q=>w2s(q));
+    poly(sp, pol.length>=3);
+    ctx.fillStyle=fillCol; if(pol.length>=3) ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=active?2:1; ctx.stroke();
+    if(isAct) sp.forEach((q,vi)=>{ const hov=(pi===colHover.poly&&vi===colHover.vert);
+      ctx.beginPath(); ctx.arc(q[0],q[1],hov?6:(active?4:3),0,7);
+      ctx.fillStyle=hov?'#fff':col; ctx.fill(); ctx.strokeStyle='#14121a'; ctx.lineWidth=1; ctx.stroke(); });
+  });
+  ctx.globalAlpha=1;
+}
+
+//==== Dibujo ====
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#0e0c14'; ctx.fillRect(0,0,cv.width,cv.height);
+  if(sel<0) return;
+  const a=assets[sel];
+
+  if(document.getElementById('cbNeighbors').checked){
+    for(const k in NEIGH){ poly(diamondPts(NEIGH[k]));
+      ctx.fillStyle='rgba(120,110,150,0.06)'; ctx.fill();
+      ctx.strokeStyle='rgba(120,110,150,0.28)'; ctx.lineWidth=1; ctx.stroke(); }
+  }
+  // celda central
+  poly(diamondPts([0,0]));
+  ctx.fillStyle='rgba(180,170,210,0.10)'; ctx.fill();
+  ctx.strokeStyle='rgba(180,170,210,0.5)'; ctx.lineWidth=1.5; ctx.stroke();
+  // aristas + anclaje activo
+  if(document.getElementById('cbGrid').checked){
+    const activeEdge=a.anchor.replace('wall_','').toUpperCase();
+    for(const e in EDGE_VERTS){
+      const p0=w2s(V[EDGE_VERTS[e][0]]), p1=w2s(V[EDGE_VERTS[e][1]]);
+      const on=(e===activeEdge);
+      ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]);
+      ctx.strokeStyle=on?'#7bd4ff':'rgba(180,170,210,0.35)'; ctx.lineWidth=on?4:1.5; ctx.stroke();
+      const mid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2];
+      ctx.fillStyle=on?'#7bd4ff':'rgba(180,170,210,0.6)'; ctx.font=(on?'bold ':'')+'11px monospace'; ctx.textAlign='center';
+      ctx.fillText(e, mid[0]+(e.includes('W')?-15:15), mid[1]);
+    }
+  }
+  // imagen del asset
+  if(document.getElementById('cbImg').checked && curImg){
+    const r=assetRect(a);
+    ctx.globalAlpha=parseFloat(document.getElementById('alpha').value);
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(curImg, r.x, r.y, r.w, r.h);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(255,212,123,0.45)'; ctx.lineWidth=1; ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
+  }
+  // polígonos: COLISIÓN (rojo, bloquea) + OCLUSIÓN (violeta, z-order). El target activo es editable.
+  if(mode==='col'){
+    drawPolySet(a.polys,  '#ff8f8f', 'rgba(255,143,143,0.16)', polyTarget==='col', a.activePoly);
+    drawPolySet(a.opolys, '#c08cff', 'rgba(176,120,255,0.16)', polyTarget==='occ', a.oactivePoly);
+  }
+  // Referencia del límite de oclusión usada en el juego: la huella de OCLUSIÓN si existe, si no la colisión.
+  // (El test real es por-columna X; esto es solo una guía del borde sur de esa huella.)
+  const occSrc=(a.opolys&&a.opolys.length)?a.opolys:a.polys;
+  if(occSrc&&occSrc.length){
+    ctx.strokeStyle='rgba(176,120,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    let mx=-1e9; occSrc.forEach(pol=>pol.forEach(pt=>{ if(pt[1]>mx)mx=pt[1]; }));
+    if(mx>-1e9){ const py=w2s([0,mx]); ctx.beginPath(); ctx.moveTo(py[0]-Z*150,py[1]); ctx.lineTo(py[0]+Z*150,py[1]); ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
+  // punto de anclaje (base) + centro
+  const o=w2s([0,0]);
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(o[0]-6,o[1]); ctx.lineTo(o[0]+6,o[1]); ctx.moveTo(o[0],o[1]-6); ctx.lineTo(o[0],o[1]+6); ctx.stroke();
+  const r2=assetRect(a);
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(r2.baseScreen[0],r2.baseScreen[1],4,0,7); ctx.fill();
+  ctx.strokeStyle='#14121a'; ctx.stroke();
+}
+
+//==== Interacción canvas ====
+let drag=null;
+let colHover={poly:-1,vert:-1};
+const COL_HIT=8;
+function colVertexAt(a,mx,my){ const polys=a[PK()];
+  for(let pi=0;pi<polys.length;pi++){ const pol=polys[pi];
+    for(let vi=0;vi<pol.length;vi++){ const s=w2s(pol[vi]); if(Math.hypot(s[0]-mx,s[1]-my)<=COL_HIT) return {poly:pi,vert:vi}; } }
+  return {poly:-1,vert:-1};
+}
+function ensureActivePoly(a){ if(!a[PK()].length){ a[PK()]=[[]]; a[AK()]=0; }
+  if(a[AK()]>=a[PK()].length) a[AK()]=a[PK()].length-1; return a[PK()][a[AK()]]; }
+cv.addEventListener('mousedown',e=>{
+  if(sel<0) return; const mx=e.offsetX,my=e.offsetY; const a=assets[sel];
+  if(mode==='col'){
+    if(e.button!==0){ drag={mode:'pan',sx:mx,sy:my,sp:[...pan]}; return; }
+    const hit=colVertexAt(a,mx,my);
+    if(hit.poly>=0){ drag={mode:'colpt',poly:hit.poly,vert:hit.vert}; }
+    else { const ap=ensureActivePoly(a); ap.push(roundPt(s2w(mx,my))); save(); syncCol(); draw(); }
+    return;
+  }
+  const r=assetRect(a);
+  const onImg=document.getElementById('cbImg').checked && curImg && mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h;
+  drag={mode:onImg?'img':'pan', sx:mx,sy:my, so:[...a.offset], sp:[...pan]};
+});
+window.addEventListener('mousemove',e=>{
+  if(sel<0) return; const rect=cv.getBoundingClientRect(); const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  if(mode==='col'&&!drag){ const h=colVertexAt(assets[sel],mx,my);
+    if(h.poly!==colHover.poly||h.vert!==colHover.vert){ colHover=h; cv.style.cursor=h.poly>=0?'pointer':'crosshair'; draw(); } }
+  if(!drag) return;
+  const a=assets[sel];
+  if(drag.mode==='colpt'){ a[PK()][drag.poly][drag.vert]=roundPt(s2w(mx,my)); colHover={poly:drag.poly,vert:drag.vert}; syncCol(); draw(); }
+  else if(drag.mode==='img'){ a.offset=[Math.round(drag.so[0]+(mx-drag.sx)/Z), Math.round(drag.so[1]+(my-drag.sy)/Z)]; syncOff(); draw(); }
+  else { pan=[drag.sp[0]+(mx-drag.sx), drag.sp[1]+(my-drag.sy)]; draw(); }
+});
+window.addEventListener('mouseup',()=>{ if(drag&&(drag.mode==='img'||drag.mode==='colpt')) save(); drag=null; });
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=e.deltaY<0?1.1:1/1.1; Z=Math.max(0.3,Math.min(6,Z*f)); draw(); },{passive:false});
+
+//==== Teclado ====
+window.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if(sel<0) return; const a=assets[sel];
+  if(mode==='col'){ if(e.key==='z'||e.key==='Z'){ e.preventDefault(); colUndo(); } return; }
+  const step=e.shiftKey?10:1; let used=true;
+  if(e.key==='ArrowRight') a.offset[0]+=step;
+  else if(e.key==='ArrowLeft') a.offset[0]-=step;
+  else if(e.key==='ArrowDown') a.offset[1]+=step;
+  else if(e.key==='ArrowUp') a.offset[1]-=step;
+  else used=false;
+  if(used){ e.preventDefault(); syncOff(); draw(); save(); }
+});
+
+//==== Colisión helpers ====
+function colUndo(){ const a=assets[sel]; const ap=a[PK()][a[AK()]]; if(!ap||!ap.length) return;
+  ap.pop(); if(!ap.length&&a[PK()].length>1){ a[PK()].splice(a[AK()],1); if(a[AK()]>=a[PK()].length)a[AK()]=a[PK()].length-1; }
+  save(); syncCol(); draw(); }
+function colClear(){ const a=assets[sel]; if(!a[PK()].length){a[PK()]=[[]];a[AK()]=0;} else a[PK()][a[AK()]]=[]; save(); syncCol(); draw(); }
+function colDefault(){ const a=assets[sel]; if(!a[PK()].length){a[PK()].push([]);a[AK()]=0;} a[PK()][a[AK()]]=defaultFootprint(); save(); syncCol(); draw(); }
+function polyAdd(){ const a=assets[sel]; a[PK()].push([]); a[AK()]=a[PK()].length-1; save(); syncCol(); draw(); }
+function polyDel(){ const a=assets[sel]; if(!a[PK()].length){a[PK()]=[[]];a[AK()]=0;} else if(a[PK()].length===1)a[PK()][0]=[]; else{a[PK()].splice(a[AK()],1); if(a[AK()]>=a[PK()].length)a[AK()]=a[PK()].length-1;} save(); syncCol(); draw(); }
+function syncCol(){
+  if(sel<0) return; const a=assets[sel]; const polys=a[PK()]; const ap=polys[a[AK()]];
+  document.getElementById('colCount').textContent=(ap?ap.length:0);
+  const list=document.getElementById('polyList');
+  list.innerHTML='';
+  const isOcc=polyTarget==='occ'; const col=isOcc?'#c08cff':'#ff8f8f';
+  if(!polys.length){ list.innerHTML='<div class="muted" style="padding:6px 0">(sin '+(isOcc?'oclusión — vacía usa la colisión':'colisión')+' — click en el canvas para empezar)</div>'; }
+  polys.forEach((pol,i)=>{ const d=document.createElement('div'); const act=i===a[AK()];
+    d.style.cssText='padding:6px 8px;border-radius:5px;cursor:pointer;margin-bottom:3px;border:1px solid '+(act?col:'transparent')+';background:'+(act?(isOcc?'rgba(176,120,255,0.10)':'rgba(255,143,143,0.10)'):'transparent');
+    d.textContent='polígono '+(i+1)+' — '+pol.length+' pts';
+    d.onclick=()=>{ a[AK()]=i; colHover={poly:-1,vert:-1}; syncCol(); draw(); };
+    list.appendChild(d); });
+}
+
+//==== Controles panel ====
+document.getElementById('scaleR').addEventListener('input',e=>{ const a=assets[sel]; a.scale=parseFloat(e.target.value); document.getElementById('scaleN').value=a.scale; draw(); save(); });
+document.getElementById('scaleN').addEventListener('input',e=>{ const a=assets[sel]; a.scale=parseFloat(e.target.value)||0.01; document.getElementById('scaleR').value=a.scale; draw(); save(); });
+document.getElementById('anchor').addEventListener('change',e=>{ assets[sel].anchor=e.target.value; draw(); save(); });
+document.getElementById('weight').addEventListener('input',e=>{ assets[sel].weight=parseFloat(e.target.value)||0; buildList(); draw(); save(); });
+document.getElementById('zBias').addEventListener('input',e=>{ assets[sel].z=parseInt(e.target.value)||0; save(); });
+document.getElementById('ysort').addEventListener('input',e=>{ assets[sel].ysort=parseFloat(e.target.value)||0; draw(); save(); });
+document.getElementById('enabled').addEventListener('change',e=>{ assets[sel].enabled=e.target.checked; buildList(); updateCounts(); save(); });
+document.getElementById('btnOffReset').onclick=()=>{ assets[sel].offset=[0,0]; syncOff(); draw(); save(); };
+document.getElementById('filter').addEventListener('input',buildList);
+document.getElementById('btnEnAll').onclick=()=>{ assets.forEach(a=>a.enabled=true); buildList(); updateCounts(); if(sel>=0)document.getElementById('enabled').checked=true; save(); };
+document.getElementById('btnEnNone').onclick=()=>{ assets.forEach(a=>a.enabled=false); buildList(); updateCounts(); if(sel>=0)document.getElementById('enabled').checked=false; save(); };
+['cbGrid','cbNeighbors','cbImg','alpha'].forEach(id=>document.getElementById(id).addEventListener('input',draw));
+document.getElementById('btnReset').onclick=()=>{ Z=1.7; pan=[0,0]; draw(); };
+document.getElementById('btnColUndo').onclick=colUndo;
+document.getElementById('btnColClear').onclick=colClear;
+document.getElementById('btnColDefault').onclick=colDefault;
+document.getElementById('btnPolyAdd').onclick=polyAdd;
+document.getElementById('btnPolyDel').onclick=polyDel;
+document.getElementById('btnExport').onclick=()=>{ navigator.clipboard.writeText(document.getElementById('out').value); flashSave('JSON copiado'); };
+
+// Target de edición: Colisión (bloquea) vs Oclusión (z-order; vacía → usa la colisión).
+function setColTarget(t){
+  polyTarget=t;
+  document.getElementById('btnTgtCol').classList.toggle('primary',t==='col');
+  document.getElementById('btnTgtOcc').classList.toggle('primary',t==='occ');
+  document.getElementById('colHelp').innerHTML = t==='occ'
+    ? '<b style="color:#c08cff">Oclusión</b> = qué tan ancho te TAPA (z-order), desacoplado del choque. Dibujá p.ej. el brazo ancho de una lámpara. <b>Vacía → usa la colisión.</b>'
+    : '<b style="color:#ff8f8f">Colisión</b> = bloquea al jugador/nav. <span class="kbd">click</span> agrega vértice; arrastrá para mover. Coords <b>cell-local</b>. Auto-guarda en <code style="color:var(--accent)">props.json</code>.';
+  colHover={poly:-1,vert:-1}; syncCol(); draw();
+}
+document.getElementById('btnTgtCol').onclick=()=>setColTarget('col');
+document.getElementById('btnTgtOcc').onclick=()=>setColTarget('occ');
+
+//==== Modo ====
+function setMode(m){
+  mode=m;
+  document.getElementById('btnModePos').classList.toggle('primary',m==='pos');
+  document.getElementById('btnModeCol').classList.toggle('primary',m==='col');
+  document.querySelectorAll('.modePos').forEach(el=>el.style.display=(m==='pos'?'':'none'));
+  document.querySelectorAll('.modeCol').forEach(el=>el.style.display=(m==='col'?'':'none'));
+  document.getElementById('hintPos').style.display=(m==='pos'?'':'none');
+  document.getElementById('hintCol').style.display=(m==='col'?'':'none');
+  cv.style.cursor=(m==='col'?'crosshair':'default');
+  colHover={poly:-1,vert:-1};
+  if(m==='col') syncCol();
+  draw();
+}
+document.getElementById('btnModePos').onclick=()=>setMode('pos');
+document.getElementById('btnModeCol').onclick=()=>setMode('col');
+
+init();
+</script>
+</body>
+</html>

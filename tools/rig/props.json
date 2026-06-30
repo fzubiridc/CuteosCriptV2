@@ -1,0 +1,2324 @@
+{
+"assets/iso/props/kenney/bookcaseBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-32,
+49
+],
+"collision": [
+[
+-98,
+-14
+],
+[
+-59,
+7
+],
+[
+12,
+-30
+],
+[
+-29,
+-51
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-26,
+85
+],
+"collision": [
+[
+-92,
+18
+],
+[
+-51,
+-1
+],
+[
+19,
+33
+],
+[
+-20,
+53
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+35,
+50
+],
+"collision": [
+[
+-10,
+-28
+],
+[
+62,
+7
+],
+[
+103,
+-13
+],
+[
+33,
+-46
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+35,
+80
+],
+"collision": [
+[
+-10,
+28
+],
+[
+31,
+48
+],
+[
+102,
+13
+],
+[
+60,
+-6
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooksLadder_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-32,
+48
+],
+"collision": [
+[
+-58,
+6
+],
+[
+-41,
+-3
+],
+[
+-19,
+10
+],
+[
+3,
+-1
+],
+[
+-20,
+-15
+],
+[
+12,
+-30
+],
+[
+-28,
+-51
+],
+[
+-99,
+-15
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooksLadder_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-48,
+57
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooksLadder_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+47,
+7
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseBooksLadder_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+48,
+57
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseDestroyed_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-42,
+5
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseDestroyed_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-44,
+59
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseDestroyed_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+47,
+8
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseDestroyed_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+47,
+57
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmpty_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-44,
+6
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmpty_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-46,
+58
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmpty_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+49,
+8
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmpty_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+49,
+56
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmptyLadder_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-41,
+5
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmptyLadder_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-43,
+60
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmptyLadder_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+49,
+8
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseEmptyLadder_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+44,
+59
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseFallen_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-6,
+8
+],
+"collision": [
+[
+-42,
+-22
+],
+[
+22,
+-8
+],
+[
+41,
+-29
+],
+[
+-22,
+-43
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseFallen_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+25,
+46
+],
+"collision": [
+[
+-38,
+-23
+],
+[
+4,
+-15
+],
+[
+33,
+-47
+],
+[
+-6,
+-56
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseFallen_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-34,
+35
+],
+"collision": [
+[
+-25,
+25
+],
+[
+4,
+-7
+],
+[
+-36,
+-16
+],
+[
+-67,
+16
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseFallen_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+15,
+25
+],
+"collision": [
+[
+-31,
+-4
+],
+[
+-12,
+-23
+],
+[
+51,
+-9
+],
+[
+34,
+11
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseGlass_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-37,
+2
+],
+"collision": [
+[
+-33,
+-31
+],
+[
+-13,
+-21
+],
+[
+22,
+-39
+],
+[
+1,
+-48
+]
+],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseGlass_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseGlass_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+46,
+8
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseGlass_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+50,
+56
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-37,
+4
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-46,
+58
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+44,
+8
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfEmpty_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-36,
+2
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfEmpty_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfEmpty_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfEmpty_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideEmpty_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideEmpty_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideEmpty_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseHalfWideEmpty_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksDesk_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksDesk_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksDesk_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksDesk_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksLadder_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksLadder_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksLadder_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideBooksLadder_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmpty_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmpty_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmpty_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmpty_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmptyLadder_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmptyLadder_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmptyLadder_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookcaseWideEmptyLadder_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStand_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStand_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStand_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStand_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStandEmpty_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStandEmpty_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStandEmpty_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/bookStandEmpty_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStand_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStand_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-1,
+67
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStand_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+1,
+74
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStand_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-1,
+69
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStandDouble_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+67
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStandDouble_N.png": {
+"scale": 1.5,
+"anchor": "center",
+"offset": [
+3,
+95
+],
+"collision": [
+[
+8,
+6
+],
+[
+19,
+-3
+],
+[
+16,
+-11
+],
+[
+6,
+-15
+],
+[
+-7,
+-12
+],
+[
+-11,
+-8
+],
+[
+-9,
+0
+],
+[
+-4,
+5
+],
+[
+1,
+6
+]
+],
+"occlusion": [
+[
+29,
+2
+],
+[
+33,
+-128
+],
+[
+5,
+-148
+],
+[
+-18,
+-144
+],
+[
+-29,
+-120
+],
+[
+-26,
+2
+]
+],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStandDouble_S.png": {
+"scale": 1.5,
+"anchor": "center",
+"offset": [
+1,
+101
+],
+"collision": [
+[
+8,
+10
+],
+[
+16,
+-2
+],
+[
+4,
+-7
+],
+[
+-5,
+-7
+],
+[
+-11,
+-1
+],
+[
+-12,
+5
+],
+[
+-8,
+9
+],
+[
+1,
+11
+]
+],
+"occlusion": [
+[
+35,
+5
+],
+[
+29,
+-120
+],
+[
+1,
+-144
+],
+[
+-28,
+-138
+],
+[
+-28,
+-113
+],
+[
+-32,
+3
+]
+],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/candleStandDouble_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-1,
+67
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCase_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCase_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCase_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCase_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseOpen_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseOpen_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseOpen_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseOpen_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseSword_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseSword_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseSword_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/displayCaseSword_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpet_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-3,
+64
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpet_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+8,
+62
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpet_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+9,
+62
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpet_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-2,
+65
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetEnd_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+66,
+34
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetEnd_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-55,
+29
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetEnd_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+69,
+95
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetEnd_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-62,
+98
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetSmall_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+2,
+65
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetSmall_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+65
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetSmall_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+5,
+64
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/floorCarpetSmall_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+-2,
+66
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/libraryChair_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/libraryChair_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/libraryChair_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/libraryChair_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTable_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTable_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTable_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTable_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableChairs_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableChairs_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableChairs_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableChairs_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecorated_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecorated_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecorated_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecorated_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairs_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairs_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairs_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairs_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairsBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairsBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairsBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableDecoratedChairsBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableLarge_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableLarge_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableLarge_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/longTableLarge_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallBooks_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallBooks_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallBooks_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallBooks_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallDoorway_E.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallDoorway_N.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallDoorway_S.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+},
+"assets/iso/props/kenney/wallDoorway_W.png": {
+"scale": 1,
+"anchor": "center",
+"offset": [
+0,
+0
+],
+"collision": [],
+"occlusion": [],
+"weight": 1,
+"enabled": true,
+"z": 0,
+"ysort": 0
+}
+}

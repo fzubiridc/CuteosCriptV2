@@ -118,17 +118,35 @@ func carve_iso_room(origin: Vector2i, width: int, depth: int) -> Array:
 			cells.append(cell)
 	return cells
 
-## Corredor en L entre dos salas. ANCHO = 2 TILES de piso (_carve_h/_carve_v pintan la fila/columna
-## + la adyacente). REGLA DE PASILLOS: nunca < 2 tiles de piso de ancho — con los muros ALTOS de hoy,
-## un pasillo de 1 tile no se ve (el muro alto tapa el piso). FUTURO: con muros más bajos se podría
-## bajar a 1 tile. Solo se usa en modo clásico; en USE_DOORS no se talla nada (salas aisladas).
+## Corredor en L ISOMÉTRICO entre dos salas: dos tramos rectos por los ejes VISUALES del rombo
+## (ISO_AXIS_A = SE, ISO_AXIS_B = SW) en vez de fila/columna cartesiana — la cartesiana, en un grid
+## STACKED, se ve como escalera dentada. ANCHO = 2 TILES (cada paso talla la celda + su vecina por el
+## eje perpendicular). REGLA DE PASILLOS: nunca < 2 (los muros altos taparían un pasillo de 1 tile).
+## Solo modo clásico; en USE_DOORS no se talla nada (salas aisladas).
 func _connect(a: Vector2i, b: Vector2i) -> void:
+	var aw := d.map_to_local(a)
+	var delta := d.map_to_local(b) - aw
+	# Descompone el vector entre centros en pasos (u, v) de los ejes iso: delta = u·A + v·B.
+	var un := int(round(delta.x / 256.0 + delta.y / 128.0))
+	var vn := int(round(delta.y / 128.0 - delta.x / 256.0))
 	if Rng.chance(0.5):
-		carve_h(a.x, b.x, a.y)
-		carve_v(a.y, b.y, b.x)
+		_carve_iso_leg(_carve_iso_leg(aw, ISO_AXIS_A, ISO_AXIS_B, un), ISO_AXIS_B, ISO_AXIS_A, vn)
 	else:
-		carve_v(a.y, b.y, a.x)
-		carve_h(a.x, b.x, b.y)
+		_carve_iso_leg(_carve_iso_leg(aw, ISO_AXIS_B, ISO_AXIS_A, vn), ISO_AXIS_A, ISO_AXIS_B, un)
+
+## Talla un tramo recto iso: |n|+1 celdas desde `start_world` a lo largo de `axis` (el signo de n da la
+## dirección), + la celda vecina por `perp` para el ancho 2. Devuelve el world del extremo (codo de la L).
+func _carve_iso_leg(start_world: Vector2, axis: Vector2, perp: Vector2, n: int) -> Vector2:
+	var step := 1 if n >= 0 else -1
+	for k in range(abs(n) + 1):
+		var w := start_world + axis * (step * k)
+		_carve_cell(d.local_to_map(w))
+		_carve_cell(d.local_to_map(w + perp))
+	return start_world + axis * n
+
+func _carve_cell(c: Vector2i) -> void:
+	if c.y >= 0 and c.y < d.grid.size() and c.x >= 0 and c.x < d.grid[c.y].size():
+		d.grid[c.y][c.x] = 1
 
 ## Conecta las salas con un Árbol de Expansión Mínima (Prim) sobre sus centros +
 ## ~15% de aristas cortas extra → grafo con algunos ciclos (no una cadena lineal:

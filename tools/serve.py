@@ -49,6 +49,12 @@ SPELLS_CFG = RIG_DIR / "spells.json"
 SPELL_ASSETS = GODOT_ROOT / "assets" / "fx" / "spells"
 FONT_DIR = GODOT_ROOT / "assets" / "fonts"
 FONT_INDEX = FONT_DIR / "font_index.json"
+# Catalogo de PROPS (props_tool.html): por asset -> escala, anclaje (centro/muro), offset,
+# poligono de colision (cell-local, mismo formato que wall_collision), weight y enabled.
+# Clave = ruta relativa al root Godot (p.ej. "assets/iso/props/kenney/bookcaseBooks_S.png").
+PROPS_PATH = RIG_DIR / "props.json"
+# Carpeta donde viven los assets de props. Soltá PNGs nuevos acá y aparecen solos en la tool.
+PROPS_DIR = GODOT_ROOT / "assets" / "iso" / "props"
 
 # Carpetas de varas: al insertar/animar/borrar una, se escribe en AMBOS proyectos.
 PIXI_STAFFS = PIXI_ROOT / "assets" / "v2_test" / "staffs"
@@ -164,6 +170,32 @@ def _apply_bmfont_metrics(path: Path, changes: dict) -> int:
     return changed
 
 
+def _png_size(path: Path) -> tuple:
+    """(w, h) leyendo el header IHDR del PNG. Sin dependencias. (0,0) si falla."""
+    try:
+        with path.open("rb") as f:
+            head = f.read(24)
+        if len(head) >= 24 and head[:8] == b"\x89PNG\r\n\x1a\n":
+            w = int.from_bytes(head[16:20], "big")
+            h = int.from_bytes(head[20:24], "big")
+            return (w, h)
+    except Exception:
+        pass
+    return (0, 0)
+
+
+def _scan_props() -> list:
+    """Lista los PNG bajo assets/iso/props/** -> [{path, name, group, w, h}, ...]."""
+    out = []
+    if PROPS_DIR.exists():
+        for png in sorted(PROPS_DIR.rglob("*.png")):
+            rel = png.relative_to(GODOT_ROOT).as_posix()
+            group = png.parent.relative_to(PROPS_DIR).as_posix() or "."
+            w, h = _png_size(png)
+            out.append({"path": rel, "name": png.stem, "group": group, "w": w, "h": h})
+    return out
+
+
 def _staff_count() -> int:
     n = 0
     while (PIXI_STAFFS / f"staff{n + 1}.png").exists():
@@ -241,6 +273,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json({"ok": True, "config": _read_json(SPELLS_CFG)})
         if p == "/api/wallcollision":
             return self._send_json({"ok": True, "config": _read_json(WALL_COLLISION_PATH)})
+        if p == "/api/props":
+            # Descubre assets + devuelve el catalogo guardado (meta por asset).
+            return self._send_json({"ok": True, "files": _scan_props(), "catalog": _read_json(PROPS_PATH)})
         if p == "/api/fonts":
             return self._send_json({"ok": True, **_font_index()})
         if p == "/api/fontmetrics":
@@ -371,6 +406,15 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("wallcollision no es objeto")
                 _write_json(WALL_COLLISION_PATH, data)
                 print(f"[serve] wall_collision.json ({len(data)} piezas)")
+                return self._send_json({"ok": True, "saved": len(data)})
+
+            if p == "/api/props":
+                # Catalogo de props (meta por asset) -> props.json. Consumido por PropCatalog (Godot).
+                data = json.loads(self._body() or b"{}")
+                if not isinstance(data, dict):
+                    raise ValueError("props no es objeto")
+                _write_json(PROPS_PATH, data)
+                print(f"[serve] props.json ({len(data)} assets)")
                 return self._send_json({"ok": True, "saved": len(data)})
 
             if p == "/api/spellasset":

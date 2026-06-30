@@ -37,6 +37,7 @@ Nodos AÑADIDOS EN RUNTIME (no están en el .tscn):
   VisibilityManager (Node)          scripts/visibility_manager.gd — gatea objetos sticky por celda
   Torches (Node2D)                  DungeonDecor.place_torches → antorchas de pared
   Campfires (Node2D)                DungeonDecor.place_campfires → fogatas (campfire.tscn)
+  Props (Node2D, y_sort)            DungeonProps.place_props → props del catálogo (assets iso nuevos)
   HUD hijos por código              ShopPanel + InventoryPanel (instanciados en hud._ready)
   spawns                            Enemy*, Boss, Chest*, Merchant, Pickup*, Door*, decor(grupo), Projectile*, Floater*
   _shop screen / AoE / BurnFx flames / boom FX / debug regen button
@@ -46,6 +47,7 @@ Nodos AÑADIDOS EN RUNTIME (no están en el .tscn):
 ```
 Rng · GameState · Data · Items · Audio · LightCfg · LightField · FxMaterials · SaveSystem · Fps
   + CombatDirector (NUEVO, ver §6)
+  + PropCatalog (NUEVO, ver §1.props) — catálogo de props iso (props.json)
   + _mcp_game_helper (addon godot_ai, dev)
 ```
 `boot_splash/image = res://assets/ui/loading.png` (bg 0.05,0.04,0.06; min display 1200 ms). NUEVO.
@@ -69,6 +71,7 @@ generate() [ISO]:                                  (dungeon.gd, orquesta)
   _build_iso_nav()       AStarGrid (⚠ ver abajo)
   _build_iso_boundaries() colisión perímetro (rombos 256×128)
   _ensure_decor(); _decor.place_torches(); _decor.place_campfires()                          → DungeonDecor
+  _ensure_props(); _props.place_props()             props del catálogo esparcidos en piso     → DungeonProps
   _ensure_fog(); _fog.init_visibility()             cell_seen[] (niebla) listo                → DungeonFog
   regenerated.emit()
 ```
@@ -78,9 +81,54 @@ generate() [ISO]:                                  (dungeon.gd, orquesta)
   `_connect_rooms` (MST + ~15% loops → `_room_graph`), `assign_roles` (BFS), `get_door_specs`,
   `carve_iso_room`/`carve_room`/`carve_h`/`carve_v`, `room_center_cell`. Escala salas por profundidad
   (`_room_count_for_depth`: 20 base → hasta 34).
+  - **Corredores ISO (2026-06-29):** `_connect` descompone el vector entre centros en pasos `(u,v)` de los
+    EJES VISUALES del rombo (`ISO_AXIS_A`=SE, `ISO_AXIS_B`=SW) y talla la L con `_carve_iso_leg` por esos
+    ejes → tramos rectos en el plano iso (sin escalera dentada que daba `carve_h`/`carve_v` cartesianos en
+    grid STACKED). Ancho 2 = celda + vecina por el eje perpendicular. `carve_h`/`carve_v` quedan SOLO para
+    el test grid (`_gen_test_grid`).
 - `scripts/dungeon_decor.gd` (`class_name DungeonDecor`) — ANTORCHAS (`place_torches`, `spawn_wall_torch`,
   anclaje al borde de muro iso + tuning en vivo por panel L) + FOGATAS (`place_campfires`, ~1 de cada 3
   salas, salta la de spawn, `campfire.tscn`).
+- `scripts/dungeon_props.gd` (`class_name DungeonProps`) — **§1.props PROPS del catálogo**. `place_props`
+  esparce assets iso (props nuevos) por celdas de piso libres (no spawn/exit), ponderado por `weight`, tope
+  `MAX_PROPS=40` (~6% de celdas, mín 8). **Props = objetos SÓLIDOS, ordenados contra el PLAYER**: cada prop es
+  un contenedor `Node2D` hijo de **`Main`** (mismo `y_sort` que el player) en `to_global(map_to_local(cell))` →
+  el Y-sort del motor ordena prop y player por profundidad real: si te parás **detrás** de una mesa/biblioteca te
+  **tapa OPACA** (no se transparenta como los muros); **adelante** la tapás vos. El orden contra muros es el
+  bucket grueso de las capas (traseros z−1 detrás, fachada z+1 delante) — correcto para muebles apoyados en pared.
+  > Trade-off elegido (2026-06-29.ter): el player y los muros NO comparten y_sort (muros = z-bucket + cutaway),
+  > así que un prop puede y-sortear con UNO solo. Se eligió el **player** (que el prop te tape) sobre el orden
+  > fino vs muros. NO hay cutaway de props (son sólidos). Residual: un prop muy alto puede asomar sobre un muro
+  > trasero de una fila más cercana (misma limitación que el player).
+  > **OCLUSIÓN X-AWARE por HUELLA (2026-06-29.quater, RESUELTO):** ni el centro de celda ni un escalar único
+  > (vértice sur) sirven — ignoran la X y sobre-tapan por un costado (en iso el umbral "detrás" depende de la
+  > columna). **Regla final:** estás detrás del prop si, **a la altura de tu columna X**, la huella se extiende
+  > al SUR (mayor Y) que tus pies → cortás vertical en `player.x`, tomás el borde sur de la huella ahí (max Y de
+  > las aristas que cruzan esa X) y comparás con `feet.y`. Sigue el borde inclinado real. Implementado POR-FRAME
+  > (`DungeonProps.update_occlusion`/`_player_behind`, llamado desde `dungeon._process`): setea el `z_index` del
+  > prop arriba/abajo del player. La huella se guarda en WORLD al spawnear. Props **sin huella** → fallback al
+  > y_sort estático con nudge manual `ysort` (cell-local). Patrón reusable para cualquier oclusión iso (cofres,
+  > enemigos, bases irregulares) — ver memoria `reference_iso_ysort_footprint`.
+  > **HUELLA de OCLUSIÓN ≠ COLISIÓN (2026-06-29.quater):** el test usa el polígono `occlusion` si existe, si no
+  > el `collision`. Desacopladas porque para objetos que **sobresalen** (lámpara en T, brazo ancho sobre poste
+  > fino) la colisión bloquea solo la columna, pero la oclusión debe ser **ancha** (el brazo te tapa aunque
+  > camines al lado; dibujá la oclusión como la **proyección al piso**, borde sur en la base). En la tool (modo
+  > Colisión) un toggle 🟥Colisión/🟪Oclusión edita cada set; oclusión vacía = usa la colisión. El cuerpo del
+  > player se compara como una **LÍNEA** del ancho de su colisión (`_player_halfwidth`), no un punto.
+  > **3 casos:** (a) con huella (colisión y/o oclusión) → participa de la oclusión X-aware (z dinámico). (b) sin
+  > huella → **DECAL DE PISO**: z fijo `FLOOR_DECAL_Z=-9` (sobre el piso, bajo todo lo demás), NO participa del
+  > cálculo (ej.: alfombras, manchas). Así una alfombra nunca te tapa.
+  Como los props viven en `Main` (scale 1) pero el arte del Dungeon se rinde a 0.5, el sprite y el polígono de
+  colisión se multiplican por `gs = d.scale.x` (0.5) para calzar con los tiles (la tool autorea en el espacio de
+  celda 256). El `Sprite2D` apoya su base en el anclaje (centro o borde NW/NE/SE/SW + offset); si tiene polígono →
+  `StaticBody2D` (capa 1) + `CollisionPolygon2D` (cell-local ×gs) + `_iso_astar.set_point_solid(cell,true)`
+  (bloquea nav). `dungeon._prop_holders` trackea los contenedores solo para liberarlos al regenerar. Default de
+  escala `384/w` (~1.5× tile).
+  - **Catálogo** = autoload `PropCatalog` (`scripts/autoload/prop_catalog.gd`) que lee `tools/rig/props.json`
+    (editado en la tab **📦 Props** de `tools/props_tool.html`: escala, anclaje, offset, colisión, weight,
+    enabled por asset). Si `props.json` no existe → auto-descubre todos los PNG bajo `assets/iso/props/**` con
+    meta por defecto (escala por ancho, centro, enabled). `reload()` re-lee tras editar. Assets nuevos sueltos
+    en `assets/iso/props/` aparecen solos. La tool persiste vía `GET/POST /api/props` (serve.py).
 - `scripts/dungeon_fog.gd` (`class_name DungeonFog`) — NIEBLA de guerra (`init_visibility`,
   `update_visibility`, getters `is_cell_*`/`world_to_cell`) + REVEAL de fachada por sala
   (`update_room_reveal`, `_set_room_faded`, swap tile↔sprite con tween).
@@ -197,11 +245,16 @@ colineales → un tramo por muro, sin costuras dentro de un muro).
 
 ## 5. Ordenamiento visual del player
 ```
-Rig = CanvasGroup → Body+Weapon(+Tip)+HandOverlay+StaffArm se compositan ATÓMICO → contra muros van como bloque.
-  Bien: la vara no cruza un muro que el cuerpo tapa.  z_index internos ordenan DENTRO del grupo, no contra el mundo.
+Rig = CanvasGroup → Body+Weapon(+Tip)+HandOverlay+StaffArm se compositan ATÓMICO → contra muros/props van como bloque.
+  Apilado INTERNO (cuerpo tapa la vara al mirar de espaldas/costado) = ORDEN DE ÁRBOL, NO z_index.
 ```
-⚠ Comentarios viejos en player.gd describen un z-order per-sprite contra muros que el CanvasGroup ya no
-permite (limpiar, no urgente).
+**Fix 2026-06-29.quater (bug histórico):** el `z_index` de los hijos del CanvasGroup **se fugaba** al canvas del
+mundo. Las animaciones con `Body:z_index` alto (idle_north=5, walk_north=5, walk_east=3) dibujaban el cuerpo (y la
+vara/mano a z 1-2) **por delante de muros (z+1) y props (z0)**, y al escaparse del grupo el cuerpo perdía el tinte
+uniforme de la luz del pie → **cambiaba la calidez**. Solución: (1) todos los `Body:z_index` de `mage_anims.tres`
+puestos en **0**; (2) `player._set_body_front()` hace el apilado cuerpo↔vara por `rig.move_child(body, …)` (último
+hijo = cuerpo al frente; primero = vara adelante), con TODOS los sprites del rig en z_index 0 → el grupo aplana en
+un solo z → oclusión atómica correcta + luz pareja. Mismas poses que antes (idle/walk_north, walk_east/west).
 
 ## 6. IA de enemigos (mini-FSM por timers) — `scripts/enemy.gd`
 ```
@@ -314,11 +367,39 @@ descarta luces a más de esa distancia (+ su radio) del jugador — no iluminan 
 clavada, zoom 4) pero robaban slots. La luz del jugador (dist 0) nunca se descarta. NO cambia el modelo de luz;
 `sample()` (CPU, sin cap de slots) queda igual. La luz NATIVA del piso (PointLight2D) no se ve afectada.
 
-## 3.bis. Minimapa = radar centrado en el jugador (CAMBIO 2026-06-28) — `minimap.gd`
-El minimapa chico ahora es un **radar de tamaño FIJO** (`MINI_VIEW=150`) con el jugador clavado al centro como
-punto; el mapa se desliza. Implementado con un `AtlasTexture` (`_mini_atlas`) sobre `_tex` cuya `region` sigue
-la celda del jugador (`MINI_TILES=28` de ancho). El shader circular enmascara por UV del box (sin cambios). El
-mapa grande (tecla M) sigue siendo vista general con marcadores absolutos.
+## 3.bis. Minimapa = AUTOMAP estilo Diablo II (REESCRITO 2026-06-29) — `minimap.gd` + `minimap_wire.gd`
+**Wireframe iso de LÍNEAS, no relleno.** Dibuja sólo las ARISTAS de pared exploradas (no celdas pintadas),
+como el automap de D2. Reemplazó al minimapa de `Image` rellena (radar AtlasTexture) anterior.
+- **Datos:** `Dungeon.get_wall_edges()` → por cada `WallSegment`, los 2 vértices de su arista de rombo en
+  coords world-local (`map_to_local(interior_cell) + _wall_edge_for_side`). Cada item `{cell, a, b}`.
+- **`minimap_wire.gd` (`MinimapWire` extends Node2D):** `_draw()` con `draw_multiline` de las aristas,
+  proyectadas `(world - center) * zoom + origin`. En el iso REAL del juego (4:1), idéntico. Dibuja también los
+  markers (jugador/salida) como rombos. `cull` por distancia para el radar.
+- **`minimap.gd` (CanvasLayer):** se carga `MinimapWire` por **`preload`** (const `WIRE`), NO por class_name
+  global → robusto al orden de carga del editor. Mantiene 2 wires:
+  - **Radar** (esquina, `MINI_VIEW=150`, `RADAR_ZOOM`): sigue al jugador (clavado al centro); el material
+    `minimap_circle.gdshader` lo recorta a círculo — el shader recorta por **posición local del vértice**, así
+    que opera directo sobre lo que dibuja `_draw()` (no hace falta SubViewport).
+  - **Mapa M** (`_full_root`): overlay TRANSLÚCIDO sobre el juego (no fondo negro), encuadrado al bbox del piso.
+- **Niebla:** sólo se dibujan aristas de celdas en `cell_seen` (fuente de verdad = Dungeon). `_reveal` vuelca a
+  `_pts` (PackedVector2Array de pares a,b) las aristas de las celdas recién vistas en un radio; el wire dibuja `_pts`.
+
+## 3.ter. Divisores internos = PLAN → resolve_overlaps → ensure_connectivity → RENDER (2026-06-29) — `dungeon_dividers.gd`
+`Dungeon._place_dividers` ya no spawnea directo: PLANIFICA todos los divisores, resuelve conflictos con visión
+global y recién después materializa. Cuatro fases:
+1. **`plan_divider(...)`** (no spawnea): hace CRECER el divisor desde el centro hasta toparse vacío/borde en
+   ambos extremos (no asume el ancho prístino de la sala — corredores/`_remove_thin_walls` disuelven el
+   perímetro) → cada punta topa un muro perpendicular. Devuelve `{orient, line, base, side, cells, door_cell, extra_gaps}`.
+2. **`resolve_overlaps(plans)`**: si la `door_cell` cae sobre un muro (perímetro `d._wall_cells` o muro de OTRO
+   divisor — posible porque los divisores crecen y se cruzan), reubica la puerta a la celda interna LIMPIA más
+   cercana al centro (evita PUERTA encimada con muro). Sin celda limpia → divisor sin puerta (lo cubre la fase 3).
+3. **`ensure_connectivity(plans, spawn)`** — REGLA: ninguna región sin salida. Flood-fill caminable desde el
+   spawn sobre el piso; los muros sólidos bloquean, las **puertas NO** (el jugador las abre → cuentan como salida).
+   Toda celda de piso no alcanzada = región sellada → marca una celda-muro de su frontera en `extra_gaps` (abre
+   un hueco). Itera hasta conectar todo. Aristas bloqueadas = pares de celdas (`_pair`); vecinos vía `WallSegment.neighbor`.
+4. **`render_divider(plan)`**: spawnea sprites+colisión+nav, omitiendo `door_cell` (lleva puerta), `extra_gaps`
+   (hueco) y celdas que ya tienen muro perimetral (`d._wall_cells` → comparte el existente, no duplica sprite).
+`add_divider()` queda como wrapper (plan+render directo) para usos que no necesiten el paso global.
 
 ## 11. PENDIENTES / deuda que SIGUE (verificado contra el código)
 - **nav AStarGrid**: el "piso-con-muro" queda caminable; el borde real lo bloquea la colisión de perímetro,

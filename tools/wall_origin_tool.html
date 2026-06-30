@@ -111,8 +111,15 @@
 
     <!-- ===== Panel modo COLISIÓN ===== -->
     <div class="modeCol" style="display:none">
-      <div class="muted" style="margin-bottom:8px">Dibujá el polígono de <b style="color:var(--accent2)">colisión</b> de la pieza: <span class="kbd">click</span> en el canvas agrega un vértice, arrastrá un punto existente para moverlo. Coords <b>cell-local</b> (centro de celda = 0,0). Se auto-guarda en <code style="color:var(--accent)">tools/rig/wall_collision.json</code>.</div>
-      <div class="bigval" style="font-size:14px;margin-bottom:8px"><span id="colCount">0</span> vértices</div>
+      <div class="muted" style="margin-bottom:8px">Dibujá el polígono de <b style="color:var(--accent2)">colisión</b> de la pieza: <span class="kbd">click</span> agrega vértice al polígono ACTIVO; arrastrá un vértice para moverlo. Para piezas con HUECO (puerta abierta) hacé varios polígonos con <b>+ Nuevo polígono</b>. Coords <b>cell-local</b>. Auto-guarda en <code style="color:var(--accent)">tools/rig/wall_collision.json</code>.</div>
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="cbPartner" checked>Mostrar partner (pieza compañera de esquina)</label>
+      <div class="bigval" style="font-size:14px;margin-bottom:8px">Activo: <span id="colCount">0</span> vértices</div>
+      <h2 style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:0 0 6px">Polígonos del slot</h2>
+      <div id="polyList" style="margin-bottom:6px"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button id="btnPolyAdd">+ Nuevo polígono</button>
+        <button id="btnPolyDel">− Borrar polígono</button>
+      </div>
       <div class="row" style="gap:6px;flex-wrap:wrap">
         <button id="btnColCopy" class="primary">Copiar JSON</button>
         <button id="btnColSave">Guardar al server</button>
@@ -136,6 +143,26 @@ const DEFAULTS=[
   {key:'corner_bottom',src:6, file:'corner_se_sw.png', w:256,h:200, o:[128,25], edges:['SE','SW']},
   {key:'corner_left',  src:7, file:'corner_nw_sw.png', w:144,h:256, o:[52,57],  edges:['NW','SW']},
   {key:'corner_right', src:8, file:'corner_ne_se.png', w:144,h:256, o:[-57,57], edges:['NE','SE']},
+  // Puertas ABIERTAS (variations/, 256x256). Para el polígono de colisión: dibujá los DOS marcos a los
+  // costados del hueco — el game cargará este polígono cuando la puerta esté abierta. Origin = igual al
+  // muro base (el tile de puerta hereda el origin del muro: ver dungeon._ensure_door_sources).
+  {key:'open_door_ne', src:200, file:'../variations/OpenDoorNE.png', w:256, h:256, o:[-57,89], edges:['NE']},
+  {key:'open_door_nw', src:201, file:'../variations/OpenDoorNW.png', w:256, h:256, o:[52,89],  edges:['NW']},
+  // Variantes-CORNER (corner_variants/): un PNG por LADO de cada par de esquina. Cuando dos se juntan en
+  // una celda-esquina, sus polígonos cubren el VÉRTICE del rombo. `partner`: la otra pieza del par; el
+  // tool puede mostrarla superpuesta como guía (checkbox "Mostrar partner" en modo Colisión).
+  // Esquina NORTE (NW + NE)
+  {key:'wall_nw_corner_n', src:300, file:'../corner_variants/wall_nw_corner_n.png', w:144,h:200, o:[52,89],  edges:['NW'], partner:'wall_ne_corner_n'},
+  {key:'wall_ne_corner_n', src:301, file:'../corner_variants/wall_ne_corner_n.png', w:144,h:200, o:[-57,89], edges:['NE'], partner:'wall_nw_corner_n'},
+  // Esquina SUR (SE + SW)
+  {key:'wall_se_corner_s', src:302, file:'../corner_variants/wall_se_corner_s.png', w:144,h:200, o:[52,25],  edges:['SE'], partner:'wall_sw_corner_s'},
+  {key:'wall_sw_corner_s', src:303, file:'../corner_variants/wall_sw_corner_s.png', w:144,h:200, o:[-57,25], edges:['SW'], partner:'wall_se_corner_s'},
+  // Esquina OESTE (NW + SW)
+  {key:'wall_nw_corner_w', src:304, file:'../corner_variants/wall_nw_corner_w.png', w:144,h:200, o:[52,89],  edges:['NW'], partner:'wall_sw_corner_w'},
+  {key:'wall_sw_corner_w', src:305, file:'../corner_variants/wall_sw_corner_w.png', w:144,h:200, o:[-57,25], edges:['SW'], partner:'wall_nw_corner_w'},
+  // Esquina ESTE (NE + SE)
+  {key:'wall_ne_corner_e', src:306, file:'../corner_variants/wall_ne_corner_e.png', w:144,h:200, o:[-57,89], edges:['NE'], partner:'wall_se_corner_e'},
+  {key:'wall_se_corner_e', src:307, file:'../corner_variants/wall_se_corner_e.png', w:144,h:200, o:[52,25],  edges:['SE'], partner:'wall_ne_corner_e'},
 ];
 
 //==== Geometría iso (coords de mundo relativas al centro de celda) ====
@@ -162,11 +189,23 @@ function defaultCollision(p){
 //==== Estado ====
 const STORE='cuteos_wall_origins_v1';
 const STORE_COL='cuteos_wall_collision_v1';
-let pieces=DEFAULTS.map(p=>({...p,o:[...p.o],col:null})); // col = [[x,y],...] cell-local, o null
+// polys: Array de polígonos. Single = [poly]. Multi (open_door_*) = [poly1, poly2, ...]. activePoly =
+// índice del que estás editando. Formato legacy `col:[[x,y],...]` se carga como polys[0].
+let pieces=DEFAULTS.map(p=>({...p,o:[...p.o],polys:[],activePoly:0}));
+// Parser tolerante a SINGLE `[[x,y],...]` o MULTI `[[[x,y],...],[[x,y],...]]`.
+function parsePolys(raw){
+  if(!Array.isArray(raw) || !raw.length) return [];
+  const first = raw[0];
+  const isMulti = Array.isArray(first) && first.length > 0 && Array.isArray(first[0]);
+  if(isMulti){
+    return raw.filter(p=>Array.isArray(p)).map(p=>p.map(pt=>[pt[0]|0,pt[1]|0]));
+  }
+  return [raw.map(pt=>[pt[0]|0,pt[1]|0])];
+}
 (function load(){ try{const s=JSON.parse(localStorage.getItem(STORE)||'{}');
   pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.o=[s[p.key][0]|0, s[p.key][1]|0]; });}catch(e){} })();
 (function loadCol(){ try{const s=JSON.parse(localStorage.getItem(STORE_COL)||'{}');
-  pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.col=s[p.key].map(pt=>[pt[0]|0,pt[1]|0]); });}catch(e){} })();
+  pieces.forEach(p=>{ if(Array.isArray(s[p.key])){ p.polys=parsePolys(s[p.key]); p.activePoly=0; } });}catch(e){} })();
 let sel=0;
 let mode='origin';   // 'origin' | 'col'
 let Z=1.7, pan=[0,0];
@@ -232,7 +271,21 @@ function draw(){
     }
   }
 
-  // imagen del muro
+  // Partner (pieza COMPAÑERA de esquina): se dibuja DEBAJO de la activa, semi-transparente, con
+  // stroke AZUL para distinguirla → guía visual de cómo va a quedar la unión de los dos polígonos.
+  const cbPart=document.getElementById('cbPartner');
+  if(p.partner && cbPart && cbPart.checked){
+    const pp=pieces.find(q=>q.key===p.partner);
+    if(pp && imgs[pp.key]){
+      const r=imgRect(pp);
+      ctx.globalAlpha=0.45; ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(imgs[pp.key], r.x, r.y, r.w, r.h);
+      ctx.globalAlpha=1;
+      ctx.strokeStyle='rgba(123,212,255,0.55)'; ctx.lineWidth=1;
+      ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
+    }
+  }
+  // imagen del muro (pieza ACTIVA)
   if(document.getElementById('cbImg').checked && imgs[p.key]){
     const r=imgRect(p);
     ctx.globalAlpha=parseFloat(document.getElementById('alpha').value);
@@ -243,19 +296,23 @@ function draw(){
     ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
   }
 
-  // overlay del polígono de colisión (modo col)
+  // overlay de TODOS los polígonos de colisión (modo col). El activo se ve fuerte; los otros tenues.
   if(mode==='col'){
-    const col=p.col||[];
-    if(col.length){
-      const sp=col.map(q=>w2s(q));
-      poly(sp, col.length>=3);
-      ctx.fillStyle='rgba(255,212,123,0.18)'; if(col.length>=3) ctx.fill();
-      ctx.strokeStyle='#ffd47b'; ctx.lineWidth=2; ctx.stroke();
-      // vértices
-      sp.forEach((q,i)=>{ ctx.beginPath(); ctx.arc(q[0],q[1],i===colHover?6:4,0,7);
-        ctx.fillStyle=i===colHover?'#fff':'#ffd47b'; ctx.fill();
-        ctx.strokeStyle='#14121a'; ctx.lineWidth=1; ctx.stroke(); });
-    }
+    p.polys.forEach((pol, pi)=>{
+      if(!pol.length) return;
+      const active = pi===p.activePoly;
+      const sp=pol.map(q=>w2s(q));
+      poly(sp, pol.length>=3);
+      ctx.fillStyle = active?'rgba(255,212,123,0.18)':'rgba(255,212,123,0.06)';
+      if(pol.length>=3) ctx.fill();
+      ctx.strokeStyle = active?'#ffd47b':'rgba(255,212,123,0.45)';
+      ctx.lineWidth = active?2:1;
+      ctx.stroke();
+      sp.forEach((q,vi)=>{ const hov = (pi===colHover.poly && vi===colHover.vert);
+        ctx.beginPath(); ctx.arc(q[0],q[1],hov?6:(active?4:3),0,7);
+        ctx.fillStyle = hov?'#fff':(active?'#ffd47b':'rgba(255,212,123,0.6)');
+        ctx.fill(); ctx.strokeStyle='#14121a'; ctx.lineWidth=1; ctx.stroke(); });
+    });
   }
 
   // centro de celda (ancla)
@@ -269,23 +326,26 @@ function draw(){
 
 //==== Interacción canvas ====
 let drag=null;
-let colHover=-1;        // índice de vértice de colisión bajo el cursor (-1 = ninguno)
+let colHover={poly:-1,vert:-1};   // vértice de colisión bajo el cursor (poly:-1 = ninguno)
 const COL_HIT=8;        // radio en px de pantalla para agarrar un vértice
-// Devuelve el índice del vértice de colisión cerca de (mx,my), o -1.
+// Devuelve {poly,vert} del vértice de colisión cerca de (mx,my), o {poly:-1,vert:-1}.
 function colVertexAt(p,mx,my){
-  const col=p.col||[];
-  for(let i=0;i<col.length;i++){ const s=w2s(col[i]);
-    if(Math.hypot(s[0]-mx,s[1]-my)<=COL_HIT) return i; }
-  return -1;
+  for(let pi=0;pi<p.polys.length;pi++){ const pol=p.polys[pi];
+    for(let vi=0;vi<pol.length;vi++){ const s=w2s(pol[vi]);
+      if(Math.hypot(s[0]-mx,s[1]-my)<=COL_HIT) return {poly:pi,vert:vi}; } }
+  return {poly:-1,vert:-1};
 }
+// Asegura que haya un polígono activo (crea uno si no hay). Devuelve el poly activo.
+function ensureActivePoly(p){ if(!p.polys.length){ p.polys=[[]]; p.activePoly=0; }
+  if(p.activePoly>=p.polys.length) p.activePoly=p.polys.length-1; return p.polys[p.activePoly]; }
 cv.addEventListener('mousedown',e=>{
   const mx=e.offsetX,my=e.offsetY; const p=pieces[sel];
   if(mode==='col'){
     if(e.button!==0){ drag={mode:'pan',sx:mx,sy:my,so:null,sp:[...pan]}; return; }
-    // ¿agarro un vértice existente? -> lo arrastro. Si no, agrego uno nuevo.
+    // ¿agarro un vértice existente? -> lo arrastro. Si no, agrego uno nuevo al polígono ACTIVO.
     const hit=colVertexAt(p,mx,my);
-    if(hit>=0){ drag={mode:'colpt', idx:hit, moved:false}; }
-    else { if(!p.col) p.col=[]; p.col.push(roundPt(s2w(mx,my)));
+    if(hit.poly>=0){ drag={mode:'colpt', poly:hit.poly, vert:hit.vert, moved:false}; }
+    else { const ap=ensureActivePoly(p); ap.push(roundPt(s2w(mx,my)));
       saveCol(); syncCol(); draw(); }
     return;
   }
@@ -298,10 +358,10 @@ window.addEventListener('mousemove',e=>{
   const mx=e.clientX-rect.left, my=e.clientY-rect.top;
   // hover de vértices (solo en modo col, sin arrastrar)
   if(mode==='col' && !drag){ const h=colVertexAt(pieces[sel],mx,my);
-    if(h!==colHover){ colHover=h; cv.style.cursor=h>=0?'pointer':'crosshair'; draw(); } }
+    if(h.poly!==colHover.poly||h.vert!==colHover.vert){ colHover=h; cv.style.cursor=h.poly>=0?'pointer':'crosshair'; draw(); } }
   if(!drag) return;
   if(drag.mode==='colpt'){ const p=pieces[sel];
-    p.col[drag.idx]=roundPt(s2w(mx,my)); drag.moved=true; colHover=drag.idx; syncCol(); draw(); }
+    p.polys[drag.poly][drag.vert]=roundPt(s2w(mx,my)); drag.moved=true; colHover={poly:drag.poly,vert:drag.vert}; syncCol(); draw(); }
   else if(drag.mode==='img'){ const p=pieces[sel];
     // mover imagen ⇒ origin = origin0 - delta/Z  (imagen = centro - origin)
     p.o=[ Math.round(drag.so[0]-(mx-drag.sx)/Z), Math.round(drag.so[1]-(my-drag.sy)/Z) ];
@@ -346,7 +406,7 @@ cv.addEventListener('drop',e=>{ e.preventDefault();
 //==== UI ====
 function buildList(){ const el=document.getElementById('pieceList'); el.innerHTML='';
   pieces.forEach((p,i)=>{ const d=document.createElement('div');
-    d.className='piece'+(i===sel?' sel':''); d.onclick=()=>{sel=i;colHover=-1;syncUI();syncCol();draw();};
+    d.className='piece'+(i===sel?' sel':''); d.onclick=()=>{sel=i;colHover={poly:-1,vert:-1};syncUI();syncCol();draw();};
     d.innerHTML=`<span><span class="nm">${p.key}</span><br><span class="ed">${p.edges.join('+')} · ${p.w}×${p.h}</span></span><span class="ov" id="ov_${p.key}">${p.o[0]},${p.o[1]}</span>`;
     el.appendChild(d); });
 }
@@ -369,7 +429,7 @@ function buildOut(){
 }
 document.getElementById('inX').addEventListener('input',e=>{pieces[sel].o[0]=parseInt(e.target.value)||0;syncUI();draw();save();});
 document.getElementById('inY').addEventListener('input',e=>{pieces[sel].o[1]=parseInt(e.target.value)||0;syncUI();draw();save();});
-['cbNeighbors','cbGrid','cbImg','alpha'].forEach(id=>document.getElementById(id).addEventListener('input',draw));
+['cbNeighbors','cbGrid','cbImg','alpha','cbPartner'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('input',draw); });
 document.getElementById('btnReset').onclick=()=>{Z=1.7;pan=[0,0];draw();};
 document.getElementById('btnResetOrigin').onclick=()=>{const d=DEFAULTS[sel];pieces[sel].o=[...d.o];syncUI();draw();save();};
 document.getElementById('btnCopyJson').onclick=()=>{navigator.clipboard.writeText(document.getElementById('out').value);flash('btnCopyJson','¡Copiado!');};
@@ -381,19 +441,56 @@ function flash(id,t){const b=document.getElementById(id);const o=b.textContent;b
 function save(){ const j={}; pieces.forEach(p=>j[p.key]=p.o); localStorage.setItem(STORE,JSON.stringify(j)); buildOut(); }
 
 //==== COLISIÓN ====
-// Construye el objeto export: { "<key>":[[x,y],...] } solo con piezas que tengan polígono.
-function collisionExport(){ const j={}; pieces.forEach(p=>{ if(p.col&&p.col.length) j[p.key]=p.col.map(q=>[q[0],q[1]]); }); return j; }
-// Persistencia local (backup, por si el server no está).
+// Export: por cada pieza con polígonos válidos (>=3 vértices), si tiene 1 → SINGLE [[x,y],...],
+// si tiene N → MULTI [[[x,y],...], [[x,y],...]]. Compatible con el loader Godot.
+function collisionExport(){
+  const j={};
+  pieces.forEach(p=>{
+    const valid=p.polys.filter(pol=>pol&&pol.length>=3);
+    if(!valid.length) return;
+    if(valid.length===1) j[p.key]=valid[0].map(q=>[q[0],q[1]]);
+    else j[p.key]=valid.map(pol=>pol.map(q=>[q[0],q[1]]));
+  });
+  return j;
+}
 function saveColLocal(){ localStorage.setItem(STORE_COL,JSON.stringify(collisionExport())); }
-// Guarda en localStorage + auto-postea al server (mismo patrón que las demás tools).
 function saveCol(){ saveColLocal(); buildColOut(); postCollision(); }
-function colUndo(){ const p=pieces[sel]; if(p.col&&p.col.length){ p.col.pop(); saveCol(); syncCol(); draw(); } }
-function colClear(){ pieces[sel].col=[]; saveCol(); syncCol(); draw(); }
-function colDefault(){ pieces[sel].col=defaultCollision(pieces[sel]); saveCol(); syncCol(); draw(); }
+// Undo: quita el último punto del polígono ACTIVO. Si queda vacío y hay más de uno, lo elimina.
+function colUndo(){ const p=pieces[sel]; const ap=p.polys[p.activePoly];
+  if(!ap||!ap.length) return;
+  ap.pop();
+  if(!ap.length && p.polys.length>1){ p.polys.splice(p.activePoly,1);
+    if(p.activePoly>=p.polys.length) p.activePoly=p.polys.length-1; }
+  saveCol(); syncCol(); draw();
+}
+// Clear: vacía el polígono activo (no lo elimina si es el único).
+function colClear(){ const p=pieces[sel]; if(!p.polys.length){p.polys=[[]];p.activePoly=0;}
+  else p.polys[p.activePoly]=[]; saveCol(); syncCol(); draw(); }
+function colDefault(){ const p=pieces[sel]; if(!p.polys.length){p.polys.push([]);p.activePoly=0;}
+  p.polys[p.activePoly]=defaultCollision(p); saveCol(); syncCol(); draw(); }
+// Nuevo polígono (lo deja activo). Borrar polígono activo: si queda solo 1 → vaciar; si más → splice.
+function polyAdd(){ const p=pieces[sel]; p.polys.push([]); p.activePoly=p.polys.length-1; saveCol(); syncCol(); draw(); }
+function polyDel(){ const p=pieces[sel]; if(!p.polys.length){p.polys=[[]];p.activePoly=0;}
+  else if(p.polys.length===1) p.polys[0]=[];
+  else { p.polys.splice(p.activePoly,1); if(p.activePoly>=p.polys.length) p.activePoly=p.polys.length-1; }
+  saveCol(); syncCol(); draw(); }
 function buildColOut(){ document.getElementById('colOut').value=JSON.stringify(collisionExport()); }
 function syncCol(){
   const p=pieces[sel];
-  document.getElementById('colCount').textContent=(p.col?p.col.length:0);
+  const ap=p.polys[p.activePoly];
+  document.getElementById('colCount').textContent=(ap?ap.length:0);
+  // Lista de polígonos del slot (click = seleccionar).
+  const list=document.getElementById('polyList');
+  if(list){
+    list.innerHTML='';
+    if(!p.polys.length){ list.innerHTML='<div class="muted" style="padding:6px 0">(sin polígonos — click en el canvas para empezar)</div>'; }
+    p.polys.forEach((pol,i)=>{ const d=document.createElement('div');
+      d.className='polyItem'+(i===p.activePoly?' sel':'');
+      d.style.cssText='padding:6px 8px;border-radius:5px;cursor:pointer;margin-bottom:3px;border:1px solid '+(i===p.activePoly?'#ffd47b':'transparent')+';background:'+(i===p.activePoly?'rgba(255,212,123,0.10)':'transparent');
+      d.textContent='polígono '+(i+1)+' — '+pol.length+' pts';
+      d.onclick=()=>{ p.activePoly=i; colHover={poly:-1,vert:-1}; syncCol(); draw(); };
+      list.appendChild(d); });
+  }
   buildColOut();
 }
 // POST al server (auto-guardado a tools/rig/wall_collision.json). Silencioso si no hay server.
@@ -411,7 +508,7 @@ function postCollision(){
 function loadCollisionFromServer(){
   fetch('/api/wallcollision').then(r=>r.json()).then(j=>{
     if(j&&j.ok&&j.config&&typeof j.config==='object'){
-      pieces.forEach(p=>{ if(Array.isArray(j.config[p.key])) p.col=j.config[p.key].map(pt=>[pt[0]|0,pt[1]|0]); });
+      pieces.forEach(p=>{ if(Array.isArray(j.config[p.key])){ p.polys=parsePolys(j.config[p.key]); p.activePoly=0; } });
       syncCol(); draw();
     }
   }).catch(()=>{});
@@ -428,7 +525,7 @@ function setMode(m){
   document.getElementById('hintCol').style.display=(m==='col'?'':'none');
   document.getElementById('curHdr').style.display=(m==='origin'?'':'none');
   cv.style.cursor=(m==='col'?'crosshair':'default');
-  colHover=-1;
+  colHover={poly:-1,vert:-1};
   if(m==='col') syncCol();
   draw();
 }
@@ -439,6 +536,8 @@ document.getElementById('btnColClear').onclick=colClear;
 document.getElementById('btnColDefault').onclick=colDefault;
 document.getElementById('btnColCopy').onclick=()=>{navigator.clipboard.writeText(document.getElementById('colOut').value);flash('btnColCopy','¡Copiado!');};
 document.getElementById('btnColSave').onclick=()=>{ postCollision(); flash('btnColSave','Enviado'); };
+document.getElementById('btnPolyAdd').onclick=polyAdd;
+document.getElementById('btnPolyDel').onclick=polyDel;
 
 buildList(); syncUI(); syncCol(); setMode('origin'); fit();
 loadCollisionFromServer();

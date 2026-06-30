@@ -148,12 +148,39 @@ salas lejanas con teleport, sino **una sala grande subdividida por un muro inter
   eso derecho). **Nav resuelto:** los muros del divisor + la puerta cerrada se marcan sólidos en el AStar de mobs
   (`_nav_solid`); abrir la puerta libera el nav. (El player no usa AStar → camina libre, lo frena solo la colisión de borde.)
 - **Deuda viva:** la puerta no tiene prompt/beacon visual (Felipe tiene que saber que es clic derecho) → pulido opcional.
+- **FASE 3 (2026-06-29, VERIFICADA — Felipe "perfecto ambos"):** el divisor ya NO asume el ancho prístino de la sala
+  (`_room_specs`). En `add_divider`, desde la celda media (interior = piso) **crece ± a lo largo de su eje mientras
+  haya piso y frena al primer vacío/borde** → cada punta queda en contacto con un muro perpendicular (perímetro,
+  otra zona fusionada o borde de mapa). La puerta se recoloca a una celda INTERNA (nunca en una punta). Mata los
+  divisores que "empezaban/terminaban en la nada" cuando un corredor o `_remove_thin_walls` había disuelto el
+  perímetro que el extremo iba a tocar. Helper `_is_floor` (fuera de grid = muro). Puede cruzar a una sala vecina
+  fusionada y dividirla también: comportamiento DESEADO (un divisor divide "zonas, cuartos, mapa entero").
+- **FASE 4 — REGLA "ninguna región sin salida" (2026-06-29):** `_place_dividers` ahora PLANIFICA todos los
+  divisores (`plan_divider`, no spawnea) → `ensure_connectivity(plans, spawn)` → `render_divider`. El flood-fill
+  caminable parte del spawn: los muros sólidos bloquean, las **puertas NO** (el jugador las abre). Cada región de
+  piso no alcanzada = sellada → se abre **un hueco** (`extra_gaps`) en un muro de su frontera (= no colocar ese
+  muro; nada que borrar). Causa que atacaba: con el crecimiento, dos divisores cruzados pueden sellar un cuadrante.
+  Sólo repara lo sellado por DIVISORES (el MST garantiza corredores entre cuartos).
+- **FASE 5 — anti-superposición puerta/muro (2026-06-29):** `resolve_overlaps(plans)` (entre plan y connectivity):
+  si la puerta cae sobre muro perimetral (`d._wall_cells`) o de otro divisor, la reubica a la celda interna limpia
+  más cercana al centro; sin celda limpia → sin puerta (lo cubre la FASE 4). Y `render_divider` OMITE colocar muro
+  donde ya hay perímetro (comparte el existente). Mata el bug "puerta con un tile de muro encimado" que aparecía
+  al caer la puerta en una celda de borde/corredor (consecuencia del crecimiento de FASE 3).
+- **Minimapa → AUTOMAP estilo Diablo II (2026-06-29):** REESCRITO de `Image` rellena a **wireframe iso de líneas**
+  (`minimap.gd` + nuevo `minimap_wire.gd`/`MinimapWire`). Dibuja sólo las aristas de pared exploradas
+  (`Dungeon.get_wall_edges()`) con `draw_multiline`, en el iso real (4:1). Radar circular (recorte por el shader
+  sobre `_draw()`, sin SubViewport) + mapa M overlay translúcido. `MinimapWire` se carga por `preload` (no
+  class_name) para no romper por orden de carga. Niebla = `cell_seen`. Ver `architecture_notes.md §3.bis`.
 ## 7.quater. MAPA CONTINUO (Camino "B") — EN CURSO (2026-06-29, SIN commitear → ahora pusheado)
 Pivote de diseño (pedido de Felipe): se eliminan las puertas-teleport; todo es **un solo mapa caminable**
 (salas + corredores + divisiones). El cambio de piso sigue siendo el **portal** en `exit_cell` (main.gd) → la
 "escalera" futura es solo reskin del portal.
 - **`USE_DOORS = false`** (dungeon.gd:17): el procgen ahora **talla corredores en L** (2 tiles) entre las salas
-  del grafo (`_connect_rooms`→`_connect`/`carve_h`/`carve_v`) + `_remove_thin_walls`. Sin spawn de Door-teleport.
+  del grafo (`_connect_rooms`→`_connect`) + `_remove_thin_walls`. Sin spawn de Door-teleport.
+  - **Corredores ISO (2026-06-29, Felipe "perfecto ambos"):** `_connect` ya NO usa `carve_h`/`carve_v` (cartesianos
+    → escalera dentada en grid STACKED). Descompone el delta entre centros en pasos `(u,v)` de los ejes visuales
+    `ISO_AXIS_A`=SE / `ISO_AXIS_B`=SW y talla la L con `_carve_iso_leg` → tramos rectos en el plano iso. `carve_h`/
+    `carve_v` quedan SOLO para `_gen_test_grid`.
 - **TODOS los muros = Sprite2D con SPAN POR-INSTANCIA** (antes tiles): `_place_wall_pieces` ya no usa `set_cell`;
   cada muro lleva el span de su run (mapa `_wall_span_map` que arma `_merge_wall_spans`, llamado ANTES de
   `_paint_walls`). Mata el artefacto de óvalo en las uniones T de corredores/esquinas/divisores (unificado).
@@ -167,6 +194,29 @@ Pivote de diseño (pedido de Felipe): se eliminan las puertas-teleport; todo es 
 - **PENDIENTE (issue 3):** regla de procgen → una línea de muros con PUERTA debe terminar en muro/esquina, no en
   un agujero/piso (si no, rodeás la puerta y no tiene sentido). Próximo paso.
 - **Camino "B" puro** (salas separadas + flood-fill de visibilidad) ya no aplica: vamos por mapa continuo real.
+
+## 7.quinquies. COLISIÓN de muros (sprites) + ESQUINAS dedicadas + PUERTA multi-poly (2026-06-29, SIN commitear)
+Al pasar TODOS los muros a sprites (mapa continuo), los tiles dejaron de dar colisión → se reconstruyó:
+- **`dungeon._install_wall_collisions()`** (corre tras `_build_iso_boundaries`): instala los polígonos de
+  `wall_collision.json` como `CollisionPolygon2D` en el `_iso_bounds` único. **MERGE POR RUN**: agrupa por
+  `(side, endpoint)`, infla 0.5px (`Geometry2D.offset_polygon`) y `merge_polygons` iterativo → colisión
+  **continua** por muro (no te enganchás entre tiles al caminar pegado). Verificado por Felipe que la fluidez quedó bien.
+- **Divisores** (`dungeon_dividers._add_wall_collision`): ahora usan `wall_ne`/`wall_nw` del JSON (antes tira fina hardcoded).
+- **VARIANTES-CORNER** (sistema nuevo, OPT-IN, FALTA EL ARTE de Felipe): 8 piezas `wall_xx_corner_yy` (2 por
+  esquina N/S/E/O) en `assets/iso/walls/corner_variants/` (PNGs 144×200, dir creado vacío). `_ensure_corner_variants`
+  las registra si el PNG existe; `_paint_walls` swapea el muro normal por la variante en celdas con par adyacente;
+  `_install_wall_collisions` usa sus polígonos `wall_xx_corner_yy` (complementarios → cubren el VÉRTICE). Si falta
+  PNG o polígono → **fallback automático** al wall normal (nada se rompe). El "verde triangular" en el debug de
+  esquina = solape de runs SE/SW (inofensivo, da fluidez); el HUECO del vértice lo cierran estas variantes.
+- **PUERTA multi-poly**: `wall_collision.json` ahora soporta SINGLE `[[x,y]…]` o MULTI `[[[x,y]…],[…]]`. Loader
+  (`_parse_poly_pts` / `_install_wall_collisions`) y `dungeon_dividers` iteran N polígonos. `open_door_ne/nw` ya
+  dibujados (2 marcos c/u en el JSON) → puerta abierta bloquea los costados, pasás por el hueco.
+- **TOOL** (`wall_origin_tool.html`): tab Colisión con **multi-polígono** (lista de polys + "+ Nuevo polígono" /
+  "− Borrar"), **"Mostrar partner"** (dibuja la pieza compañera de esquina como guía azul), y 8 slots corner + 2 open_door.
+- **CUTAWAY**: histéresis asimétrica (prender 0.4 / apagar 0.05, mata flicker al cruzar tiles) + gate usa `body.y`
+  no `pp.y` (no se apaga al pegarte al muro). Alpha = 0.5 (muros y divisores).
+- **PENDIENTE de Felipe (arte/tool):** dibujar los 8 PNGs de `corner_variants/` + sus polígonos en el tool →
+  cierra el hueco del vértice. (Sin eso, todo funciona con fallback.)
 
 ## 6. Lista "NO TOCAR sin permiso de Felipe"
 - Reescritura grande de procgen / lighting / player / dungeon.

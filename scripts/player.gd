@@ -66,6 +66,7 @@ var ifr := 0.0
 # Animación / facing
 var facing_dir := "south"
 var cur_anim := ""
+var _body_front := false   # apilado interno del rig (cuerpo al frente de la vara) por orden de árbol
 var cur_staff_idx := -1
 
 # Cache de texturas cargadas en runtime (los PNGs no están importados por Godot,
@@ -482,21 +483,28 @@ func _refresh_facing_visuals(dir: String) -> void:
 		hand_overlay.centered = true
 	else:
 		hand_overlay.visible = false
-	# Z-order: la vara SIEMPRE está sobre el piso (z=1). Cuando el mago mira
-	# para atrás (N/NE/NW) subimos el z del CUERPO para que la tape donde se
-	# cruzan (la punta que sobresale igual se ve). No bajamos la vara, porque
-	# z negativo la mandaría detrás del TileMapLayer del piso (z=0).
-	weapon.z_index = 1
-	hand_overlay.z_index = 2
-	# Brazo estático en walk de costado: vara(1) < brazo(2) < cuerpo(3 vía anim).
+	# Z-ORDER del rig: TODO a z_index 0 → el CanvasGroup aplana el rig en un solo z. Así se ocluye
+	# ATÓMICO contra muros/props (no se fuga por delante) y la luz del pie lo tinta parejo. El apilado
+	# INTERNO (cuerpo tapa la vara cuando mira de espaldas/costado) se hace por ORDEN DE ÁRBOL, no por
+	# z_index — el z_index alto de los hijos se fugaba al canvas del mundo (bug histórico de calidez+z).
+	weapon.z_index = 0
+	hand_overlay.z_index = 0
+	staff_arm.z_index = 0
 	var side_walk: bool = cur_anim.begins_with("walk") and FACING_MIRROR.get(dir, dir) == "east"
 	staff_arm.visible = side_walk
 	if side_walk:
 		hand_overlay.visible = false
-	# El z del CUERPO lo controla el AnimationPlayer por animación y por frame
-	# (track Rig/Body:z_index): 0 = vara adelante, 5 = el cuerpo la tapa. Así
-	# en walk_east/west el torso esconde el brazo de la vara en los frames en
-	# que el brazo va hacia atrás del ciclo de caminata.
+	# Cuerpo al FRENTE (tapa la vara) en las mismas poses que antes llevaban z alto: mirar al Norte
+	# (idle/walk_north) y caminar de costado (walk_east/west, ya unificados en cur_anim por el espejo).
+	_set_body_front(cur_anim == "idle_north" or cur_anim == "walk_north" or cur_anim == "walk_east")
+
+## Reordena el Body dentro del Rig (CanvasGroup): al frente (último hijo) tapa la vara; atrás (primer
+## hijo) la vara queda adelante. Solo mueve si cambió (evita move_child cada frame).
+func _set_body_front(front: bool) -> void:
+	if front == _body_front:
+		return
+	_body_front = front
+	rig.move_child(body, rig.get_child_count() - 1 if front else 0)
 
 # ---------------- Combate ----------------
 func _try_dash() -> void:

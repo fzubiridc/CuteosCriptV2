@@ -92,6 +92,32 @@ const WALL_VAR_ARTS := {
 # Borde recto → tipo de arte. Array (no dict con claves-const) por seguridad de parseo.
 const WALL_VAR_BORDERS := [[SRC_WALL_NW, "A"], [SRC_WALL_SE, "A"], [SRC_WALL_NE, "B"], [SRC_WALL_SW, "B"]]
 const WALL_VAR_FIRST_ID := 100
+
+# ─── Variantes-CORNER ─────────────────────────────────────────────────────────────────────
+# Sprites NUEVOS pensados para celdas-esquina (donde una celda tiene 2 sides adyacentes). Cada par
+# (top/bottom/left/right) tiene 2 piezas, una por lado. Cuando se juntan, sus polígonos de colisión
+# COMPLEMENTARIOS cubren el VÉRTICE del rombo sin huecos. Si el PNG no existe (Felipe todavía no lo
+# hizo) → la variante no se registra y `_paint_walls`/`_install_wall_collisions` caen al wall normal.
+const CORNER_VAR_DIR := "res://assets/iso/walls/corner_variants/"
+const CORNER_VAR_FIRST_ID := 300
+# Pares en ORDEN DE PRIORIDAD (si una celda matchea más de uno — raro — gana el primero).
+# Mismo orden y mismas keys que las DEFAULTS del tool web (wall_origin_tool.html).
+var _corner_variants: Array = []   # cada entry: {a_side, b_side, a_file, b_file, a_key, b_key, a_src, b_src(-1=no cargada)}
+func _corner_variants_def() -> Array:
+	return [
+		{"a_side": WallSegment.Side.NW, "b_side": WallSegment.Side.NE,
+		 "a_file": "wall_nw_corner_n.png", "b_file": "wall_ne_corner_n.png",
+		 "a_key": "wall_nw_corner_n", "b_key": "wall_ne_corner_n", "a_src": -1, "b_src": -1},
+		{"a_side": WallSegment.Side.SE, "b_side": WallSegment.Side.SW,
+		 "a_file": "wall_se_corner_s.png", "b_file": "wall_sw_corner_s.png",
+		 "a_key": "wall_se_corner_s", "b_key": "wall_sw_corner_s", "a_src": -1, "b_src": -1},
+		{"a_side": WallSegment.Side.NW, "b_side": WallSegment.Side.SW,
+		 "a_file": "wall_nw_corner_w.png", "b_file": "wall_sw_corner_w.png",
+		 "a_key": "wall_nw_corner_w", "b_key": "wall_sw_corner_w", "a_src": -1, "b_src": -1},
+		{"a_side": WallSegment.Side.NE, "b_side": WallSegment.Side.SE,
+		 "a_file": "wall_ne_corner_e.png", "b_file": "wall_se_corner_e.png",
+		 "a_key": "wall_ne_corner_e", "b_key": "wall_se_corner_e", "a_src": -1, "b_src": -1},
+	]
 # Puerta (USE_DOORS): tile de puerta en la cara del muro que mira a la sala vecina. Mismo arte
 # 144×200 que los muros (A=DoorNW→bordes NW/SE, B=DoorNE→NE/SW) → reusa origin+occluder del borde
 # base, igual que las variaciones. Se estampa SOLO en la cara-puerta (get_door_specs); el resto, muro.
@@ -136,7 +162,11 @@ var _wall_span_map: Dictionary = {}
 # set de holders fadeándose (para lerpear de vuelta a opaco al dejar de tapar).
 var _front_walls: Dictionary = {}
 var _cut_active: Dictionary = {}
-const CUT_ALPHA := 0.28        # opacidad de una fachada que te tapa
+## Props esparcidos (DungeonProps): cada entrada = {holder, poly(world)}. Los CON huella se ordenan vs el
+## player por `DungeonProps.update_occlusion` (z dinámico X-aware); los SIN huella quedan en y_sort estático.
+## También sirve para liberarlos al regenerar. Lo llena DungeonProps.place_props.
+var _prop_holders: Array = []
+const CUT_ALPHA := 0.5         # opacidad de una fachada que te tapa (más alto = menos transparente)
 const CUT_R := 3               # radio en celdas para buscar fachadas cerca del player
 const CUT_HW := 52.0           # medio ancho de la silueta del muro (world) para el test de tapado
 const CUT_H := 116.0           # alto del muro hacia arriba (world)
@@ -174,10 +204,13 @@ func generate() -> void:
 		_paint_iso()
 		_build_iso_nav()
 		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
+		_install_wall_collisions()   # colisión por-pieza de los muros (sprites ya no tienen colisión de tile)
 		_place_dividers()         # FASE 1: divisor interno de prueba (sala grande subdividida + puerta)
 		_ensure_decor()
 		_decor.place_torches()     # antorchas de sala → luz + sombras proyectadas
 		_decor.place_campfires()   # fogatas cada tanto en el centro de algunas salas (no en la de spawn)
+		_ensure_props()
+		_props.place_props()       # esparce props del catálogo (PropCatalog) → preview de assets nuevos
 		_ensure_fog()
 		_fog.init_visibility()   # niebla (cell_seen) lista para este piso
 		regenerated.emit()
@@ -224,6 +257,13 @@ func _ensure_decor() -> void:
 	if _decor == null:
 		_decor = DungeonDecor.new(self)
 
+## Props del catálogo (scripts/dungeon_props.gd → DungeonProps). Lazy, igual que _decor.
+var _props: DungeonProps
+
+func _ensure_props() -> void:
+	if _props == null:
+		_props = DungeonProps.new(self)
+
 ## API pública preservada: closed_room_test.gd crea una antorcha de pared sin pasar por generate().
 func spawn_wall_torch(interior_cell: Vector2i, side: int) -> Node:
 	_ensure_decor()
@@ -264,6 +304,9 @@ func _place_dividers() -> void:
 			if spawn_cell in _gen_room_cells[i]:
 				spawn_ri = i
 				break
+	# 1) PLANEAR todos los divisores (sin spawnear): así el chequeo de conectividad puede decidir
+	#    aberturas ANTES de materializar (una abertura = simplemente no colocar ese muro).
+	var plans: Array = []
 	for ri in _room_specs.size():
 		if ri == spawn_ri:
 			continue
@@ -276,9 +319,17 @@ func _place_dividers() -> void:
 			continue
 		var origin: Vector2i = spec["origin"]
 		if dd >= w:
-			_dividers.add_divider(origin, 0, int(dd / 2.0), 0, w, Rng.range_i(1, w - 2))   # NE por el eje u
+			plans.append(_dividers.plan_divider(origin, 0, int(dd / 2.0), 0, w, Rng.range_i(1, w - 2)))   # NE por el eje u
 		else:
-			_dividers.add_divider(origin, 1, int(w / 2.0), 0, dd, Rng.range_i(1, dd - 2))  # NW por el eje v
+			plans.append(_dividers.plan_divider(origin, 1, int(w / 2.0), 0, dd, Rng.range_i(1, dd - 2)))  # NW por el eje v
+	# 2) Evita puertas encimadas con muros (perímetro u otro divisor): reubica la puerta a celda limpia.
+	_dividers.resolve_overlaps(plans)
+	# 3) REGLA: ninguna región sin salida. Flood-fill caminable desde el spawn (las puertas SÍ se cruzan,
+	#    los muros sólidos no) → cada región sellada recibe una abertura en su frontera.
+	_dividers.ensure_connectivity(plans, spawn_cell)
+	# 4) RENDERIZAR con puertas y aberturas ya decididas.
+	for plan in plans:
+		_dividers.render_divider(plan)
 
 ## API pública preservada (la usan enemy.gd, minimap.gd, visibility_manager.gd): wrappers a DungeonFog.
 func is_cell_visible(world_pos: Vector2) -> bool:
@@ -321,6 +372,7 @@ func _ensure_iso() -> void:
 	_cache_wall_tile_data()
 	_ensure_wall_variants()   # variantes de muro recto como sources en runtime (reusan origins base)
 	_ensure_door_sources()    # tiles de puerta (1 por cara) como sources, mismo patrón que las variantes
+	_ensure_corner_variants() # variantes-CORNER (8 piezas: 2 por esquina) — opt-in si los PNGs existen
 	_install_iso_collisions() # colisión por-pieza (polígono dibujado en wall_origin_tool → wall_collision.json)
 	_iso_wall_mat_solid = _make_wall_mat()   # caras de muro: unshaded foot-lit
 	_iso_wall_mat_reveal = _make_wall_mat()   # fachada transparentada: NO recibe luz (ni óvalo ni círculo)
@@ -445,6 +497,53 @@ func _ensure_door_sources() -> void:
 		_variant_base[vid] = base_src
 		_door_src[base_src] = vid
 
+## Registra las 8 variantes-CORNER como sources del TileSet. Sigue el mismo patrón que `_ensure_door_sources`
+## y `_ensure_wall_variants` (carga PNG → atlas source → llena _wall_tex/_wall_origin/_variant_base).
+## OPT-IN: si el PNG no existe, esa variante NO se registra (queda src=-1) → fallback automático al wall normal.
+func _ensure_corner_variants() -> void:
+	_corner_variants = _corner_variants_def()
+	var next_id := CORNER_VAR_FIRST_ID
+	var tex_cache := {}
+	for v in _corner_variants:
+		v["a_src"] = _register_corner_variant(next_id, v["a_file"], _base_for_side(v["a_side"]), tex_cache); next_id += 1
+		v["b_src"] = _register_corner_variant(next_id, v["b_file"], _base_for_side(v["b_side"]), tex_cache); next_id += 1
+
+## Carga el PNG y lo agrega como atlas source con el origin del muro base. Devuelve el src id o -1 si falla.
+func _register_corner_variant(vid: int, file: String, base_src: int, tex_cache: Dictionary) -> int:
+	var origin: Vector2 = _wall_origin.get(base_src, Vector2.ZERO)
+	var edge := _wall_edge_for(base_src)
+	if not ISO_TILESET.has_source(vid):
+		var path: String = CORNER_VAR_DIR + file
+		var tex = tex_cache.get(path)
+		if tex == null:
+			tex = _load_wall_tex(path)
+			tex_cache[path] = tex
+		if tex == null:
+			return -1   # PNG no existe → variante no disponible (fallback a wall normal)
+		var src := TileSetAtlasSource.new()
+		src.texture = tex
+		src.texture_region_size = Vector2i(tex.get_size())
+		src.create_tile(Vector2i(0, 0))
+		ISO_TILESET.add_source(src, vid)
+		var td := src.get_tile_data(Vector2i(0, 0), 0)
+		td.texture_origin = Vector2i(origin)
+		if WALL_SHADOWS and edge.size() > 0 and ISO_TILESET.get_occlusion_layers_count() > 0:
+			var occ := OccluderPolygon2D.new()
+			occ.closed = false
+			occ.cull_mode = OccluderPolygon2D.CULL_DISABLED
+			occ.polygon = edge
+			td.set_occluder_polygons_count(0, 1)
+			td.set_occluder_polygon(0, 0, occ)
+	var s2 := ISO_TILESET.get_source(vid) as TileSetAtlasSource
+	if s2 == null:
+		return -1
+	_wall_tex[vid] = s2.texture
+	var td2 := s2.get_tile_data(Vector2i(0, 0), 0)
+	if td2 != null:
+		_wall_origin[vid] = Vector2(td2.texture_origin)
+	_variant_base[vid] = base_src
+	return vid
+
 ## SRC_WALL_* del borde recto correspondiente a un Side.
 func _base_for_side(side: int) -> int:
 	match side:
@@ -504,6 +603,19 @@ func _wall_edge_for_side(side: int) -> PackedVector2Array:
 		WallSegment.Side.SE: return PackedVector2Array([r, b])
 		WallSegment.Side.SW: return PackedVector2Array([b, l])
 	return PackedVector2Array()
+
+## Aristas de pared para el AUTOMAP (estilo Diablo II): por cada WallSegment, los 2 vértices de su
+## arista de rombo en coords LOCALES de este nodo (map_to_local(cell) + offset cell-local). Cada item:
+## {cell, a, b}. El minimapa las dibuja como líneas (wireframe iso) y filtra por niebla con `cell`.
+func get_wall_edges() -> Array:
+	var out: Array = []
+	for seg in _wall_segments:
+		var e := _wall_edge_for_side(seg.side)
+		if e.size() < 2:
+			continue
+		var base := map_to_local(seg.interior_cell)
+		out.append({"cell": seg.interior_cell, "a": base + e[0], "b": base + e[1]})
+	return out
 
 func _rebuild_wall_spans() -> void:
 	# 1) Crudo: un segmento por WallSegment (arista de rombo por celda).
@@ -613,11 +725,18 @@ func _update_wall_span_uniforms() -> void:
 
 ## Carga una textura de muro (load normal; fallback a PNG crudo si Godot no la importó aún).
 func _load_wall_tex(path: String) -> Texture2D:
-	var t := load(path) as Texture2D
-	if t != null:
-		return t
-	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
-	return ImageTexture.create_from_image(img) if img != null else null
+	# Recurso importado disponible → load() normal.
+	if ResourceLoader.exists(path):
+		var t := load(path) as Texture2D
+		if t != null:
+			return t
+	# PNG crudo en disco (no importado) → cargar como Image. Si NO existe por ninguna vía (arte todavía
+	# pendiente, ej. corner_variants), salir en SILENCIO — sin spamear "Resource file not found" /
+	# "Failed to load image". El caller (variantes/corners) cae a su fallback (wall normal).
+	if FileAccess.file_exists(path):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		return ImageTexture.create_from_image(img) if img != null else null
+	return null
 
 ## Elige al azar (RNG seedeado → reproducible por piso) un source del pool de variantes del borde.
 func _pick_wall_variant(base_src: int) -> int:
@@ -721,13 +840,34 @@ func _load_wall_collision() -> void:
 	var data: Variant = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
 		return
+	# Cada key SIEMPRE se guarda como Array[PackedVector2Array] (un slot puede tener N polígonos).
+	# Detecta formato: SINGLE `[[x,y],...]` o MULTI `[ [[x,y],...], [[x,y],...] ]` (open_door_*).
 	for k in data:
-		var pts := PackedVector2Array()
-		for p in data[k]:
-			if p is Array and p.size() >= 2:
-				pts.append(Vector2(float(p[0]), float(p[1])))
-		if pts.size() >= 3:
-			_wall_coll[k] = pts
+		var raw: Variant = data[k]
+		if not (raw is Array) or raw.is_empty():
+			continue
+		var first = raw[0]
+		var is_multi: bool = first is Array and (first as Array).size() > 0 and (first as Array)[0] is Array
+		var polys: Array[PackedVector2Array] = []
+		if is_multi:
+			for poly_raw in raw:
+				if poly_raw is Array:
+					polys.append(_parse_poly_pts(poly_raw))
+		else:
+			polys.append(_parse_poly_pts(raw))
+		var valid: Array[PackedVector2Array] = []
+		for p in polys:
+			if p.size() >= 3:
+				valid.append(p)
+		if not valid.is_empty():
+			_wall_coll[k] = valid
+
+func _parse_poly_pts(raw: Array) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for p in raw:
+		if p is Array and p.size() >= 2:
+			pts.append(Vector2(float(p[0]), float(p[1])))
+	return pts
 
 ## Instala un polígono de colisión (physics layer 0, capa 1) en cada source de muro que tenga
 ## polígono en el JSON. SEGURO: si el JSON está vacío, no hace nada (la barrera de perímetro sigue).
@@ -749,7 +889,9 @@ func _install_iso_collisions() -> void:
 		_set_tile_collision(int(_door_src[dbase]), _wall_coll.get(COLL_KEY.get(int(dbase), ""), null))
 
 func _set_tile_collision(sid: int, pts) -> void:
-	if pts == null:
+	# Sin polígono (null) o polígono inválido (<3 puntos) → la pieza queda SIN colisión, en silencio
+	# (un polígono de 1-2 puntos haría que set_collision_polygon_points tire "Invalid polygon").
+	if pts == null or pts.size() < 3:
 		return
 	var src := ISO_TILESET.get_source(sid) as TileSetAtlasSource
 	if src == null:
@@ -759,6 +901,107 @@ func _set_tile_collision(sid: int, pts) -> void:
 		return
 	td.set_collision_polygons_count(0, 1)
 	td.set_collision_polygon_points(0, 0, pts)
+
+## Colisión POR RUN (F): agrupa los polígonos cell-local por RUN de muro (mismo span que el shader),
+## los traslada a world, los MERGEA en UN solo CollisionPolygon2D por run (sin micro-grietas dentro
+## del mismo muro continuo). Mini-offset técnico (0.5 px) ANTES de mergear porque `merge_polygons`
+## solo fusiona si los polígonos se SOLAPAN — vecinos del mismo run se TOCAN pero no solapan. Después
+## del merge, cada polígono resultante (puede haber más de uno por run si el JSON tenía gaps) → un
+## CollisionPolygon2D suelto en el StaticBody `_iso_bounds`.
+func _install_wall_collisions() -> void:
+	if _iso_bounds == null or not is_instance_valid(_iso_bounds):
+		return
+	if _wall_coll.is_empty():
+		_load_wall_collision()
+	if _wall_coll.is_empty():
+		return
+	# Agrupar SIDES por celda → para cada celda, primero buscamos pares adyacentes (esquinas) y
+	# usamos el polígono `corner_*` dedicado (cubre el VÉRTICE sin huecos). Los sides que no quedan
+	# en un par caen al merge por RUN normal. Si la key del corner no está en wall_collision.json
+	# (Felipe no la dibujó), fallback automático: ese par cae al merge por run como wall_xx normales.
+	var sides_by_cell := {}
+	for seg in _wall_segments:
+		if not sides_by_cell.has(seg.interior_cell):
+			sides_by_cell[seg.interior_cell] = {}
+		sides_by_cell[seg.interior_cell][seg.side] = true
+	# Para esquinas usamos las VARIANTES-CORNER (`wall_xx_corner_yy` en el JSON): cada lado del par
+	# tiene su propio polígono complementario → cubren el vértice del rombo sin huecos. Si la variante
+	# no está dibujada (key falta en _wall_coll), cae al merge por run con wall_xx normal.
+	var groups := {}   # gk → Array[PackedVector2Array] (polígonos en world) para el merge por run
+	for cell in sides_by_cell:
+		var sides: Dictionary = sides_by_cell[cell]
+		var consumed := {}
+		var pos := map_to_local(cell)
+		# 1) Esquinas: para cada par adyacente, si AMBAS keys de la variante-corner existen en el JSON,
+		# instalamos sus polígonos como CollisionPolygon2D sueltos. Si falta una, NO se consume el par
+		# (cae al wall normal). Orden = el de _corner_variants (top/bottom/left/right).
+		for cv in _corner_variants:
+			var sa := int(cv["a_side"]); var sb := int(cv["b_side"])
+			if not sides.has(sa) or not sides.has(sb): continue
+			if consumed.has(sa) or consumed.has(sb): continue
+			var a_polys = _wall_coll.get(cv["a_key"], null)
+			var b_polys = _wall_coll.get(cv["b_key"], null)
+			if a_polys == null or b_polys == null: continue
+			for poly in a_polys:
+				var cp := CollisionPolygon2D.new()
+				var world_pts := PackedVector2Array()
+				for p in poly:
+					world_pts.append(p + pos)
+				cp.polygon = world_pts
+				_iso_bounds.add_child(cp)
+			for poly in b_polys:
+				var cp := CollisionPolygon2D.new()
+				var world_pts := PackedVector2Array()
+				for p in poly:
+					world_pts.append(p + pos)
+				cp.polygon = world_pts
+				_iso_bounds.add_child(cp)
+			consumed[sa] = true; consumed[sb] = true
+		# 2) Sides restantes (no consumidos por esquinas) → al merge por run con wall_xx normal.
+		for side in sides:
+			if consumed.has(side): continue
+			var base_src := _base_for_side(side)
+			var key_str: String = COLL_KEY.get(base_src, "")
+			var polys = _wall_coll.get(key_str, null)
+			if polys == null: continue
+			var sm = _wall_span_map.get(cell, {})
+			var span = sm.get(side, null)
+			if span == null: continue
+			var sa2: Vector2 = span[0]
+			var gk := "%d_%d_%d" % [side, int(round(sa2.x)), int(round(sa2.y))]
+			if not groups.has(gk):
+				groups[gk] = []
+			for poly in polys:
+				var world_pts := PackedVector2Array()
+				for p in poly:
+					world_pts.append(p + pos)
+				groups[gk].append(world_pts)
+	# Mergear cada grupo y crear un CollisionPolygon2D por polígono resultante.
+	for gk in groups:
+		var pool: Array = []
+		for p in groups[gk]:
+			var off := Geometry2D.offset_polygon(p, 0.5, Geometry2D.JOIN_MITER)
+			pool.append(off[0] if not off.is_empty() else p)
+		# Pase iterativo: fusiona pares hasta que no haya más fusiones posibles.
+		var changed := true
+		while changed and pool.size() > 1:
+			changed = false
+			for i in pool.size():
+				var stop := false
+				for j in range(i + 1, pool.size()):
+					var m := Geometry2D.merge_polygons(pool[i], pool[j])
+					if m.size() == 1:   # se fusionaron en uno
+						pool[i] = m[0]
+						pool.remove_at(j)
+						changed = true
+						stop = true
+						break
+				if stop:
+					break
+		for poly_final in pool:
+			var cp := CollisionPolygon2D.new()
+			cp.polygon = poly_final
+			_iso_bounds.add_child(cp)
 
 func _paint_iso() -> void:
 	clear()
@@ -847,10 +1090,23 @@ func _paint_walls() -> void:
 				pieces.append({"src": SRC_CORNER_RIGHT, "front": false}); ne = false; se = false
 		# Bordes sueltos restantes, con VARIACIÓN random por celda. SE/SW = fachada delantera (revelable).
 		# NE antes que NW: en la esquina norte (NW+NE) la 2ª pieza va de overlay ARRIBA → NW sobre NE.
-		if ne: pieces.append({"src": _pick_wall_variant(SRC_WALL_NE), "front": false, "side": WallSegment.Side.NE})
-		if nw: pieces.append({"src": _pick_wall_variant(SRC_WALL_NW), "front": false, "side": WallSegment.Side.NW})
-		if se: pieces.append({"src": _pick_wall_variant(SRC_WALL_SE), "front": true, "side": WallSegment.Side.SE})
-		if sw: pieces.append({"src": _pick_wall_variant(SRC_WALL_SW), "front": true, "side": WallSegment.Side.SW})
+		# Si la celda tiene un par adyacente Y la variante-corner está registrada (PNG existe),
+		# swapeamos el src del muro por la variante-corner (que cubre el vértice con su par). Orden
+		# de prioridad = orden de _corner_variants (top/bottom/left/right). Si una celda matchea
+		# varios pares (raro), gana el primero; los demás sides usan wall normal.
+		var corner_swap := {}
+		var consumed_cor := {}
+		for cv in _corner_variants:
+			if int(cv["a_src"]) < 0 or int(cv["b_src"]) < 0: continue
+			var a: int = cv["a_side"]; var b: int = cv["b_side"]
+			if not s.has(a) or not s.has(b): continue
+			if consumed_cor.has(a) or consumed_cor.has(b): continue
+			corner_swap[a] = int(cv["a_src"]); corner_swap[b] = int(cv["b_src"])
+			consumed_cor[a] = true; consumed_cor[b] = true
+		if ne: pieces.append({"src": corner_swap.get(WallSegment.Side.NE, _pick_wall_variant(SRC_WALL_NE)), "front": false, "side": WallSegment.Side.NE})
+		if nw: pieces.append({"src": corner_swap.get(WallSegment.Side.NW, _pick_wall_variant(SRC_WALL_NW)), "front": false, "side": WallSegment.Side.NW})
+		if se: pieces.append({"src": corner_swap.get(WallSegment.Side.SE, _pick_wall_variant(SRC_WALL_SE)), "front": true,  "side": WallSegment.Side.SE})
+		if sw: pieces.append({"src": corner_swap.get(WallSegment.Side.SW, _pick_wall_variant(SRC_WALL_SW)), "front": true,  "side": WallSegment.Side.SW})
 		# Tile de puerta en su cara (si ese borde existe y hay source). front si es fachada S/E.
 		if door_side >= 0 and s.has(door_side):
 			var dbase := _base_for_side(door_side)
@@ -931,7 +1187,11 @@ func _update_wall_cutaway(pl) -> void:
 			done.append(h)
 			continue
 		var target: float = CUT_ALPHA if covering.has(h) else 1.0
-		h.modulate.a = lerpf(h.modulate.a, target, 0.22)
+		# Histéresis asimétrica: ENCENDER rápido (0.4) / APAGAR lento (0.05) → en el frame de cruce
+		# entre dos muros del borde, el siguiente muro ya está prendido antes de que el anterior apague
+		# → no se ve el flicker.
+		var rate: float = 0.40 if covering.has(h) else 0.05
+		h.modulate.a = lerpf(h.modulate.a, target, rate)
 		if not covering.has(h) and h.modulate.a > 0.985:
 			h.modulate.a = 1.0
 			done.append(h)
@@ -942,7 +1202,9 @@ func _update_wall_cutaway(pl) -> void:
 ## (ancho CUT_HW, alto CUT_H hacia arriba) cubrir el cuerpo del player.
 func _wall_covers(holder: Node2D, pp: Vector2, body: Vector2) -> bool:
 	var base := holder.global_position
-	if base.y < pp.y - 6.0:   # base al norte de los pies → muro detrás del player → no lo tapa
+	if base.y < body.y - 6.0:   # base al norte del CUERPO → muro detrás del player → no lo tapa.
+		# Usamos body (no pies) para que al ACERCARTE a un muro SE/SW los pies no "pasen" la base
+		# del muro y disparen el gate falsamente → el cutaway se apagaba justo cuando más tapaba.
 		return false
 	return absf(body.x - base.x) < CUT_HW and body.y > base.y - CUT_H and body.y < base.y + CUT_FOOT
 
@@ -1150,6 +1412,8 @@ func _process(_delta: float) -> void:
 		if pl != null and is_instance_valid(pl):
 			_fog.update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
 			_update_wall_cutaway(pl)           # cutaway por-MURO (reemplaza el reveal por-sala): fachadas que te tapan
+			if _props:
+				_props.update_occlusion(pl)    # oclusión X-aware de props (z dinámico vs el player por su huella)
 			if _dividers:
 				_dividers.update_cutaway(pl)   # transparencia por legibilidad de los muros de divisor
 	if _decor: _decor.tune_torches_live()

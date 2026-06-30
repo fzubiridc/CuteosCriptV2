@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cuteos-tools",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["tools/serve.py"],
+      "port": 8765
+    }
+  ]
+}
