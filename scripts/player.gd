@@ -738,22 +738,35 @@ func add_coins(n: int) -> void:
 	GameState.coins_changed.emit(coins)
 
 func gain_xp(amount: int) -> void:
+	print("[levelup] gain_xp amount=%d xp=%d/%d level=%d" % [amount, xp, xp_to_next, level])
 	xp += amount
 	var leveled := false
+	var guard := 0
 	while xp >= xp_to_next:
+		guard += 1
+		if guard > 100 or xp_to_next <= 0:   # SAFETY: nunca colgar el juego en el level-up
+			push_error("[levelup] LOOP GUARD disparado: xp=%d xp_to_next=%d level=%d guard=%d" % [xp, xp_to_next, level, guard])
+			xp_to_next = maxi(xp_to_next, 8)
+			break
 		xp -= xp_to_next
 		level += 1
 		xp_to_next = 8 + (level - 1) * 6
 		leveled = true
+		print("[levelup] subió a level=%d, xp=%d/%d" % [level, xp, xp_to_next])
 	GameState.xp_changed.emit(xp, level)
-	if leveled: _open_upgrade()
+	if leveled:
+		print("[levelup] leveled=true → _open_upgrade()")
+		_open_upgrade()
+	print("[levelup] gain_xp FIN")
 
 func _open_upgrade() -> void:
+	print("[levelup] _open_upgrade: pool=%d, PAUSANDO + emit level_up" % (Data.UPGRADES as Array).size())
 	var pool := (Data.UPGRADES as Array).duplicate()
 	pool.shuffle()
 	GameState.last_pause_src = "upgrade"   # diagnóstico freeze: quién pausó (ver watchdog HUD)
 	get_tree().paused = true
 	GameState.level_up.emit(pool.slice(0, 3))
+	print("[levelup] _open_upgrade: DESPUÉS del emit (paused=%s)" % str(get_tree().paused))
 
 func apply_upgrade(id: String) -> void:
 	match id:

@@ -61,9 +61,32 @@ func floater(pos: Vector2, text: String, color: Color = Color.WHITE, is_crit := 
 	f.setup(pos, text, color, is_crit)
 
 ## Suelta loot al morir una criatura. xp_amount = orbe de XP garantizado.
+## DEBUG: dropea UNO de cada tipo posible (xp, coin, heart, potion, e ítem de cada slot) en `pos`.
+## Para cazar "un drop que trae problemas": lo dispara una tecla de debug (player) o al matar un mob si
+## DEBUG_FORCE_ALL_DROPS. Cada drop y cada pickup se loguea → la última línea antes del freeze = el culpable.
+const DEBUG_FORCE_ALL_DROPS := false   # true = CADA mob dropea todo (repro rápida del freeze de level-up); off en juego normal
+func debug_drop_all(pos: Vector2) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var depth := int(run.get("depth", 1))
+	print("[loot] === debug_drop_all @ %s depth=%d ===" % [str(pos), depth])
+	_drop(scene, pos + _roff(24), "xp", 5)
+	_drop(scene, pos + _roff(24), "coin", 5)
+	_drop(scene, pos + _roff(24), "heart", 20)
+	_drop(scene, pos + _roff(24), "potion", 1)
+	for slot in ["arma", "casco", "coraza", "botas", "anillo", "amuleto"]:
+		var it := Items.make_item(depth, slot)
+		print("[loot] item slot=%s → %s" % [slot, str(it)])
+		_drop_item(scene, pos + _roff(40), it)
+
 func drop_loot(pos: Vector2, xp_amount: int, is_boss := false) -> void:
 	var scene := get_tree().current_scene
 	if scene == null:
+		return
+	print("[loot] drop_loot pos=%s xp=%d boss=%s depth=%d" % [str(pos), xp_amount, str(is_boss), int(run.get("depth", 1))])
+	if DEBUG_FORCE_ALL_DROPS and not is_boss:
+		debug_drop_all(pos)
 		return
 	_drop(scene, pos, "xp", xp_amount)
 	var depth := int(run.get("depth", 1))
@@ -97,6 +120,7 @@ func _spawn_pickup_deferred(scene: Node, p: Node, pos: Vector2, kind: String, va
 		return
 	scene.add_child(p)
 	p.setup(pos, kind, value, item)
+	print("[loot] pickup spawneado kind=%s value=%d item_keys=%s" % [kind, value, str(item.keys())])
 
 func _roff(r: float) -> Vector2:
 	return Vector2(Rng.range_f(-r, r), Rng.range_f(-r, r))

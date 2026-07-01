@@ -69,6 +69,11 @@ func _ready() -> void:
 	GameState.level_up.connect(_on_level_up)
 	GameState.player_died.connect(_on_death)
 	GameState.mode_changed.connect(_on_mode)
+	# RAÍZ del freeze: el HUD arranca visible=false (escena) y depende de recibir mode_changed(PLAY). Pero si
+	# el mode YA era PLAY al conectar (recarga de escena/restart → set_mode(PLAY) hace return sin emitir), la
+	# señal nunca llega y el HUD queda INVISIBLE → el panel de mejora se abre pero no se ve → trancado + pausa.
+	# Fix: sincronizamos la visibilidad al modo ACTUAL acá, sin depender de la señal.
+	visible = GameState.mode in [GameState.Mode.PLAY, GameState.Mode.DEAD, GameState.Mode.WIN]
 	GameState.shop_requested.connect(open_shop)   # el mercader pide abrir la tienda vía GameState
 	for i in 3:
 		up_btns[i].pressed.connect(_pick.bind(i))
@@ -254,11 +259,14 @@ func _on_boss_died() -> void:
 
 # ---------------- Mejora de nivel ----------------
 func _on_level_up(choices: Array) -> void:
+	print("[levelup] HUD _on_level_up: %d choices, player=%s mode=%d" % [choices.size(), str(GameState.player), GameState.mode])
+	visible = true   # SEGURIDAD: el panel de mejora es hijo del HUD → si el HUD está oculto no se ve → freeze
 	_choices = choices
 	up_title.text = "¡Nivel %d! Elegí una mejora" % GameState.player.level
 	for i in 3:
 		up_btns[i].text = "%s\n%s" % [choices[i].name, choices[i].desc]
 	up_panel.visible = true
+	print("[levelup] HUD _on_level_up: up_panel.visible=%s modulate.a=%.2f hud.visible=%s" % [up_panel.visible, up_panel.modulate.a, visible])
 
 func _pick(i: int) -> void:
 	GameState.player.apply_upgrade(_choices[i].id)
@@ -279,6 +287,8 @@ func _toggle_pause() -> void:
 ## una pausa legítima. Cubre TODAS las fuentes de pausa: mejora, pausa, muerte/victoria, inventario,
 ## tienda, panel de habilidades. Si agregás una fuente de pausa nueva, sumala acá.
 func _any_modal_visible() -> bool:
+	if not visible:
+		return false   # HUD oculto → aunque un panel diga visible=true, NO se ve → el watchdog debe actuar
 	if up_panel.visible or pause_panel.visible or death_panel.visible or inv_panel.visible:
 		return true
 	if _inv != null and _inv.is_open():

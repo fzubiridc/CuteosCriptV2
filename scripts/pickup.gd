@@ -139,11 +139,13 @@ func _on_body(body: Node) -> void:
 		return
 	if kind == "item":
 		return   # los ítems se levantan con click derecho, no por contacto
+	print("[loot] RECOGIDO kind=%s value=%d" % [kind, value])
 	match kind:
 		"coin": body.add_coins(value)
 		"xp": body.gain_xp(value)
 		"heart": body.heal(value)
 		"potion": body.potions += 1
+	print("[loot] post-recogida kind=%s (si es xp y colgó acá → level-up)" % kind)
 	var snd: String = {"coin": "coin", "heart": "heal", "potion": "heal"}.get(kind, "")
 	if snd != "":
 		Audio.play(snd)
