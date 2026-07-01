@@ -301,6 +301,16 @@ func _ensure_dividers() -> void:
 	if _dividers == null:
 		_dividers = DungeonDividers.new(self)
 
+# ---------------------------------------------------------------------------
+# Pintor de muros iso → IsoWallPainter (scripts/iso_wall_painter.gd). Lazy, igual que los otros. La lógica
+# de muros se está extrayendo por tajadas; el estado sigue en dungeon.gd (lo leen varios sistemas por `d.`).
+# ---------------------------------------------------------------------------
+var _wall_painter: IsoWallPainter
+
+func _ensure_wall_painter() -> void:
+	if _wall_painter == null:
+		_wall_painter = IsoWallPainter.new(self)
+
 ## FASE 1 (test in-game): subdivide la PRIMERA sala suficientemente grande con un divisor + puerta, para
 ## validar el sistema en el dungeon real. Divisor por el eje MÁS LARGO, a la mitad, hueco en el centro.
 ## (FASE 2: regla de procgen — qué salas se subdividen, probabilidad, posición del hueco, etc.)
@@ -1191,64 +1201,9 @@ func _apply_wall_span(holder: Node2D, cell: Vector2i, side: int) -> void:
 	ci.set_instance_shader_parameter("manual_span_a", ab[0])
 	ci.set_instance_shader_parameter("manual_span_b", ab[1])
 
-## CUTAWAY POR-MURO: cada frame, transparenta las FACHADAS que tapan al player (sala o corredor) y vuelve
-## opacas las que dejaron de taparlo. Reemplaza el reveal por-sala. Solo mira fachadas cerca del player.
-func _update_wall_cutaway(pl) -> void:
-	if pl == null or not is_instance_valid(pl) or not (pl is Node2D):
-		return
-	var n2 := pl as Node2D
-	var feet := n2.get_node_or_null("Feet") as Node2D
-	var pp: Vector2 = feet.global_position if feet != null else n2.global_position
-	var body := pp + Vector2(0, CUT_BODY_UP)
-	var pc := local_to_map(to_local(pp))
-	var covering := {}
-	var cover_cells := {}
-	for dy in range(-CUT_R, CUT_R + 1):
-		for dx in range(-CUT_R, CUT_R + 1):
-			var cell := pc + Vector2i(dx, dy)
-			if not _front_walls.has(cell):
-				continue
-			for h in _front_walls[cell]:
-				if is_instance_valid(h) and _wall_covers(h, pp, body):
-					covering[h] = true
-					_cut_active[h] = true
-					cover_cells[cell] = true
-	# Expandir a las fachadas PEGADAS (vecinos de las celdas que tapan) → patch suave, no un tile suelto.
-	for cell in cover_cells:
-		for nb in CUT_NEIGHBORS:
-			var nc: Vector2i = cell + nb
-			if not _front_walls.has(nc):
-				continue
-			for h2 in _front_walls[nc]:
-				if is_instance_valid(h2):
-					covering[h2] = true
-					_cut_active[h2] = true
-	var done: Array = []
-	for h in _cut_active:
-		if not is_instance_valid(h):
-			done.append(h)
-			continue
-		var target: float = CUT_ALPHA if covering.has(h) else 1.0
-		# Histéresis asimétrica: ENCENDER rápido (0.4) / APAGAR lento (0.05) → en el frame de cruce
-		# entre dos muros del borde, el siguiente muro ya está prendido antes de que el anterior apague
-		# → no se ve el flicker.
-		var rate: float = 0.40 if covering.has(h) else 0.05
-		h.modulate.a = lerpf(h.modulate.a, target, rate)
-		if not covering.has(h) and h.modulate.a > 0.985:
-			h.modulate.a = 1.0
-			done.append(h)
-	for h in done:
-		_cut_active.erase(h)
-
-## ¿Esta fachada tapa al player? Su base tiene que estar al SUR/cerca (muro adelante) y su silueta
-## (ancho CUT_HW, alto CUT_H hacia arriba) cubrir el cuerpo del player.
-func _wall_covers(holder: Node2D, pp: Vector2, body: Vector2) -> bool:
-	var base := holder.global_position
-	if base.y < body.y - 6.0:   # base al norte del CUERPO → muro detrás del player → no lo tapa.
-		# Usamos body (no pies) para que al ACERCARTE a un muro SE/SW los pies no "pasen" la base
-		# del muro y disparen el gate falsamente → el cutaway se apagaba justo cuando más tapaba.
-		return false
-	return absf(body.x - base.x) < CUT_HW and body.y > base.y - CUT_H and body.y < base.y + CUT_FOOT
+# CUTAWAY por-muro (_update_wall_cutaway/_wall_covers) → MOVIDO a IsoWallPainter (scripts/iso_wall_painter.gd).
+# Se invoca desde _process como `_wall_painter.update_cutaway(pl)`. El estado (_front_walls/_cut_active/CUT_*)
+# sigue viviendo acá.
 
 func _add_front_entry(rid: int, entry: Dictionary) -> void:
 	if not _room_front.has(rid):
@@ -1632,7 +1587,8 @@ func _process(_delta: float) -> void:
 		var pl = GameState.player
 		if pl != null and is_instance_valid(pl):
 			_fog.update_visibility(local_to_map(to_local(pl.global_position)))   # niebla por celda (fuente de verdad)
-			_update_wall_cutaway(pl)           # cutaway por-MURO (reemplaza el reveal por-sala): fachadas que te tapan
+			_ensure_wall_painter()
+			_wall_painter.update_cutaway(pl)   # cutaway por-MURO (fachadas que te tapan) → IsoWallPainter
 			if _props:
 				_props.update_occlusion(pl)    # oclusión X-aware de props (z dinámico vs el player por su huella)
 			if _dividers:
