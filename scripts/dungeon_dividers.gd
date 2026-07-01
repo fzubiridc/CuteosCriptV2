@@ -66,12 +66,16 @@ func plan_divider(origin: Vector2i, orient: int, line: int, start: int, length: 
 	# La puerta se recoloca a una celda interna (nunca en una punta) para preservar el contacto en T.
 	var mid := start + int(length / 2.0)
 	if _is_floor(_cell(base, orient, line, mid)):
-		var seed_reg := _region_at(_cell(base, orient, line, mid))
+		# Crece hasta topar NO-PISO (muro/vacío/borde) en ambos extremos → cada punta toca una pared
+		# (FASE 3). NO frenamos al cambiar de región: eso paraba en las aberturas (piso de otra región)
+		# y dejaba la punta flotando en el aire. El cap (MAX_GROW) evita un divisor gigante en un caso raro
+		# de fila muy abierta en el mapa continuo.
+		const MAX_GROW := 40
 		var lo := mid
-		while _is_floor(_cell(base, orient, line, lo - 1)) and _region_at(_cell(base, orient, line, lo - 1)) == seed_reg:
+		while _is_floor(_cell(base, orient, line, lo - 1)) and (mid - lo) < MAX_GROW:
 			lo -= 1
 		var hi := mid
-		while _is_floor(_cell(base, orient, line, hi + 1)) and _region_at(_cell(base, orient, line, hi + 1)) == seed_reg:
+		while _is_floor(_cell(base, orient, line, hi + 1)) and (hi - mid) < MAX_GROW:
 			hi += 1
 		start = lo
 		length = hi - lo + 1
