@@ -170,6 +170,10 @@ var _wall_span_map: Dictionary = {}
 # set de holders fadeándose (para lerpear de vuelta a opaco al dejar de tapar).
 var _front_walls: Dictionary = {}
 var _cut_active: Dictionary = {}
+# Z-ORDER DINÁMICO + cutaway (patrón de DungeonProps): cell → [{holder, a, b}] con la arista BASE (global)
+# de CADA muro (fachada Y trasero). IsoWallPainter.update_cutaway decide por-frame, según de qué lado estás,
+# si el muro va ARRIBA (+ transparente) o ABAJO del player. Los holders ajustados quedan en _cut_active.
+var _wall_depth_index: Dictionary = {}
 ## Props esparcidos (DungeonProps): cada entrada = {holder, poly(world)}. Los CON huella se ordenan vs el
 ## player por `DungeonProps.update_occlusion` (z dinámico X-aware); los SIN huella quedan en y_sort estático.
 ## También sirve para liberarlos al regenerar. Lo llena DungeonProps.place_props.
@@ -1090,6 +1094,7 @@ func _paint_iso() -> void:
 	_wall_cells = {}
 	_front_walls = {}
 	_cut_active = {}
+	_wall_depth_index = {}
 	var gh := grid.size()
 	var gw: int = grid[0].size() if gh > 0 else 0
 	# Piso.
@@ -1177,14 +1182,44 @@ func _place_wall_pieces(c: Vector2i, rid: int, pieces: Array) -> void:
 	# (corredores, esquinas, divisores: unificado). Las fachadas (S/E) van como entrada kind:1 → el reveal
 	# las reparenta al CanvasGroup (ya no swapea tile→sprite).
 	for p in pieces:
+		var side := int(p.get("side", -1))
 		var h := _spawn_wall_sprite(c, p.src, true)
-		_apply_wall_span(h, c, int(p.get("side", -1)))
+		_apply_wall_span(h, c, side)
+		_index_wall_depth(c, side, h)   # z dinámico + cutaway por-muro (fachada Y trasero)
 		if p.front:
 			if rid >= 0:
 				_add_front_entry(rid, {"kind": 1, "holder": h})
 			if not _front_walls.has(c):
 				_front_walls[c] = []
-			_front_walls[c].append(h)   # índice de fachadas (incluye corredores) para el cutaway por-muro
+			_front_walls[c].append(h)   # (legacy) índice de fachadas; el cutaway ahora usa _wall_depth_index
+
+## Registra un muro (cualquier cara) en el índice de PROFUNDIDAD con su arista base en world → IsoWallPainter
+## decide por-frame su z vs el player + el cutaway. Lo usan el pintado de muros, las puertas de región y los
+## divisores (por `d._index_wall_depth`) → todos los muros van por el MISMO sistema de z dinámico.
+## `run_a`/`run_b` = línea base del MURO COMPLETO (run) en world. Si no se pasan, se toma del `_wall_span_map`
+## (muros normales, ya fusionados por _merge_wall_spans); si tampoco está, se usa la arista del propio tile
+## (single). Todos los tiles de un mismo run comparten `run_a/run_b` → misma `key` → flipean su z JUNTOS.
+func _index_wall_depth(cell: Vector2i, side: int, holder: Node2D, run_a := Vector2(INF, INF), run_b := Vector2(INF, INF)) -> void:
+	if holder == null or side < 0:
+		return
+	var edge := _wall_edge_for_side(side)
+	if edge.size() < 2:
+		return
+	var base := map_to_local(cell)
+	# front = fachada (SE/SW) → z de capa por defecto +1 (sobre el player); trasero (NW/NE) → -1.
+	var front: bool = side == WallSegment.Side.SE or side == WallSegment.Side.SW
+	var ra := run_a
+	var rb := run_b
+	if is_inf(ra.x):
+		var sp = (_wall_span_map.get(cell, {}) as Dictionary).get(side, null)
+		if sp != null:
+			ra = sp[0]; rb = sp[1]                                  # run del muro (span fusionado)
+		else:
+			ra = to_global(base + edge[0]); rb = to_global(base + edge[1])   # single-tile
+	var key := "%d_%d_%d_%d" % [int(round(ra.x / 4.0)), int(round(ra.y / 4.0)), int(round(rb.x / 4.0)), int(round(rb.y / 4.0))]
+	if not _wall_depth_index.has(cell):
+		_wall_depth_index[cell] = []
+	_wall_depth_index[cell].append({"holder": holder, "front": front, "ra": ra, "rb": rb, "key": key})
 
 ## Le pone a un sprite de muro su span POR-INSTANCIA = el run (cell,side) al que pertenece (coords globales).
 func _apply_wall_span(holder: Node2D, cell: Vector2i, side: int) -> void:
@@ -1394,13 +1429,7 @@ func _place_region_doors() -> void:
 		var cell: Vector2i = e["cell"]
 		var side: int = int(e["side"])
 		var h = _dividers.spawn_region_door(cell, side)
-		# Puerta de FACHADA (SE/SW): va en la capa delantera (z+1) → PUEDE tapar al player. La sumamos al
-		# índice de cutaway (`_front_walls`) para que se transparente cuando lo tapa, igual que las fachadas
-		# de muro (`_update_wall_cutaway`). Las traseras (NW/NE) van en z-1: el player las tapa, sin cutaway.
-		if h != null and (side == WallSegment.Side.SE or side == WallSegment.Side.SW):
-			if not _front_walls.has(cell):
-				_front_walls[cell] = []
-			_front_walls[cell].append(h)
+		_index_wall_depth(cell, side, h)   # la puerta entra al z dinámico + cutaway como cualquier muro (4 caras)
 
 ## Poligono valido para colision/render: >=3 puntos y area no nula (evita el error canvas_item_add_polygon
 ## de los CollisionPolygon2D degenerados al dibujarlos con Visible Collision Shapes).
@@ -1591,8 +1620,8 @@ func _process(_delta: float) -> void:
 			_wall_painter.update_cutaway(pl)   # cutaway por-MURO (fachadas que te tapan) → IsoWallPainter
 			if _props:
 				_props.update_occlusion(pl)    # oclusión X-aware de props (z dinámico vs el player por su huella)
-			if _dividers:
-				_dividers.update_cutaway(pl)   # transparencia por legibilidad de los muros de divisor
+			# Los muros de divisor ahora van por el z dinámico + cutaway UNIFICADO (IsoWallPainter, vía
+			# _index_wall_depth en render_divider) → ya no se llama al cutaway propio de DungeonDividers.
 	if _decor: _decor.tune_torches_live()
 
 ## Alimenta luz (foot-lit) al material de las caras de muro iso cada frame.

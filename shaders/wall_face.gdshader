@@ -46,9 +46,9 @@ uniform vec2 wall_span_b[MAX_WALL_SPANS];
 instance uniform bool use_manual_span;
 instance uniform vec2 manual_span_a;
 instance uniform vec2 manual_span_b;
-// Cutaway: la CPU (IsoWallPainter.update_cutaway) prende este flag CADA FRAME solo en los muros que de
-// verdad tapan al player (test de silueta por-muro) → precisión exacta, sin heurístico de profundidad.
-instance uniform bool cutaway_active;
+// Cutaway: la CPU (IsoWallPainter.update_cutaway) setea CADA FRAME cuánto se transparenta este muro (0=opaco,
+// 1=hueco completo), LERPEADO para que no prenda/apague de golpe (menos "chunky"). Precisión por-muro.
+instance uniform float cutaway_strength;
 uniform vec2 wall_floor_origin = vec2(0.0);
 uniform vec2 wall_floor_u_axis = vec2(128.0, 64.0);
 uniform vec2 wall_floor_v_axis = vec2(-128.0, 64.0);
@@ -78,7 +78,7 @@ uniform bool cutaway_on = false;
 uniform vec2 cutaway_pos = vec2(0.0);
 uniform float cutaway_rx = 52.0;    // medio-ancho de la elipse (world px)
 uniform float cutaway_ry = 120.0;   // medio-alto (más grande = revela más cuerpo detrás del muro)
-uniform float cutaway_min = 0.16;   // opacidad mínima en el centro del hueco (0 = invisible del todo)
+uniform float cutaway_min = 0.30;   // opacidad mínima en el centro del hueco (más alto = menos transparente)
 
 varying vec2 world_pos;
 varying vec2 world_y_axis;
@@ -340,12 +340,13 @@ void fragment() {
 	// de muro y para las entidades (enemigos/boss).
 	COLOR = vec4(albedo.rgb * acc, albedo.a) * COLOR;
 
-	// CUTAWAY por-píxel: hueco elíptico de transparencia centrado en el player (borde suave). Solo en los
-	// muros que la CPU marcó cutaway_active (los que de verdad te tapan) → sin falsos positivos.
-	if (cutaway_on && cutaway_active) {
+	// CUTAWAY por-píxel: hueco elíptico centrado en el player (borde suave espacial) × cutaway_strength (fade
+	// temporal, lerpeado por la CPU → no prende/apaga de golpe). strength 0 = opaco; 1 = hueco completo.
+	if (cutaway_on && cutaway_strength > 0.001) {
 		vec2 rel = world_pos - cutaway_pos;
 		float e = (rel.x * rel.x) / (cutaway_rx * cutaway_rx) + (rel.y * rel.y) / (cutaway_ry * cutaway_ry);
-		COLOR.a *= mix(cutaway_min, 1.0, smoothstep(0.55, 1.0, e));
+		float spatial = mix(cutaway_min, 1.0, smoothstep(0.55, 1.0, e));
+		COLOR.a *= mix(1.0, spatial, cutaway_strength);
 	}
 	}
 }

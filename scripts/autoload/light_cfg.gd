@@ -81,6 +81,13 @@ const DEFS := {
 	"contact_size": {"min": 0.2, "max": 3.0, "def": 1.656, "label": "Contacto tamaño", "group": "Sombras"},
 	"contact_alpha": {"min": 0.0, "max": 1.0, "def": 1.0, "label": "Contacto opacidad", "group": "Sombras"},
 	"contact_flat": {"min": 0.2, "max": 1.0, "def": 0.432, "label": "Contacto achatado (1=redondo)", "group": "Sombras"},
+	# --- Cutaway (transparencia de muros que te tapan): óvalo por-píxel + fade temporal + z dinámico ---
+	"cutaway_min":   {"min": 0.0,  "max": 1.0,   "def": 0.30, "label": "Cutaway: opacidad centro (más alto = menos transparente)", "group": "Cutaway (muros)"},
+	"cutaway_rx":    {"min": 16.0, "max": 140.0, "def": 52.0, "label": "Cutaway: ancho del óvalo (rx)", "group": "Cutaway (muros)"},
+	"cutaway_ry":    {"min": 30.0, "max": 240.0, "def": 120.0, "label": "Cutaway: alto del óvalo (ry)", "group": "Cutaway (muros)"},
+	"cutaway_up":    {"min": -60.0, "max": 20.0, "def": -18.0, "label": "Cutaway: centro Y vs pies (− sube)", "group": "Cutaway (muros)"},
+	"cutaway_fade":  {"min": 0.04, "max": 0.6,   "def": 0.22, "label": "Cutaway: velocidad del fade (alto = más rápido)", "group": "Cutaway (muros)"},
+	"cutaway_range": {"min": 16.0, "max": 140.0, "def": 62.0, "label": "Cutaway: rango de muros contiguos (X)", "group": "Cutaway (muros)"},
 }
 
 var _v: Dictionary = {}

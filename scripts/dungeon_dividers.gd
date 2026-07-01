@@ -108,28 +108,32 @@ func render_divider(plan: Dictionary) -> void:
 	var e0 := Vector2(0, -64)                                          # top (común)
 	var e1: Vector2 = Vector2(128, 0) if orient == 0 else Vector2(-128, 0)
 	var nrm: Vector2 = (Vector2(-0.447, 0.894) if orient == 0 else Vector2(0.447, 0.894)) * 8.0
+	# Span PROPIO (global, todo el tramo): es la LÍNEA BASE del divisor completo → se usa como el "run" para el
+	# z dinámico (todos los muros del divisor flipean su z JUNTOS, sin escalera). Se computa antes del loop.
+	var ca := d.map_to_local(cells[0])
+	var cb := d.map_to_local(cells[cells.size() - 1])
+	var span_a := d.to_global(ca + e0)
+	var span_b := d.to_global(cb + e1)
 	var holders: Array = []
 	for cell in cells:
 		if cell == door_cell or extra_gaps.has(cell):
 			continue
 		if _has_wall_on_edge(cell, side):
 			continue   # ya hay muro perimetral acá → comparte el existente (no duplica sprite/colisión)
-		holders.append(d._spawn_wall_sprite(cell, src, false))
+		var wh := d._spawn_wall_sprite(cell, src, false)
+		holders.append(wh)
 		_add_wall_collision(cell, orient, e0, e1, nrm)   # usa wall_ne / wall_nw del JSON, igual que el perímetro
 		_nav_solid(cell, true)   # los mobs no atraviesan el muro del divisor
 		_wall_marks.append({"cell": cell, "side": side})   # para dibujar el divisor en el minimapa
-	# Span PROPIO (global, todo el tramo) por-instancia → sin competencia con el perímetro en las uniones.
-	var ca := d.map_to_local(cells[0])
-	var cb := d.map_to_local(cells[cells.size() - 1])
-	var span_a := d.to_global(ca + e0)
-	var span_b := d.to_global(cb + e1)
+		d._index_wall_depth(cell, side, wh, span_a, span_b)   # z por-RUN (línea del divisor completo) + cutaway
 	for h in holders:
 		_apply_span(h, span_a, span_b)
-	# Puerta en el hueco (si lo hay).
+	# Puerta en el hueco (si lo hay). Comparte el mismo run que el divisor (flipea con él).
 	if door_cell.x != -9999:
 		var dh := _add_door(door_cell, src, span_a, span_b, e0, e1, nrm)
 		if dh != null:
 			holders.append(dh)
+			d._index_wall_depth(door_cell, side, dh, span_a, span_b)
 	_dividers.append({"holders": holders, "orient": orient, "line": float(line), "base": base})
 
 ## Evita PUERTA encimada con un muro: si la puerta de un divisor cae sobre el muro perimetral o sobre
