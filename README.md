@@ -4,7 +4,7 @@ Roguelike de mazmorras **isométrico** en **Godot 4.6**. Port a Godot del juego 
 Pisos procedurales con salas iso cerradas + puertas-teleport, iluminación por-píxel (caras de muro
 foot-lit + auras), niebla de guerra estilo Diablo, combate ARPG y descenso por zonas hasta el jefe.
 
-Rama de trabajo: **`iso-merge`**. Escena de producción: **`scenes/main.tscn`**.
+Rama de trabajo: **`master`**. Escena de producción: **`scenes/main.tscn`**.
 
 > 👉 **Si sos un agente/dev arrancando, leé [`AGENTS.md`](AGENTS.md) primero**, y después
 > [`docs/project_memory.md`](docs/project_memory.md) (estado/decisiones) y

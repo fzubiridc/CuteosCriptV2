@@ -9,7 +9,7 @@
 > **YA SE RESOLVIÓ** (ver §3.bis y §4). Leelos como histórico, no como TODO vigente.
 
 ## 1. Estado actual confirmado
-- **Godot 4.6**, juego isométrico 2D tipo Diablo-like / dungeon-crawler. Rama `iso-merge` (los refactors de §3.bis y las features de §3.ter están **commiteados y pusheados**).
+- **Godot 4.6**, juego isométrico 2D tipo Diablo-like / dungeon-crawler. Rama de trabajo actual: **`master`** (los refactors de §3.bis y las features de §3.ter están **commiteados y pusheados**). `iso-merge` quedó atrás y es histórico.
 - Arranque = **`scenes/menu.tscn`** (menú de inicio; lanza `main.tscn` al jugar). El menú existe desde el 2026-06-15 pero el giro a iso (commit `9abb2ad`, 06-23) puso `iso_test` como arranque y lo dejó afuera; **reactivado el 2026-06-27**. Escena de juego = **`scenes/main.tscn`**; `Dungeon.use_test_map` debe quedar en **false** en producción (default ya es false).
 - Procgen **iso ACTIVO** (`dungeon.gd`, `const ISO := true`). Modo **USE_DOORS=true**: salas cerradas + puertas-teleport (banco de pruebas de la oscuridad).
 - Muros = **`WallSegment`** (fuente lógica). **NW/NE = traseros**, **SE/SW = delanteros/fachada**. Capas `IsoWalls` (z+1) / `IsoWallsBack` (z-1). `neighbor()` depende de **paridad de fila** (TileSet STACKED).
@@ -39,7 +39,7 @@
 - Auras de mob: el `_glow` tiene **altura** (no revertir, ver §2).
 
 ## 3.bis. Refactors YA HECHOS (esto es la estructura ACTUAL, no deuda)
-> Todo lo de abajo está commiteado/pusheado en `iso-merge`. Lo que antes este doc listaba como "god-objects a partir" y "path 2.5D muerto" **ya está resuelto**.
+> Todo lo de abajo está commiteado/pusheado en `master`. Lo que antes este doc listaba como "god-objects a partir" y "path 2.5D muerto" **ya está resuelto**.
 - **`dungeon.gd` se partió** (era ~1875 líneas) en 3 módulos `RefCounted` + el nodo orquestador:
   - `scripts/dungeon_gen.gd` → `class_name DungeonGen` (RefCounted): **procgen** (grid 64×64, salas iso, grafo MST+loops, roles, `carve_iso_room`).
   - `scripts/dungeon_decor.gd` → `class_name DungeonDecor` (RefCounted): **antorchas + fogatas** (`spawn_wall_torch`, `place_torches`, `place_campfires`).

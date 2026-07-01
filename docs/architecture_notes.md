@@ -1,6 +1,6 @@
 # Notas de arquitectura — actualizado 2026-06-27
 
-Mapa de los sistemas reales del juego (path vivo: iso, `ISO=true`). Godot 4.6, rama `iso-merge`.
+Mapa de los sistemas reales del juego (path vivo: iso, `ISO=true`). Godot 4.6, rama `master`.
 Para deuda/cleanup ver `code_audit_2026-06-26.md` y `cleanup_candidates_2026-06-26.md`.
 
 > **Cambio grande desde la versión anterior del doc**: `dungeon.gd` y `hud.gd` eran god-objects;

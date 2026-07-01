@@ -1,6 +1,6 @@
 # Implementación narrativa — hoja de ruta técnica
 
-> **Qué es esto:** el puente entre la biblia (`docs/PLAN_NARRATIVO.md`, `docs/lore/PROPUESTAS_LORE_2026-06-26.md`) y el motor real. Responde *cómo* metemos la narrativa en el juego, por fases, atado a la arquitectura que YA existe en `iso-merge`.
+> **Qué es esto:** el puente entre la biblia (`docs/PLAN_NARRATIVO.md`, `docs/lore/PROPUESTAS_LORE_2026-06-26.md`) y el motor real. Responde *cómo* metemos la narrativa en el juego, por fases, atado a la arquitectura que YA existe en `master`.
 > **Estado de partida:** HOY el juego no tiene NADA de texto narrativo (ni intro, ni banner de zona, ni línea de jefe, ni lore de ítem). Todo lo de abajo es por construir.
 > **No es:** la biblia (eso vive en los otros dos docs) ni código. Es el plan de ataque.
 
