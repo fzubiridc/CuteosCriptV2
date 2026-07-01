@@ -213,6 +213,7 @@ func generate() -> void:
 		_wall_segments = _build_wall_segments()   # Fase 2: segmentos = fuente de verdad del pintado
 		_paint_iso()
 		_build_iso_nav()
+		_mark_subroom_nav_solid()   # los mobs no cruzan los muros de sub-cuarto (celdas sólidas en el AStar)
 		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
 		_install_wall_collisions()   # colisión por-pieza de los muros (sprites ya no tienen colisión de tile)
 		_place_dividers()         # FASE 1: divisor interno de prueba (sala grande subdividida + puerta)
@@ -1303,6 +1304,23 @@ func _build_iso_nav() -> void:
 	# del barrido inicial; el borde real lo bloquea _build_iso_boundaries (colisión), no el nav.
 	Enemy.path_grid = self
 
+## Marca las celdas de sub-cuarto SÓLIDAS en el AStar de mobs → no cruzan sus muros (el player anda por
+## física, no se afecta). Corre DESPUÉS de _build_iso_nav (que deja todo el piso caminable). Las puertas de
+## sub-cuarto togglean su propia celda encima de esto.
+func _mark_subroom_nav_solid() -> void:
+	if _subroom_cells.is_empty():
+		return
+	for c in _subroom_cells:
+		if _iso_astar.is_in_boundsv(c):
+			_iso_astar.set_point_solid(c, true)
+
+## ¿La celda es sólida en el nav de mobs? La usa main._spawn_enemies para no spawnear un mob adentro de un
+## sub-cuarto/muro (quedaría atrapado). Fuera de bounds → true (no-caminable).
+func is_nav_solid(cell: Vector2i) -> bool:
+	if not _iso_astar.is_in_boundsv(cell):
+		return true
+	return _iso_astar.is_point_solid(cell)
+
 ## Contrato de pathfinding para los mobs (igual que iso_procgen.next_point).
 func next_point(from_world: Vector2, to_world: Vector2) -> Vector2:
 	var fc := local_to_map(to_local(from_world))
@@ -1472,6 +1490,7 @@ const PLACE_SUBROOMS := true        # Etapa 4: sub-cuartos (depósitos) en el pr
 const SUBROOM_REGION_BASE := 90000  # ids de región de sub-cuartos: altos → no colisionan con salas/corredores
 const SUBROOM_CHANCE := 0.35        # prob. de sub-cuarto por sala grande elegible (seedeado por piso)
 var _subroom_rooms: Dictionary = {} # índices de sala con sub-cuarto → los divisores los saltean (no cruzar)
+var _subroom_cells: Dictionary = {} # celdas de TODOS los sub-cuartos → se marcan sólidas en el nav (mobs no cruzan sus muros)
 
 ## Etapa 4 (arquitectura de regiones): genera SUB-CUARTOS (depósitos) en salas grandes durante el procgen.
 ## Un sub-cuarto = una sub-región RECTANGULAR en una esquina de la sala; su frontera INTERIOR con la sala
@@ -1481,6 +1500,7 @@ var _subroom_rooms: Dictionary = {} # índices de sala con sub-cuarto → los di
 ## `_build_wall_segments`. Rellena `_subroom_rooms` para que `_place_dividers` saltee esas salas.
 func _place_subrooms() -> void:
 	_subroom_rooms = {}
+	_subroom_cells = {}
 	if not PLACE_SUBROOMS:
 		return
 	var ax := Vector2(128, 64)    # eje u (SE) cell-space; mismos ejes que carve_iso_room
@@ -1543,6 +1563,8 @@ func _place_subrooms() -> void:
 			var e: Dictionary = boundary[bi]
 			edge_features[_edge_key(e["cell"], int(e["side"]))] = "door" if bi == door_idx else "wall"
 		_subroom_rooms[ri] = true
+		for c in subset:
+			_subroom_cells[c] = true   # para marcarlas sólidas en el nav (mobs no cruzan el sub-cuarto)
 
 ## Cada celda de piso → índice de su sala (rect de procgen). Corredores (fuera de todo rect)
 ## quedan en -1. Usamos los rects y NO flood-fill, porque el flood-fill daría UNA sola región

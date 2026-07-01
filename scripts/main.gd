@@ -444,7 +444,13 @@ func _spawn_enemies(zone: Dictionary) -> void:
 				e.max_hp = int(round(e.max_hp * stat_mul))
 				e.hp = e.max_hp
 				e.damage = int(round(e.damage * stat_mul))
-			var pos := dungeon.to_global(dungeon.map_to_local(_rand_room_cell(room)))
+			# Celda caminable: re-tira si cae en un sub-cuarto/muro sólido (si no, el mob queda atrapado).
+			var cell := _rand_room_cell(room)
+			var tries := 0
+			while dungeon.is_nav_solid(cell) and tries < 8:
+				cell = _rand_room_cell(room)
+				tries += 1
+			var pos := dungeon.to_global(dungeon.map_to_local(cell))
 			e.global_position = pos
 			e.home_pos = pos
 			e.home_rect = home_rect

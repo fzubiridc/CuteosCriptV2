@@ -138,8 +138,10 @@ generate() [ISO]:                                  (dungeon.gd, orquesta)
     celdas en una esquina al azar, región propia (`SUBROOM_REGION_BASE=90000+ri`), frontera interior con la sala →
     "wall" + 1 "door" en `edge_features`. Muros y puerta emergen del pipeline normal (los muros son `WallSegment` →
     render + colisión automáticos; la puerta vía `_place_region_doors`). Guards: descarta si celda no-piso/spawn/exit
-    o sin frontera interior. `_place_dividers` saltea las salas con sub-cuarto (`_subroom_rooms`). Deuda: el nav de
-    mobs no conoce los muros de sub-cuarto (deuda histórica de nav; el player sí choca por colisión).
+    o sin frontera interior. `_place_dividers` saltea las salas con sub-cuarto (`_subroom_rooms`). **Nav:** las
+    celdas de sub-cuarto (`_subroom_cells`) se marcan SÓLIDAS en el AStar (`_mark_subroom_nav_solid`, tras
+    `_build_iso_nav`) → los mobs no cruzan sus muros; `main._spawn_enemies` re-tira el spawn si `is_nav_solid`
+    (no atrapa un mob adentro). El player anda por física (no AStar), no se afecta.
 - `scripts/dungeon_decor.gd` (`class_name DungeonDecor`) — ANTORCHAS (`place_torches`, `spawn_wall_torch`,
   anclaje al borde de muro iso + tuning en vivo por panel L) + FOGATAS (`place_campfires`, ~1 de cada 3
   salas, salta la de spawn, `campfire.tscn`).
