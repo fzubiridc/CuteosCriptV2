@@ -33,6 +33,7 @@ func open(merchant) -> void:
 	if merchant.stock.is_empty():
 		merchant.stock = Items.make_shop_stock(int(GameState.run.get("depth", 1)))
 	_shop_just_opened = true
+	GameState.last_pause_src = "shop"
 	get_tree().paused = true
 	_build_shop()
 

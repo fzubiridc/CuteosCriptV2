@@ -211,6 +211,7 @@ func _toggle_panel() -> void:
 			return
 		_select_slot(0)
 		_panel.visible = true
+		GameState.last_pause_src = "skills"
 		get_tree().paused = true
 
 ## ¿El panel de asignación está abierto? (lo usa el watchdog anti-soft-lock del HUD.)

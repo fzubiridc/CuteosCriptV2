@@ -272,6 +272,7 @@ func _toggle_pause() -> void:
 		get_tree().paused = false
 	else:
 		pause_panel.visible = true
+		GameState.last_pause_src = "pause_menu"
 		get_tree().paused = true
 
 ## ¿Hay ALGÚN panel modal (que justifique la pausa) visible? El watchdog lo usa para no auto-despausar
@@ -291,8 +292,8 @@ func _any_modal_visible() -> bool:
 ## Volcado de estado para diagnosticar la pausa fantasma (todos los paneles en false = confirma el bug).
 func _pause_debug_state() -> String:
 	var p = GameState.player
-	return "mode=%d up=%s pause=%s death=%s inv=%s shop=%s skills=%s lvl=%d kills=%d" % [
-		GameState.mode, up_panel.visible, pause_panel.visible, death_panel.visible,
+	return "last_pause_src=%s mode=%d up=%s pause=%s death=%s inv=%s shop=%s skills=%s lvl=%d kills=%d" % [
+		GameState.last_pause_src, GameState.mode, up_panel.visible, pause_panel.visible, death_panel.visible,
 		(_inv != null and _inv.is_open()), (_shop != null and _shop.is_open()),
 		(_skills != null and _skills.is_open()),
 		(p.level if p != null else -1), int(GameState.run.get("kills", 0))]
@@ -319,6 +320,7 @@ func _show_end(title: String, do_record: bool) -> void:
 		int(run.get("depth", 1)), p.level, int(run.get("kills", 0)),
 		int(rec.get("best_depth", 0)), int(rec.get("best_kills", 0))]
 	death_panel.visible = true
+	GameState.last_pause_src = "death_win"
 	get_tree().paused = true
 
 func _restart() -> void:

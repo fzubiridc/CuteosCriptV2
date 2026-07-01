@@ -751,6 +751,7 @@ func gain_xp(amount: int) -> void:
 func _open_upgrade() -> void:
 	var pool := (Data.UPGRADES as Array).duplicate()
 	pool.shuffle()
+	GameState.last_pause_src = "upgrade"   # diagnóstico freeze: quién pausó (ver watchdog HUD)
 	get_tree().paused = true
 	GameState.level_up.emit(pool.slice(0, 3))
 

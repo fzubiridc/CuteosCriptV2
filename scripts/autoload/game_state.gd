@@ -11,6 +11,11 @@ enum Mode { LOADING, MENU, PLAY, DEAD, WIN }
 var mode: Mode = Mode.LOADING
 var player: Node = null
 
+## Diagnóstico del FREEZE intermitente: cada sitio que hace `get_tree().paused = true` setea esto ANTES
+## con su nombre. El watchdog anti-soft-lock del HUD lo loguea al detectar una pausa fantasma (pausado sin
+## panel) → nombra al culpable en vez de dejarnos adivinar. Aditivo: no cambia el comportamiento de la pausa.
+var last_pause_src := ""
+
 ## Metadatos de la run en curso (equivalente a `run` en el original).
 var run: Dictionary = {}
 

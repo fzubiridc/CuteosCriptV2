@@ -304,6 +304,7 @@ func toggle() -> void:
 	else:
 		_populate_inventory()
 		inv_panel.visible = true
+		GameState.last_pause_src = "inventory"
 		get_tree().paused = true
 
 func _populate_inventory() -> void:
