@@ -16,6 +16,9 @@ var cull := 0.0                 # si > 0: descarta segmentos cuyo punto medio di
 # Markers (world-local; x = INF → oculto)
 var player_w := Vector2(INF, INF)
 var exit_w := Vector2(INF, INF)
+var door_pts: PackedVector2Array = PackedVector2Array()   # pares (a,b) de aristas de PUERTA → línea roja
+const DOOR_COL := Color(1.0, 0.28, 0.24, 0.98)
+const DOOR_W := 2.0
 
 func _to_local(w: Vector2) -> Vector2:
 	return (w - center) * zoom + origin
@@ -35,6 +38,21 @@ func _draw() -> void:
 			line.append(b)
 		if line.size() >= 2:
 			draw_multiline(line, color, width, true)
+	# Puertas: MISMA arista que el muro pero en ROJO (divisores + región) → alineada con las líneas.
+	var dn := door_pts.size()
+	if dn >= 2:
+		var dline := PackedVector2Array()
+		var j := 0
+		while j + 1 < dn:
+			var a := _to_local(door_pts[j])
+			var b := _to_local(door_pts[j + 1])
+			j += 2
+			if cull > 0.0 and (((a + b) * 0.5) - origin).length() > cull:
+				continue
+			dline.append(a)
+			dline.append(b)
+		if dline.size() >= 2:
+			draw_multiline(dline, DOOR_COL, DOOR_W, true)
 	if exit_w.x != INF:
 		_draw_diamond(_to_local(exit_w), 4.5, Color(0.78, 0.55, 1.0, 0.95))
 	if player_w.x != INF:

@@ -10,7 +10,7 @@ class_name Minimap
 const WIRE := preload("res://scripts/minimap_wire.gd")   # preload (no class_name global) → robusto al orden de carga
 
 const REVEAL_RADIUS := 7          # tiles cuyas aristas se revelan alrededor del jugador
-const MINI_VIEW := 150            # diámetro del radar circular (px)
+const MINI_VIEW := 200            # tamaño del recuadro del radar (px) — rombo iso más grande
 const RADAR_ZOOM := 0.045         # world → px en el radar (menos = se ve más mapa)
 const COL_WALL := Color(0.86, 0.79, 0.58, 0.95)   # crema/ámbar (líneas de pared, estilo D2)
 const WALL_W := 1.0
@@ -18,6 +18,7 @@ const WALL_W := 1.0
 var _dungeon: Dungeon
 var _player: Node2D
 var _edges_by_cell: Dictionary = {}   # cell → Array de PackedVector2Array([a, b]) (world-local del dungeon)
+var _door_edges: Array = []           # aristas de puerta (divisor + región) → línea roja si ya fueron vistas
 var _seen: Dictionary = {}            # cell → true (ya volcada a _pts)
 var _pts: PackedVector2Array = PackedVector2Array()   # aristas reveladas (pares a, b consecutivos)
 var _exit_cell := Vector2i(-1, -1)
@@ -110,13 +111,17 @@ func _rebuild_edges() -> void:
 		return
 	var mn := Vector2(INF, INF)
 	var mx := Vector2(-INF, -INF)
-	for e in _dungeon.get_wall_edges():
+	# Muros de perímetro/sala/sub-cuarto (WallSegment) + muros de DIVISOR (sprites aparte). Ambos como líneas.
+	var all_edges: Array = _dungeon.get_wall_edges()
+	all_edges.append_array(_dungeon.get_divider_edges())
+	for e in all_edges:
 		var c: Vector2i = e["cell"]
 		if not _edges_by_cell.has(c):
 			_edges_by_cell[c] = []
 		_edges_by_cell[c].append(PackedVector2Array([e["a"], e["b"]]))
 		mn = mn.min(e["a"]).min(e["b"])
 		mx = mx.max(e["a"]).max(e["b"])
+	_door_edges = _dungeon.get_door_edges()
 	if mn.x == INF:
 		return
 	_full_center = (mn + mx) * 0.5
@@ -163,6 +168,7 @@ func _process(_dt: float) -> void:
 	_mini_wire.center = pw
 	_mini_wire.player_w = pw
 	_mini_wire.exit_w = _exit_world()
+	_mini_wire.door_pts = _seen_door_pts()
 	_mini_wire.queue_redraw()
 	if _full_root.visible:
 		_refresh_full()
@@ -192,7 +198,17 @@ func _refresh_full() -> void:
 	_full_wire.zoom = _full_zoom
 	_full_wire.player_w = _dungeon.to_local(_player.global_position)
 	_full_wire.exit_w = _exit_world()
+	_full_wire.door_pts = _seen_door_pts()
 	_full_wire.queue_redraw()
+
+## Aristas (pares a,b) de las puertas YA VISTAS (respeta la niebla) → línea roja en el minimapa.
+func _seen_door_pts() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for e in _door_edges:
+		if _dungeon.is_seen_cell(e["cell"]):
+			out.append(e["a"])
+			out.append(e["b"])
+	return out
 
 ## World-local de la salida si ya fue vista; INF (oculto) si no.
 func _exit_world() -> Vector2:

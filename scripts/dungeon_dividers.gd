@@ -23,6 +23,7 @@ var d: Dungeon
 var _dividers: Array = []   # {holders:Array, orient:int(0=NE/eje u,1=NW/eje v), line:float, base:Vector2}
 var _doors: Array = []      # {holder, coll, open:bool, closed_tex, open_tex, origin:Vector2}
 var _region_door_holders: Array = []   # puertas de FRONTERA DE REGIÓN (no dividers): holders para liberar en regen
+var _wall_marks: Array = []   # {cell, side} de cada muro de divisor colocado → para dibujarlos en el minimapa
 
 func _init(dungeon: Dungeon) -> void:
 	d = dungeon
@@ -38,6 +39,7 @@ func clear() -> void:
 		if is_instance_valid(h):
 			h.queue_free()
 	_region_door_holders.clear()
+	_wall_marks.clear()
 	_dividers.clear()
 	_doors.clear()
 
@@ -111,6 +113,7 @@ func render_divider(plan: Dictionary) -> void:
 		holders.append(d._spawn_wall_sprite(cell, src, false))
 		_add_wall_collision(cell, orient, e0, e1, nrm)   # usa wall_ne / wall_nw del JSON, igual que el perímetro
 		_nav_solid(cell, true)   # los mobs no atraviesan el muro del divisor
+		_wall_marks.append({"cell": cell, "side": side})   # para dibujar el divisor en el minimapa
 	# Span PROPIO (global, todo el tramo) por-instancia → sin competencia con el perímetro en las uniones.
 	var ca := d.map_to_local(cells[0])
 	var cb := d.map_to_local(cells[cells.size() - 1])
@@ -288,6 +291,41 @@ func _add_wall_collision(cell: Vector2i, orient: int, e0: Vector2, e1: Vector2, 
 func _nav_solid(cell: Vector2i, solid: bool) -> void:
 	if d._iso_astar != null and d._iso_astar.is_in_boundsv(cell):
 		d._iso_astar.set_point_solid(cell, solid)
+
+## Aristas de los muros de DIVISOR para el minimapa: [{cell, a, b}] en coords world-local del dungeon
+## (mismo formato que `Dungeon.get_wall_edges`). Los muros de sub-cuarto NO van acá (son WallSegment
+## y ya salen por `get_wall_edges`); estos son los divisores, que se pintan como sprites aparte.
+func get_wall_edges() -> Array:
+	var out: Array = []
+	for m in _wall_marks:
+		var e: PackedVector2Array = d._wall_edge_for_side(int(m["side"]))
+		if e.size() < 2:
+			continue
+		var base: Vector2 = d.map_to_local(m["cell"])
+		out.append({"cell": m["cell"], "a": base + e[0], "b": base + e[1]})
+	return out
+
+## Aristas de TODAS las puertas (divisor Y región: ambas pasan por `_add_door` → `_doors`) en el mismo
+## formato que las paredes ({cell, a, b}, world-local) → el minimapa las dibuja como LÍNEA ROJA sobre la
+## misma geometría del muro (alineada, sin el desfase del punto en el centro de celda). El lado sale de
+## `closed_key` (wall_nw/ne/se/sw).
+func get_door_edges() -> Array:
+	var out: Array = []
+	for rec in _doors:
+		var side := _side_from_key(String(rec.get("closed_key", "wall_nw")))
+		var e: PackedVector2Array = d._wall_edge_for_side(side)
+		if e.size() < 2:
+			continue
+		var base: Vector2 = d.map_to_local(rec["cell"])
+		out.append({"cell": rec["cell"], "a": base + e[0], "b": base + e[1]})
+	return out
+
+func _side_from_key(k: String) -> int:
+	match k:
+		"wall_ne": return WallSegment.Side.NE
+		"wall_se": return WallSegment.Side.SE
+		"wall_sw": return WallSegment.Side.SW
+	return WallSegment.Side.NW
 
 ## Sufijo de cara ("nw"/"ne"/"se"/"sw") a partir del SRC_WALL_* base → arte de puerta y keys de colisión por lado.
 func _src_suffix(base_src: int) -> String:

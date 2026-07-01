@@ -650,6 +650,14 @@ func get_wall_edges() -> Array:
 		out.append({"cell": seg.interior_cell, "a": base + e[0], "b": base + e[1]})
 	return out
 
+## Aristas de los muros de DIVISOR (sprites aparte, no WallSegment) para el minimapa. [] si no hay dividers.
+func get_divider_edges() -> Array:
+	return _dividers.get_wall_edges() if _dividers != null else []
+
+## Aristas de TODAS las puertas (divisor + región) para dibujarlas como línea roja en el minimapa. [] si no hay.
+func get_door_edges() -> Array:
+	return _dividers.get_door_edges() if _dividers != null else []
+
 func _rebuild_wall_spans() -> void:
 	# 1) Crudo: un segmento por WallSegment (arista de rombo por celda).
 	var raw: Array = []
