@@ -20,6 +20,10 @@ const DEBUG_LOG := false   # logs de debug del procgen (ej. cantidad de segmento
 const FACE_SHADER := preload("res://shaders/wall_face.gdshader")
 
 var grid: Array = []
+var region_id: Array = []    # paralelo a grid: -1 = EMPTY; 0..R-1 = salas; R.. = componentes de corredor.
+							 # Capa semántica para muros/puertas por FRONTERA DE REGIÓN (arquitectura de layouts).
+var edge_features: Dictionary = {}   # arista (clave "x_y_side") → "wall"/"door" en FRONTERAS de región (ambos
+							 # lados piso). Default vacío → frontera abierta (sin cambio). Lo poblan divisores/sub-cuartos.
 var rooms: Array[Rect2i] = []
 ## Niebla de guerra — FUENTE DE VERDAD (el minimapa y el gating de entidades leen de acá).
 ## cell_seen[y][x]=true: la celda fue vista alguna vez (persistente). _visible_now: set de
@@ -191,6 +195,7 @@ func generate() -> void:
 	spawn_cell = Vector2i(-1, -1)
 	exit_cell = Vector2i(-1, -1)
 	window_cells.clear()
+	edge_features.clear()
 	if ISO:
 		_ensure_iso()
 		_ensure_gen()                             # procgen vive en DungeonGen (incluye los carve_* del test grid)
@@ -200,6 +205,8 @@ func generate() -> void:
 			_gen.gen_grid()
 		_room_of = _assign_rooms()                # cada celda de piso → su sala (rect)
 		_gen.assign_roles()                       # Fase 2: roles por BFS + spawn/exit por rol
+		if DEBUG_SUBROOM:
+			_mark_subroom_demo()   # DEMO Etapa 2: sub-cuarto por regiones+edge_features
 		_wall_segments = _build_wall_segments()   # Fase 2: segmentos = fuente de verdad del pintado
 		_paint_iso()
 		_build_iso_nav()
@@ -502,15 +509,35 @@ func _ensure_door_sources() -> void:
 ## OPT-IN: si el PNG no existe, esa variante NO se registra (queda src=-1) → fallback automático al wall normal.
 func _ensure_corner_variants() -> void:
 	_corner_variants = _corner_variants_def()
+	var origins := _load_wall_origins()   # origin PROPIO por esquina (wall tool → wall_origins.json)
 	var next_id := CORNER_VAR_FIRST_ID
 	var tex_cache := {}
 	for v in _corner_variants:
-		v["a_src"] = _register_corner_variant(next_id, v["a_file"], _base_for_side(v["a_side"]), tex_cache); next_id += 1
-		v["b_src"] = _register_corner_variant(next_id, v["b_file"], _base_for_side(v["b_side"]), tex_cache); next_id += 1
+		v["a_src"] = _register_corner_variant(next_id, v["a_file"], _base_for_side(v["a_side"]), tex_cache, origins.get(v["a_key"], null)); next_id += 1
+		v["b_src"] = _register_corner_variant(next_id, v["b_file"], _base_for_side(v["b_side"]), tex_cache, origins.get(v["b_key"], null)); next_id += 1
 
-## Carga el PNG y lo agrega como atlas source con el origin del muro base. Devuelve el src id o -1 si falla.
-func _register_corner_variant(vid: int, file: String, base_src: int, tex_cache: Dictionary) -> int:
-	var origin: Vector2 = _wall_origin.get(base_src, Vector2.ZERO)
+## Lee el texture_origin por pieza del wall tool (tools/rig/wall_origins.json) → { key: Vector2 }. Vacío si no existe.
+const WALL_ORIGINS_PATH := "res://tools/rig/wall_origins.json"
+func _load_wall_origins() -> Dictionary:
+	var out := {}
+	var g := ProjectSettings.globalize_path(WALL_ORIGINS_PATH)
+	if not FileAccess.file_exists(g):
+		return out
+	var f := FileAccess.open(g, FileAccess.READ)
+	if f == null:
+		return out
+	var data: Variant = JSON.parse_string(f.get_as_text())
+	if data is Dictionary:
+		for k in data:
+			var v = data[k]
+			if v is Array and (v as Array).size() >= 2:
+				out[k] = Vector2(float(v[0]), float(v[1]))
+	return out
+
+## Carga el PNG y lo agrega como atlas source. Usa `origin_override` (del wall tool) si viene; si no, el
+## origin del muro base. Devuelve el src id o -1 si falla.
+func _register_corner_variant(vid: int, file: String, base_src: int, tex_cache: Dictionary, origin_override = null) -> int:
+	var origin: Vector2 = origin_override if origin_override is Vector2 else _wall_origin.get(base_src, Vector2.ZERO)
 	var edge := _wall_edge_for(base_src)
 	if not ISO_TILESET.has_source(vid):
 		var path: String = CORNER_VAR_DIR + file
@@ -947,15 +974,15 @@ func _install_wall_collisions() -> void:
 				var world_pts := PackedVector2Array()
 				for p in poly:
 					world_pts.append(p + pos)
-				cp.polygon = world_pts
-				_iso_bounds.add_child(cp)
+				cp.polygon = _clean_poly(world_pts)
+				if _poly_valid(cp.polygon): _iso_bounds.add_child(cp)
 			for poly in b_polys:
 				var cp := CollisionPolygon2D.new()
 				var world_pts := PackedVector2Array()
 				for p in poly:
 					world_pts.append(p + pos)
-				cp.polygon = world_pts
-				_iso_bounds.add_child(cp)
+				cp.polygon = _clean_poly(world_pts)
+				if _poly_valid(cp.polygon): _iso_bounds.add_child(cp)
 			consumed[sa] = true; consumed[sb] = true
 		# 2) Sides restantes (no consumidos por esquinas) → al merge por run con wall_xx normal.
 		for side in sides:
@@ -1000,8 +1027,8 @@ func _install_wall_collisions() -> void:
 					break
 		for poly_final in pool:
 			var cp := CollisionPolygon2D.new()
-			cp.polygon = poly_final
-			_iso_bounds.add_child(cp)
+			cp.polygon = _clean_poly(poly_final)
+			if _poly_valid(cp.polygon): _iso_bounds.add_child(cp)
 
 func _paint_iso() -> void:
 	clear()
@@ -1334,7 +1361,8 @@ func _build_wall_segments() -> Array:
 			# 4 bordes de rombo: hay muro si el vecino al otro lado es vacío.
 			for side in [WallSegment.Side.NW, WallSegment.Side.NE, WallSegment.Side.SE, WallSegment.Side.SW]:
 				if _seg_is_floor(WallSegment.neighbor(cell, side), gw, gh):
-					continue
+					if String(edge_features.get(_edge_key(cell, side), "")) != "wall":
+						continue
 				var facade: bool = side == WallSegment.Side.SE or side == WallSegment.Side.SW
 				var seg = WallSegment.new(cell, side, 0, facade)
 				seg.room_id = _room_of.get(cell, -1)
@@ -1344,6 +1372,89 @@ func _build_wall_segments() -> Array:
 
 func _seg_is_floor(c: Vector2i, gw: int, gh: int) -> bool:
 	return c.x >= 0 and c.y >= 0 and c.x < gw and c.y < gh and grid[c.y][c.x] == 1
+
+## Clave de arista (celda + lado) para edge_features (frontera de region).
+func _edge_key(cell: Vector2i, side: int) -> String:
+	return "%d_%d_%d" % [cell.x, cell.y, int(side)]
+
+## Poligono valido para colision/render: >=3 puntos y area no nula (evita el error canvas_item_add_polygon
+## de los CollisionPolygon2D degenerados al dibujarlos con Visible Collision Shapes).
+## Saca puntos consecutivos coincidentes (los merges/offset de Geometry2D dejan vértices a ~0.0002 →
+## aristas de largo cero que rompen la triangulación del renderer al dibujar la colisión). La colisión
+## física no cambia; solo se quitan vértices redundantes.
+func _clean_poly(pts: PackedVector2Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		if out.is_empty() or out[out.size() - 1].distance_to(p) > 0.1:
+			out.append(p)
+	if out.size() > 1 and out[out.size() - 1].distance_to(out[0]) <= 0.1:
+		out.remove_at(out.size() - 1)
+	return out
+
+func _poly_valid(pts: PackedVector2Array) -> bool:
+	# Descarta los polígonos que el renderer no puede triangular (causan el error canvas_item_add_polygon
+	# al dibujar la colisión con Visible Collision Shapes). triangulate_polygon es DEMASIADO leniente
+	# (triangula colineales), así que chequeo a mano: (1) área no nula → no colineal; (2) no auto-intersección
+	# → descarta los polígonos cruzados que producen los merges/offset de Geometry2D.
+	var n := pts.size()
+	if n < 3:
+		return false
+	var area := 0.0
+	for i in n:
+		var a: Vector2 = pts[i]
+		var b: Vector2 = pts[(i + 1) % n]
+		area += a.x * b.y - b.x * a.y
+	if absf(area) <= 1.0:
+		return false
+	for i in n:
+		var a1: Vector2 = pts[i]
+		var a2: Vector2 = pts[(i + 1) % n]
+		for j in range(i + 2, n):
+			if i == 0 and j == n - 1:
+				continue   # primera y última arista comparten vértice (adyacentes)
+			if Geometry2D.segment_intersects_segment(a1, a2, pts[j], pts[(j + 1) % n]) != null:
+				return false
+	return true
+
+const DEBUG_SUBROOM := true   # DEMO Etapa 2: sub-cuarto por regiones en la 1a sala grande (sacar despues)
+## DEMO Etapa 2/4: crea un SUB-CUARTO en una esquina de la primera sala grande con el modelo de REGIONES:
+## le da una sub-region propia y marca su frontera interior con la sala como aristas "wall" (+ una "door").
+## Los muros EMERGEN solos en _build_wall_segments. Prueba end-to-end de la arquitectura. Gateado por DEBUG_SUBROOM.
+func _mark_subroom_demo() -> void:
+	var ri := -1
+	for i in _room_specs.size():
+		if int(_room_specs[i]["w"]) >= 6 and int(_room_specs[i]["d"]) >= 6:
+			ri = i
+			break
+	if ri < 0:
+		return
+	var spec: Dictionary = _room_specs[ri]
+	var oc: Vector2i = spec["origin"]
+	var w: int = int(spec["w"])
+	var base := map_to_local(oc)
+	var ax := Vector2(128, 64)
+	var bx := Vector2(-128, 64)
+	var sides := [WallSegment.Side.NW, WallSegment.Side.NE, WallSegment.Side.SE, WallSegment.Side.SW]
+	var subset := {}
+	for u in range(w - 3, w):
+		for v in range(0, 3):
+			var c := local_to_map(base + ax * u + bx * v)
+			subset[c] = true
+			if c.y >= 0 and c.y < region_id.size() and c.x >= 0 and c.x < (region_id[c.y] as Array).size():
+				region_id[c.y][c.x] = 90000 + ri
+	var door_done := false
+	for c in subset:
+		for s in sides:
+			var n: Vector2i = WallSegment.neighbor(c, s)
+			if not _seg_is_floor(n, MAP_W, MAP_H):
+				continue
+			if subset.has(n):
+				continue
+			if not door_done:
+				edge_features[_edge_key(c, s)] = "door"
+				door_done = true
+			else:
+				edge_features[_edge_key(c, s)] = "wall"
 
 ## Cada celda de piso → índice de su sala (rect de procgen). Corredores (fuera de todo rect)
 ## quedan en -1. Usamos los rects y NO flood-fill, porque el flood-fill daría UNA sola región

@@ -43,6 +43,9 @@ CONFIG_PATH = RIG_DIR / "rig_config.json"
 # Polígono de COLISIÓN por pieza de muro (cell-local), editado a mano en wall_origin_tool.html.
 # Forma: { "<key_pieza>": [[x,y],...] }  (mismas claves que el texture_origin: wall_nw, corner_top, ...)
 WALL_COLLISION_PATH = RIG_DIR / "wall_collision.json"
+# texture_origin por pieza de muro (wall_origin_tool.html). Forma: { "<key_pieza>": [x,y] }. Lo lee el
+# juego SOLO para las variantes-CORNER (los muros rectos llevan su origin en el .tres).
+WALL_ORIGINS_PATH = RIG_DIR / "wall_origins.json"
 HAND_OUT = RIG_DIR / "hands"
 AOE_CONFIG = GODOT_ROOT / "assets" / "fx" / "aoe_config.json"
 SPELLS_CFG = RIG_DIR / "spells.json"
@@ -273,6 +276,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json({"ok": True, "config": _read_json(SPELLS_CFG)})
         if p == "/api/wallcollision":
             return self._send_json({"ok": True, "config": _read_json(WALL_COLLISION_PATH)})
+        if p == "/api/wallorigins":
+            return self._send_json({"ok": True, "config": _read_json(WALL_ORIGINS_PATH)})
         if p == "/api/props":
             # Descubre assets + devuelve el catalogo guardado (meta por asset).
             return self._send_json({"ok": True, "files": _scan_props(), "catalog": _read_json(PROPS_PATH)})
@@ -397,6 +402,15 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("spellcfg no es objeto")
                 _write_json(SPELLS_CFG, data)
                 print(f"[serve] spells.json ({len(data)} varas)")
+                return self._send_json({"ok": True, "saved": len(data)})
+
+            if p == "/api/wallorigins":
+                # Guarda el texture_origin por pieza de muro -> wall_origins.json (lo usa el juego para corners).
+                data = json.loads(self._body() or b"{}")
+                if not isinstance(data, dict):
+                    raise ValueError("wallorigins no es objeto")
+                _write_json(WALL_ORIGINS_PATH, data)
+                print(f"[serve] wall_origins.json ({len(data)} piezas)")
                 return self._send_json({"ok": True, "saved": len(data)})
 
             if p == "/api/wallcollision":

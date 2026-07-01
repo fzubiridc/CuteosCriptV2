@@ -1,0 +1,74 @@
+{
+"wall_nw": [
+56,
+91
+],
+"wall_ne": [
+-56,
+91
+],
+"wall_se": [
+-57,
+35
+],
+"wall_sw": [
+56,
+35
+],
+"corner_top": [
+0,
+92
+],
+"corner_bottom": [
+0,
+35
+],
+"corner_left": [
+56,
+63
+],
+"corner_right": [
+-57,
+63
+],
+"open_door_ne": [
+-57,
+92
+],
+"open_door_nw": [
+57,
+92
+],
+"wall_nw_corner_n": [
+64,
+92
+],
+"wall_ne_corner_n": [
+-64,
+93
+],
+"wall_se_corner_s": [
+-64,
+35
+],
+"wall_sw_corner_s": [
+63,
+35
+],
+"wall_nw_corner_w": [
+56,
+92
+],
+"wall_sw_corner_w": [
+57,
+32
+],
+"wall_ne_corner_e": [
+-56,
+91
+],
+"wall_se_corner_e": [
+-58,
+31
+]
+}

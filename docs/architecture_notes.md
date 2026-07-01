@@ -86,6 +86,40 @@ generate() [ISO]:                                  (dungeon.gd, orquesta)
     ejes → tramos rectos en el plano iso (sin escalera dentada que daba `carve_h`/`carve_v` cartesianos en
     grid STACKED). Ancho 2 = celda + vecina por el eje perpendicular. `carve_h`/`carve_v` quedan SOLO para
     el test grid (`_gen_test_grid`).
+  - **Suavizado de muros — "≥1 tile recto entre giros" (2026-06-30):** `_smooth_double_corners` (corre en
+    `gen_grid` tras `_remove_thin_walls`, solo si NO `USE_DOORS`; toggle de debug `DEBUG_NO_SMOOTH`). La regla
+    de Felipe NO es "vértices de esquina cerca" sino el **camino del muro**: si un muro va recto y gira 90°, el
+    tramo recto hasta el próximo giro debe ser ≥2 tiles. La **métrica correcta** = largo de los **WALL SPANS**
+    (aristas-muro colineales del mismo lado, agrupadas por lado+línea); un **span de largo 1** = un tile recto
+    aislado entre dos giros = la W/S/C/escalera. Diagnóstico (medido con overlay en vivo): ~90% de los spans-1
+    están en los **CORREDORES** (las salas iso ya son rectas). Algoritmo = **hill-climbing dirigido**: por cada
+    span-1, prueba rellenar la celda de piso o tallar su vecino exterior, y **acepta el toggle SOLO si baja el
+    total de spans-1** (medido: un tallado/relleno ciego EMPEORA; el greedy nunca empeora). Guards: **(a)** NO
+    toca SALAS — ni rellena celdas de sala ni talla muros linderos a sala (expandirla); usa `roomset` de
+    **`d._gen_room_cells`** (piso actual, ya poblado en gen_grid) y NO `_room_of` (que se asigna recién DESPUÉS
+    de gen_grid → estaba stale y reformaba salas, descalzando los **divisores** que crecen hasta topar el muro
+    original de la sala). **(b)** no rellena nada que orfane una región (flood `reach_fast` desde
+    `_largest_region_anchor`, 1 sola vez). Resultado con salas protegidas: spans-1 ~40 → ~14 (**–65%**, todo en
+    corredores), salas 1:1 intactas (verificado: 0 celdas de sala alteradas), conexo. **Performance:** el conteo de spans es
+    INCREMENTAL — `gcount[clave de línea]=#aristas` + `L[0]=#spans-1`; cada toggle actualiza solo las ~8 aristas
+    afectadas (las de c + las de sus vecinos que miran a c, vía tabla `backside`/`ndelta` por paridad) en O(1),
+    no recomputa todo. Hot loops inline con tablas precomputadas (`lb`=map_to_local, `ndelta`, `nrmv`/`e0d`),
+    sin method-calls. Costo del suavizado ~120ms/piso (era ~600ms con recompute completo). El tracker incremental
+    fue verificado en vivo contra el recompute completo (0 mismatches en 60 toggles). `_wall_span1()` queda como
+    medidor de debug. **Bug aparte detectado:** el gen base A VECES deja una isla de piso aislada (~39 celdas);
+    preexistente, no lo causa el suavizado (que a veces hasta la reconecta al tallar); ver `ensure_connectivity`.
+  - **ARQUITECTURA DE REGIONES (2026-06-30.bis, migración por etapas EN CURSO):** para layouts más ricos que
+    salas+corredores (cuartos-en-cuartos, depósitos), los muros/puertas se derivan de **FRONTERAS DE REGIÓN**,
+    no solo de piso↔EMPTY. **`Dungeon.region_id[y][x]`** (paralelo a `grid`): -1 EMPTY, 0..R-1 salas (de
+    `_gen_room_cells`), R.. componentes de corredor (flood-fill). Lo arma `DungeonGen._build_regions()` al final
+    de `gen_grid`. **`Dungeon.edge_features`** (Dict "x_y_side" → "wall"/"door"): marca aristas en fronteras de
+    región (ambos lados piso). `_build_wall_segments` emite muro si piso↔EMPTY **O** la arista está marcada
+    "wall" (default vacío → idéntico al de antes, NO-breaking). Una arista "door" = hueco (sin muro). Helper
+    `_edge_key(cell, side)`. **Demo:** `_mark_subroom_demo()` (gateado por `DEBUG_SUBROOM`, TEMPORAL) crea un
+    sub-cuarto en una esquina → muros+puerta emergen solos. **Divisor migrado parcialmente:** `plan_divider`
+    ahora frena el crecimiento al cambiar de región (`_region_at` sobre `region_id`) → no se escapa al corredor
+    (arregla "el divisor no llega a la pared"; medido 0 escapados). PENDIENTE: puerta real en huecos "door"
+    (sprite+colisión), puertas por intención, generar sub-cuartos en procgen (sacar `DEBUG_SUBROOM`).
 - `scripts/dungeon_decor.gd` (`class_name DungeonDecor`) — ANTORCHAS (`place_torches`, `spawn_wall_torch`,
   anclaje al borde de muro iso + tuning en vivo por panel L) + FOGATAS (`place_campfires`, ~1 de cada 3
   salas, salta la de spawn, `campfire.tscn`).

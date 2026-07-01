@@ -217,7 +217,10 @@ function fit(){ const r=cv.parentElement.getBoundingClientRect();
 window.addEventListener('resize',fit);
 
 //==== Carga de imágenes ====
-function loadImg(p){ const im=new Image(); im.onload=()=>{imgs[p.key]=im; draw();};
+// Usa el TAMAÑO NATIVO del PNG (no el w/h hardcodeado de DEFAULTS) → así no se ven transformadas/escaladas.
+// El juego ya usa nativo (texture_region_size = tex.get_size()); esto alinea el tool con eso.
+function loadImg(p){ const im=new Image(); im.onload=()=>{imgs[p.key]=im;
+    if(im.naturalWidth){ p.w=im.naturalWidth; p.h=im.naturalHeight; } buildList(); syncUI(); draw();};
   im.onerror=()=>{imgs[p.key]=null;}; im.src=IMG_DIR+p.file; }
 pieces.forEach(loadImg);
 
@@ -438,7 +441,27 @@ document.getElementById('btnImport').onclick=()=>{ try{const s=JSON.parse(docume
   pieces.forEach(p=>{ if(Array.isArray(s[p.key])) p.o=[s[p.key][0]|0,s[p.key][1]|0]; });
   syncUI();draw();save();flash('btnImport','OK'); }catch(e){flash('btnImport','JSON inválido');} };
 function flash(id,t){const b=document.getElementById(id);const o=b.textContent;b.textContent=t;setTimeout(()=>b.textContent=o,1100);}
-function save(){ const j={}; pieces.forEach(p=>j[p.key]=p.o); localStorage.setItem(STORE,JSON.stringify(j)); buildOut(); }
+function save(){ const j={}; pieces.forEach(p=>j[p.key]=p.o); localStorage.setItem(STORE,JSON.stringify(j)); buildOut(); postOrigins(j); }
+// POST de los origins al server (auto-guardado -> tools/rig/wall_origins.json). El juego lo lee para las
+// variantes-CORNER (los muros rectos siguen tomando su origin del .tres). Silencioso si no hay server.
+let originPostTimer=null;
+function postOrigins(j){
+  clearTimeout(originPostTimer);
+  originPostTimer=setTimeout(()=>{
+    fetch('/api/wallorigins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(j)})
+      .then(r=>r.json()).catch(()=>{});
+  },250);
+}
+// Carga origins del server al abrir (para seguir editando lo guardado).
+function loadOriginsFromServer(){
+  fetch('/api/wallorigins').then(r=>r.json()).then(j=>{
+    if(j&&j.ok&&j.config&&typeof j.config==='object'){
+      if(Object.keys(j.config).length===0){ save(); return; }   // server vacío → empujar lo actual (tus posiciones)
+      pieces.forEach(p=>{ if(Array.isArray(j.config[p.key])) p.o=[j.config[p.key][0]|0, j.config[p.key][1]|0]; });
+      syncUI(); draw();
+    }
+  }).catch(()=>{});
+}
 
 //==== COLISIÓN ====
 // Export: por cada pieza con polígonos válidos (>=3 vértices), si tiene 1 → SINGLE [[x,y],...],
@@ -541,6 +564,7 @@ document.getElementById('btnPolyDel').onclick=polyDel;
 
 buildList(); syncUI(); syncCol(); setMode('origin'); fit();
 loadCollisionFromServer();
+loadOriginsFromServer();
 </script>
 </body>
 </html>

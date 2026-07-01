@@ -66,7 +66,7 @@
 "anchor": "center",
 "offset": [
 35,
-50
+51
 ],
 "collision": [
 [
@@ -805,10 +805,27 @@
 "scale": 1,
 "anchor": "center",
 "offset": [
-0,
+-33,
+48
+],
+"collision": [
+[
+-128,
 0
 ],
-"collision": [],
+[
+-88,
+19
+],
+[
+40,
+-44
+],
+[
+-3,
+-66
+]
+],
 "occlusion": [],
 "weight": 1,
 "enabled": true,
@@ -1015,10 +1032,27 @@
 "scale": 1,
 "anchor": "center",
 "offset": [
-0,
-0
+33,
+82
 ],
-"collision": [],
+"collision": [
+[
+-41,
+44
+],
+[
+1,
+62
+],
+[
+130,
+-1
+],
+[
+88,
+-21
+]
+],
 "occlusion": [],
 "weight": 1,
 "enabled": true,
@@ -1029,10 +1063,27 @@
 "scale": 1,
 "anchor": "center",
 "offset": [
-0,
-0
+-34,
+48
 ],
-"collision": [],
+"collision": [
+[
+-128,
+-1
+],
+[
+-90,
+18
+],
+[
+38,
+-45
+],
+[
+-1,
+-63
+]
+],
 "occlusion": [],
 "weight": 1,
 "enabled": true,

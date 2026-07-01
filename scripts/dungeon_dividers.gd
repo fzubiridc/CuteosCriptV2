@@ -59,11 +59,12 @@ func plan_divider(origin: Vector2i, orient: int, line: int, start: int, length: 
 	# La puerta se recoloca a una celda interna (nunca en una punta) para preservar el contacto en T.
 	var mid := start + int(length / 2.0)
 	if _is_floor(_cell(base, orient, line, mid)):
+		var seed_reg := _region_at(_cell(base, orient, line, mid))
 		var lo := mid
-		while _is_floor(_cell(base, orient, line, lo - 1)):
+		while _is_floor(_cell(base, orient, line, lo - 1)) and _region_at(_cell(base, orient, line, lo - 1)) == seed_reg:
 			lo -= 1
 		var hi := mid
-		while _is_floor(_cell(base, orient, line, hi + 1)):
+		while _is_floor(_cell(base, orient, line, hi + 1)) and _region_at(_cell(base, orient, line, hi + 1)) == seed_reg:
 			hi += 1
 		start = lo
 		length = hi - lo + 1
@@ -88,6 +89,7 @@ func render_divider(plan: Dictionary) -> void:
 	var cells: Array = plan["cells"]
 	var door_cell: Vector2i = plan["door_cell"]
 	var extra_gaps: Dictionary = plan["extra_gaps"]
+	var side: int = int(plan["side"])
 	if cells.is_empty():
 		return
 	var src: int = d.SRC_WALL_NE if orient == 0 else d.SRC_WALL_NW
@@ -99,7 +101,7 @@ func render_divider(plan: Dictionary) -> void:
 	for cell in cells:
 		if cell == door_cell or extra_gaps.has(cell):
 			continue
-		if d._wall_cells.has(cell):
+		if _has_wall_on_edge(cell, side):
 			continue   # ya hay muro perimetral acá → comparte el existente (no duplica sprite/colisión)
 		holders.append(d._spawn_wall_sprite(cell, src, false))
 		_add_wall_collision(cell, orient, e0, e1, nrm)   # usa wall_ne / wall_nw del JSON, igual que el perímetro
@@ -128,7 +130,7 @@ func resolve_overlaps(plans: Array) -> void:
 		if dc.x == -9999:
 			continue
 		var foreign := _foreign_walls(pl, plans)
-		if d._wall_cells.has(dc) or foreign.has(dc):
+		if _has_wall_on_edge(dc, int(pl["side"])) or foreign.has(dc):
 			pl["door_cell"] = _find_clean_door(pl, foreign)
 
 ## Celdas que son MURO de los OTROS divisores (no de `pl`): para detectar cruces de divisores.
@@ -149,9 +151,10 @@ func _find_clean_door(pl: Dictionary, foreign: Dictionary) -> Vector2i:
 	var n := cells.size()
 	var best := Vector2i(-9999, -9999)
 	var bestd := 1 << 30
+	var side: int = int(pl["side"])
 	for i in range(1, n - 1):
 		var c: Vector2i = cells[i]
-		if d._wall_cells.has(c) or foreign.has(c):
+		if _has_wall_on_edge(c, side) or foreign.has(c):
 			continue
 		var dd: int = absi(i - n / 2)
 		if dd < bestd:
@@ -229,6 +232,18 @@ func _cell(base: Vector2, orient: int, line: int, i: int) -> Vector2i:
 ## ¿La celda es piso (grid==1)? Fuera del grid = vacío/borde → false (ahí hay muro perpendicular).
 func _is_floor(c: Vector2i) -> bool:
 	return c.y >= 0 and c.y < d.grid.size() and c.x >= 0 and c.x < d.grid[c.y].size() and d.grid[c.y][c.x] == 1
+
+## Region de una celda (-999 fuera de rango). El divisor frena al cambiar de region.
+func _region_at(c: Vector2i) -> int:
+	if c.y < 0 or c.y >= d.region_id.size() or c.x < 0 or c.x >= (d.region_id[c.y] as Array).size():
+		return -999
+	return int(d.region_id[c.y][c.x])
+
+func _has_wall_on_edge(cell: Vector2i, side: int) -> bool:
+	for seg in d._wall_segments:
+		if seg.interior_cell == cell and int(seg.side) == side:
+			return true
+	return false
 
 ## Asigna a un sprite de muro su span propio vía uniform por-instancia (el shader lo usa directo).
 func _apply_span(holder: Node2D, a: Vector2, b: Vector2) -> void:

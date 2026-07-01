@@ -56,6 +56,48 @@ func gen_grid() -> void:
 	_connect_rooms()
 	if not d.USE_DOORS:
 		_remove_thin_walls()   # en modo puertas se saltea: abriría muros entre salas vecinas (rompe el aislamiento)
+		if not DEBUG_NO_SMOOTH:
+			_smooth_double_corners()   # ≥1 tile recto entre esquinas: ningún muro toca dos esquinas
+	if DEBUG_CORNERS:
+		_debug_dump_corners()
+	_build_regions()   # ETAPA 1: capa semántica region_id (salas + corredores), base de muros/puertas por frontera
+
+## ETAPA 1 (region_id): grilla semántica paralela a `grid`. -1 = EMPTY (no piso); 0..R-1 = salas (de
+## `_gen_room_cells`); R.. = componentes conexas de CORREDOR (flood-fill del piso que no es sala). Es la base
+## para derivar muros y puertas por FRONTERA DE REGIÓN (region != region_vecino). Por ahora solo metadata:
+## NO cambia el render todavía (eso es Etapa 2).
+func _build_regions() -> void:
+	var MW: int = d.MAP_W
+	var MH: int = d.MAP_H
+	d.region_id = []
+	for y in MH:
+		var row: Array = []
+		row.resize(MW)
+		row.fill(-1)
+		d.region_id.append(row)
+	# Salas → región = índice de sala (solo celdas que son piso, para que region==-1 ⟺ no-piso).
+	for i in d._gen_room_cells.size():
+		for c in d._gen_room_cells[i]:
+			if c.y >= 0 and c.y < MH and c.x >= 0 and c.x < MW and int((d.grid[c.y] as Array)[c.x]) == 1:
+				d.region_id[c.y][c.x] = i
+	# Corredores → cada componente conexa de piso-sin-región es una región nueva.
+	var WS = d.WallSegment
+	var sides := [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]
+	var next_id: int = d._gen_room_cells.size()
+	for y in MH:
+		for x in MW:
+			if int((d.grid[y] as Array)[x]) != 1 or int((d.region_id[y] as Array)[x]) != -1:
+				continue
+			var stack: Array = [Vector2i(x, y)]
+			d.region_id[y][x] = next_id
+			while not stack.is_empty():
+				var cc: Vector2i = stack.pop_back()
+				for s in sides:
+					var n: Vector2i = WS.neighbor(cc, s)
+					if n.y >= 0 and n.y < MH and n.x >= 0 and n.x < MW and int((d.grid[n.y] as Array)[n.x]) == 1 and int((d.region_id[n.y] as Array)[n.x]) == -1:
+						d.region_id[n.y][n.x] = next_id
+						stack.append(n)
+			next_id += 1
 
 ## Celdas (sin escribir grid) de una sala iso lógica width×depth desde `origin`. Compute-only para
 ## el test de solape del procgen; carve_iso_room hace lo mismo pero además escribe el piso.
@@ -92,6 +134,362 @@ func _remove_thin_walls() -> void:
 					open.append(Vector2i(tx, ty))
 		for c in open:
 			d.grid[c.y][c.x] = 1
+
+## REGLA "≥1 tile recto entre giros del muro" (las W/S/C/escaleras que no queremos). La métrica CORRECTA son
+## los TRAMOS RECTOS de muro = spans colineales del mismo lado (`_wall_span1`): un span de largo 1 = un tile
+## recto aislado entre dos giros = la violación. Diagnóstico: ~90% de los spans-1 están en los CORREDORES
+## (las salas iso ya son rectas). Suavizado DIRIGIDO por la métrica (hill-climbing): por cada span-1, prueba
+## abrir/rellenar las celdas que lo tocan y SOLO acepta la edición si BAJA el total de spans-1 — así nunca
+## empeora (un tallado ciego sí empeoraba). Guard: no rellena celdas de SALA (no las reforma) ni nada que
+## orfane una región (flood desde la región mayor). Medido en vivo: 39 → 2 spans-1 (–95%).
+func _smooth_double_corners() -> void:
+	var WS = d.WallSegment
+	var MW: int = d.MAP_W
+	var MH: int = d.MAP_H
+	var sides := [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]
+	var grid: Array = d.grid
+	# --- Precómputo (sin method-calls en los loops O(F)): normal/offset de línea por lado; delta de vecino y
+	# lado-opuesto por paridad de fila (TileSet STACKED); map_to_local por celda ---
+	var nrmv: Array = []          # normal de la línea por lado
+	var e0d: Array = []           # e[0]·normal por lado (parte constante del offset de línea)
+	for s in sides:
+		var e := d._wall_edge_for_side(s)
+		var dir: Vector2 = ((e[1] as Vector2) - (e[0] as Vector2)).normalized()
+		var nv := Vector2(-dir.y, dir.x)
+		nrmv.append(nv)
+		e0d.append((e[0] as Vector2).dot(nv))
+	var ndelta := [[], []]        # ndelta[paridad][lado] = delta Vector2i al vecino
+	var backside := [[], []]      # backside[paridad][lado] = lado del vecino cuyo neighbor() devuelve c
+	for par in 2:
+		var probe := Vector2i(5, 4 + par)
+		var dlr: Array = []
+		var bsr: Array = []
+		for si in 4:
+			var n: Vector2i = WS.neighbor(probe, sides[si])
+			dlr.append(n - probe)
+			var b := -1
+			for s2 in 4:
+				if WS.neighbor(n, sides[s2]) == probe:
+					b = s2
+					break
+			bsr.append(b)
+		ndelta[par] = dlr
+		backside[par] = bsr
+	var lb: Array = []            # map_to_local por celda (aplanado y*MW+x)
+	lb.resize(MW * MH)
+	for y in MH:
+		var yb := y * MW
+		for x in MW:
+			lb[yb + x] = d.map_to_local(Vector2i(x, y))
+	# Celdas de SALA del piso ACTUAL (de _gen_room_cells, ya poblado en gen_grid — NO usar _room_of, que se
+	# asigna recién después de gen_grid). El suavizado NO debe reformar salas: si no, los divisores (que crecen
+	# hasta topar muro según la geometría original de la sala) quedan descalzados y no van de muro a muro.
+	var roomset := {}
+	for rcells in d._gen_room_cells:
+		for rc in rcells:
+			roomset[rc] = true
+	# --- Tracker incremental: gcount[clave de línea]=#aristas, L[0]=#spans de largo 1 (todo inline) ---
+	var gcount := {}
+	var L := [0]
+	for y in MH:
+		var grow: Array = grid[y]
+		var yb := y * MW
+		var ndp: Array = ndelta[y & 1]
+		for x in MW:
+			if int(grow[x]) != 1:
+				continue
+			var lbc: Vector2 = lb[yb + x]
+			for si in 4:
+				var dd: Vector2i = ndp[si]
+				var ny := y + dd.y
+				var nx := x + dd.x
+				if ny >= 0 and ny < MH and nx >= 0 and nx < MW and int((grid[ny] as Array)[nx]) == 1:
+					continue
+				var k := si * 1000000 + int(round((lbc.dot(nrmv[si]) + float(e0d[si])) / 3.0)) + 500000
+				var old: int = int(gcount.get(k, 0))
+				if old == 1:
+					L[0] -= 1
+				gcount[k] = old + 1
+				if old + 1 == 1:
+					L[0] += 1
+	# Togglea c (piso↔muro) tocando solo las aristas de c + las de sus vecinos que miran a c. Su propio inverso.
+	var toggle := func(c: Vector2i) -> void:
+		var ndp: Array = ndelta[c.y & 1]
+		var bsp: Array = backside[c.y & 1]
+		var aff: Array = [[c, 0], [c, 1], [c, 2], [c, 3]]
+		for si in 4:
+			var b: int = bsp[si]
+			if b >= 0:
+				var dd: Vector2i = ndp[si]
+				aff.append([Vector2i(c.x + dd.x, c.y + dd.y), b])
+		for e in aff:                                  # saca las aristas-muro que existen AHORA
+			var ec: Vector2i = e[0]
+			if ec.x < 0 or ec.x >= MW or ec.y < 0 or ec.y >= MH or int((grid[ec.y] as Array)[ec.x]) != 1:
+				continue
+			var es: int = e[1]
+			var dd: Vector2i = (ndelta[ec.y & 1] as Array)[es]
+			var ny := ec.y + dd.y
+			var nx := ec.x + dd.x
+			if ny >= 0 and ny < MH and nx >= 0 and nx < MW and int((grid[ny] as Array)[nx]) == 1:
+				continue
+			var k := es * 1000000 + int(round(((lb[ec.y * MW + ec.x] as Vector2).dot(nrmv[es]) + float(e0d[es])) / 3.0)) + 500000
+			var old: int = int(gcount.get(k, 0))
+			if old <= 0:
+				continue
+			if old == 1:
+				L[0] -= 1
+			if old - 1 == 1:
+				L[0] += 1
+			if old - 1 == 0:
+				gcount.erase(k)
+			else:
+				gcount[k] = old - 1
+		grid[c.y][c.x] = (0 if int((grid[c.y] as Array)[c.x]) == 1 else 1)
+		for e in aff:                                  # mete las que existen tras el flip
+			var ec: Vector2i = e[0]
+			if ec.x < 0 or ec.x >= MW or ec.y < 0 or ec.y >= MH or int((grid[ec.y] as Array)[ec.x]) != 1:
+				continue
+			var es: int = e[1]
+			var dd: Vector2i = (ndelta[ec.y & 1] as Array)[es]
+			var ny := ec.y + dd.y
+			var nx := ec.x + dd.x
+			if ny >= 0 and ny < MH and nx >= 0 and nx < MW and int((grid[ny] as Array)[nx]) == 1:
+				continue
+			var k := es * 1000000 + int(round(((lb[ec.y * MW + ec.x] as Vector2).dot(nrmv[es]) + float(e0d[es])) / 3.0)) + 500000
+			var old: int = int(gcount.get(k, 0))
+			if old == 1:
+				L[0] -= 1
+			gcount[k] = old + 1
+			if old + 1 == 1:
+				L[0] += 1
+	# Celdas de piso con un span de largo 1 (candidatos del pase) — inline.
+	var span1cells := func() -> Array:
+		var out: Array = []
+		for y in MH:
+			var grow: Array = grid[y]
+			var yb := y * MW
+			var ndp: Array = ndelta[y & 1]
+			for x in MW:
+				if int(grow[x]) != 1:
+					continue
+				var lbc: Vector2 = lb[yb + x]
+				for si in 4:
+					var dd: Vector2i = ndp[si]
+					var ny := y + dd.y
+					var nx := x + dd.x
+					if ny >= 0 and ny < MH and nx >= 0 and nx < MW and int((grid[ny] as Array)[nx]) == 1:
+						continue
+					var k := si * 1000000 + int(round((lbc.dot(nrmv[si]) + float(e0d[si])) / 3.0)) + 500000
+					if int(gcount.get(k, 0)) == 1:
+						out.append([Vector2i(x, y), si])
+		return out
+	# Piso alcanzable desde anchor — flood INLINE (sin method-calls) para el guard de conectividad de los rellenos.
+	var reach_fast := func(anchor: Vector2i) -> int:
+		var seen := {anchor: true}
+		var stack: Array = [anchor]
+		var cnt := 0
+		while not stack.is_empty():
+			var cc: Vector2i = stack.pop_back()
+			cnt += 1
+			var ndp2: Array = ndelta[cc.y & 1]
+			for si in 4:
+				var dd: Vector2i = ndp2[si]
+				var nyc := cc.y + dd.y
+				var nxc := cc.x + dd.x
+				if nyc >= 0 and nyc < MH and nxc >= 0 and nxc < MW and int((grid[nyc] as Array)[nxc]) == 1:
+					var nc := Vector2i(nxc, nyc)
+					if not seen.has(nc):
+						seen[nc] = true
+						stack.append(nc)
+		return cnt
+	var anchor := _largest_region_anchor()        # ancla estable (celda de la región mayor); 1 sola vez
+	# --- Hill-climbing: acepta un toggle SOLO si baja L[0]; conteo O(1) por toggle; guard de conectividad ---
+	for _pass in 6:
+		if L[0] == 0 or anchor.x < 0:
+			break
+		var s1: Array = span1cells.call()
+		if s1.is_empty():
+			break
+		var cands := {}
+		for oe in s1:
+			var cell: Vector2i = oe[0]
+			var dd: Vector2i = (ndelta[cell.y & 1] as Array)[oe[1]]
+			cands[cell] = true
+			cands[Vector2i(cell.x + dd.x, cell.y + dd.y)] = true   # vecino exterior (candidato a tallar)
+		var reach: int = reach_fast.call(anchor)
+		var cur: int = L[0]
+		var improved := false
+		for cand in cands:
+			var c: Vector2i = cand
+			if c.y < 1 or c.y >= MH - 1 or c.x < 1 or c.x >= MW - 1:
+				continue
+			var was_floor: bool = int((grid[c.y] as Array)[c.x]) == 1
+			if was_floor:
+				if roomset.has(c):
+					continue                               # no rellenar celda de sala
+			else:
+				var ndp3: Array = ndelta[c.y & 1]          # tallar muro lindero a sala la expandiría → no
+				var near_room := false
+				for si in 4:
+					var dd3: Vector2i = ndp3[si]
+					if roomset.has(Vector2i(c.x + dd3.x, c.y + dd3.y)):
+						near_room = true
+						break
+				if near_room:
+					continue
+			toggle.call(c)
+			var ok: bool = L[0] < cur
+			if ok and was_floor and int(reach_fast.call(anchor)) < reach - 1:
+				ok = false                                 # el relleno desconectaría una región
+			if ok:
+				cur = L[0]
+				reach = (reach - 1) if was_floor else int(reach_fast.call(anchor))
+				improved = true
+			else:
+				toggle.call(c)                             # revierte (incremental)
+		if not improved:
+			break
+
+func _floor_at(c: Vector2i) -> bool:
+	return c.y >= 0 and c.y < d.grid.size() and c.x >= 0 and c.x < d.grid[c.y].size() and int(d.grid[c.y][c.x]) == 1
+
+## Tramos rectos de muro de largo 1. Devuelve [cantidad, lista de [interior_cell, side]]. Un span = aristas-muro
+## colineales del mismo lado (agrupadas por lado + línea perpendicular); largo 1 = tramo recto aislado entre
+## dos giros = una W/S/C/escalón.
+func _wall_span1() -> Array:
+	var WS = d.WallSegment
+	var sides := [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]
+	var groups := {}
+	for ty in range(d.MAP_H):
+		for tx in range(d.MAP_W):
+			if int(d.grid[ty][tx]) != 1:
+				continue
+			var c := Vector2i(tx, ty)
+			var base := d.map_to_local(c)
+			for s in sides:
+				if _floor_at(WS.neighbor(c, s)):
+					continue
+				var e := d._wall_edge_for_side(s)
+				if e.size() < 2:
+					continue
+				var a: Vector2 = base + e[0]
+				var b: Vector2 = base + e[1]
+				var dd := b - a
+				if dd.length() < 0.001:
+					continue
+				var dn := dd.normalized()
+				var nrm := Vector2(-dn.y, dn.x)
+				var off := roundf(a.dot(nrm) / 3.0)
+				var key := "%d_%d" % [int(s), int(off)]
+				if not groups.has(key):
+					groups[key] = []
+				groups[key].append([c, s])
+	var cnt := 0
+	var offs: Array = []
+	for k in groups:
+		if groups[k].size() == 1:
+			cnt += 1
+			offs.append(groups[k][0])
+	return [cnt, offs]
+
+## Celdas de piso alcanzables (vecindad iso) desde `anchor`.
+func _reach_count(anchor: Vector2i) -> int:
+	var WS = d.WallSegment
+	var sides := [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]
+	var seen := {anchor: true}
+	var stack: Array = [anchor]
+	while not stack.is_empty():
+		var c: Vector2i = stack.pop_back()
+		for s in sides:
+			var n: Vector2i = WS.neighbor(c, s)
+			if _floor_at(n) and not seen.has(n):
+				seen[n] = true
+				stack.append(n)
+	return seen.size()
+
+## Una celda cualquiera de la mayor región de piso conexa (ancla estable para el guard de conectividad).
+func _largest_region_anchor() -> Vector2i:
+	var WS = d.WallSegment
+	var sides := [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]
+	var visited := {}
+	var best := Vector2i(-1, -1)
+	var best_sz := 0
+	for ty in range(d.MAP_H):
+		for tx in range(d.MAP_W):
+			var c := Vector2i(tx, ty)
+			if int(d.grid[ty][tx]) != 1 or visited.has(c):
+				continue
+			var st: Array = [c]
+			visited[c] = true
+			var sz := 0
+			var first := c
+			while not st.is_empty():
+				var cc: Vector2i = st.pop_back()
+				sz += 1
+				for s in sides:
+					var n: Vector2i = WS.neighbor(cc, s)
+					if _floor_at(n) and not visited.has(n):
+						visited[n] = true
+						st.append(n)
+			if sz > best_sz:
+				best_sz = sz
+				best = first
+	return best
+
+## DEBUG: vuelca el grid + esquinas + offenders a user://corner_debug.txt para estudiar la topología.
+## Leyenda: '#'=muro/vacío  '.'=piso (0 esquinas)  'o'=1 esquina (codo limpio)  '2'=2+ esquinas  '!'=OFFENDER
+## (una arista-muro toca 2 esquinas). Después de cada celda offender se listan sus coords abajo.
+const DEBUG_CORNERS := false   # poné true para volcar user://corner_debug.txt (estudio de topología)
+var DEBUG_NO_SMOOTH := false   # toggle en vivo (d._gen.DEBUG_NO_SMOOTH) para A/B del suavizado dirigido de spans
+func _debug_dump_corners() -> void:
+	var WS = d.WallSegment
+	var minx := d.MAP_W; var maxx := 0; var miny := d.MAP_H; var maxy := 0
+	for y in d.MAP_H:
+		for x in d.MAP_W:
+			if int(d.grid[y][x]) == 1:
+				minx = mini(minx, x); maxx = maxi(maxx, x); miny = mini(miny, y); maxy = maxi(maxy, y)
+	# Pase 1: marca qué celdas de piso son esquina (≥1 vértice con 2 lados-muro adyacentes).
+	var is_corner := {}
+	for y in d.MAP_H:
+		for x in d.MAP_W:
+			if int(d.grid[y][x]) != 1: continue
+			var c := Vector2i(x, y)
+			var wnw := not _floor_at(WS.neighbor(c, WS.Side.NW))
+			var wne := not _floor_at(WS.neighbor(c, WS.Side.NE))
+			var wse := not _floor_at(WS.neighbor(c, WS.Side.SE))
+			var wsw := not _floor_at(WS.neighbor(c, WS.Side.SW))
+			if (wnw and wne) or (wne and wse) or (wse and wsw) or (wnw and wsw):
+				is_corner[c] = true
+	var lines: PackedStringArray = []
+	lines.append("floor bbox (x,y): (%d,%d)-(%d,%d)" % [minx, miny, maxx, maxy])
+	lines.append("leyenda: '#'muro  '.'piso  'o'esquina-sola-OK  'X'esquina con OTRA esquina pegada (BAD)")
+	var cross: Array = []
+	for y in range(miny, maxy + 1):
+		var row := ""
+		for x in range(minx, maxx + 1):
+			if int(d.grid[y][x]) != 1:
+				row += "#"; continue
+			var c := Vector2i(x, y)
+			if not is_corner.has(c):
+				row += "."; continue
+			# ¿alguna celda de piso vecina (iso, por los lados sin muro) es TAMBIÉN esquina? → cruzada (BAD)
+			var adj := false
+			for side in [WS.Side.NW, WS.Side.NE, WS.Side.SE, WS.Side.SW]:
+				var n := WS.neighbor(c, side)
+				if _floor_at(n) and is_corner.has(n):
+					adj = true; break
+			if adj:
+				cross.append(c); row += "X"
+			else:
+				row += "o"
+		lines.append(row)
+	lines.append("esquinas-sola total: %d   esquinas CRUZADAS (BAD): %d" % [is_corner.size(), cross.size()])
+	for o in cross:
+		lines.append("  %s" % o)
+	var f := FileAccess.open("user://corner_debug.txt", FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(lines)); f.close()
+	print("[corner_debug] -> user://corner_debug.txt  cruzadas=%d  bbox=(%d,%d)-(%d,%d)" % [cross.size(), minx, miny, maxx, maxy])
 
 func carve_room(r: Rect2i) -> void:
 	for yy in range(r.position.y, r.position.y + r.size.y):
