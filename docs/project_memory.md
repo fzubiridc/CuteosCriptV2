@@ -33,7 +33,7 @@
 - `WallSegment.neighbor()` por **paridad de fila** (no DIR fijo) — resolvió el serrucho de muros.
 - Migración de oscuridad: overlay `room_darkness.gd` **borrado** a propósito (era BG3, no D2). No re-agregar un velo por-sala.
 - Minimapa **lee** `dungeon.cell_seen` (Dungeon es la fuente de verdad, no la UI).
-- Antorchas: anclaje por **borde/cara de muro** iso (`DungeonDecor.spawn_wall_torch`), no por celda top-down vieja. (El `place_torches` del procgen real todavía asume salas cartesianas — bug pendiente, NO es un fix a revertir; ver §5.)
+- Antorchas: anclaje por **borde/cara de muro** iso (`DungeonDecor.spawn_wall_torch`), no por celda top-down vieja. (El `place_torches` del procgen real ahora TAMBIÉN usa esa lógica — arreglado 2026-06-30.ter, ver §5.)
 - Variantes de muro: se registran como **sources del TileSet en runtime** (`_ensure_wall_variants`), reusan origins base. No hardcodear en el `.tres`.
 - **Bug de nav (FIX aplicado, no revertir):** `dungeon.gd _build_iso_nav` ya NO solidifica las celdas de piso que tienen muro — los mobs pueden rutear hasta bordes/esquinas. La colisión real de muros la da `_build_iso_boundaries`, aparte del nav. (Validación runtime fina sigue en manos de Felipe.)
 - Auras de mob: el `_glow` tiene **altura** (no revertir, ver §2).
@@ -72,7 +72,7 @@
 
 ## 5. Pendientes / bugs conocidos (NO son fixes a revertir)
 - **Nav marca piso-con-muro:** ya se removió la solidificación errónea (ver §3), pero queda **validación runtime fina** de Felipe (mobs llegan a bordes/esquinas y NO atraviesan muros).
-- **`DungeonDecor.place_torches` asume salas cartesianas** (rect bbox) → en salas iso (paralelogramos) algunas antorchas quedan mal ubicadas. El `spawn_wall_torch` por-borde es el correcto; el placement masivo aún no usa esa lógica.
+- **`DungeonDecor.place_torches` cartesiano → ARREGLADO (2026-06-30.ter):** reescrito para tomar los `_wall_segments` iso reales (agrupados por sala, prefiere muros traseros NW/NE, hasta 2 espaciados por sala vía `_spread_pick`) y anclar con `spawn_wall_torch` (borde iso correcto). Ya NO usa `d.rooms`/`r.position`/`r.size`. Bonus: quedan registradas en `_torches` → tuneables en vivo por el panel L. (Consts viejas `ISO_*_TORCH_LIGHT_INSET` y `side_torch.gd` quedaron sin uso en el procgen.) Falta que Felipe lo valide visualmente.
 - **Boss**: ahora tiene **aura propia** (`_glow`, PointLight2D rojizo, energy 2.4 / height 30) → se autoilumina en la oscuridad; antes se veía **negro de lejos** por no tener luz propia (los mobs sí la tienen). Ojo: "siempre visible" (§4) era sobre el FOG, no sobre la luz — sin aura igual quedaba negro. Sigue sin ocultarse por fog (ver §4); tope de summon cuenta TODOS los Enemy del piso (puede invocar 0) y el daño de contacto va sin `hit_cd` (balance, requiere decisión de Felipe).
 - **Sandbox sin mover** + **tilesets `iso_dungeon_v*` chatarra** (ver §4).
 - **ESC → menú** pendiente.

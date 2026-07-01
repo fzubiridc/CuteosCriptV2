@@ -157,3 +157,7 @@ func _close_shop() -> void:
 		_shop_panel.queue_free()
 	_shop_panel = null
 	get_tree().paused = false
+
+## ¿La tienda está abierta? (la usa el watchdog anti-soft-lock del HUD para saber si la pausa es legítima.)
+func is_open() -> bool:
+	return _shop_panel != null and is_instance_valid(_shop_panel)

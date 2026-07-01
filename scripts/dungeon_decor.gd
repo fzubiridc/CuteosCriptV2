@@ -74,81 +74,59 @@ func tune_torches_live() -> void:
 		if is_instance_valid(e.node):
 			_position_torch(e.node, e.cell, e.side)
 
+## Antorchas de pared ISO: ancladas al BORDE real de muro (`spawn_wall_torch`), no a un rect cartesiano.
+## El código viejo usaba `d.rooms` (Rect2i = BBOX) + wall_row/left/right cartesianos → en salas iso
+## (paralelogramos, `carve_iso_room`) los muros no coinciden con el bbox y las antorchas caían mal ubicadas
+## o en vacío. Ahora tomamos los `_wall_segments` reales (la fuente lógica de muros), los agrupamos por sala
+## y colocamos hasta PER_ROOM antorchas ESPACIADAS por sala. Bonus: `spawn_wall_torch` las registra en
+## `_torches` → quedan tuneables en vivo por el panel L (las viejas eran PointLight2D crudos, no tuneables).
 func place_torches() -> void:
-	var gw: int = d.grid[0].size() if not d.grid.is_empty() else d.MAP_W
-	var gh := d.grid.size()
 	var parent := d.get_parent()
 	var holder := parent.get_node_or_null("Torches")
-	if holder == null:
-		holder = Node2D.new()
-		holder.name = "Torches"
-		parent.add_child(holder)
-	else:
+	if holder != null:
 		for c in holder.get_children():
 			c.queue_free()
-	var torch_script := load("res://scripts/torch.gd")
-	var side_torch_script := load("res://scripts/side_torch.gd")
-	var idx := 0
+	_torches.clear()          # reconstruimos el registro (spawn_wall_torch reappendea)
+	_torch_cfg_cache = []
+	if d._wall_segments.is_empty():
+		return
+	# Agrupar segmentos de muro por SALA. Preferimos los muros TRASEROS (NW/NE): quedan detrás del player
+	# (no los tapa el cutaway) — mismo criterio que el "top wall" del código viejo. Fallback a cualquiera.
+	var back_by_room := {}
+	var any_by_room := {}
+	for seg in d._wall_segments:
+		var rid: int = d._room_of.get(seg.interior_cell, -1)
+		if rid < 0:
+			continue   # corredores/divisores: sin antorchas para no saturar el mapa de luces
+		if not any_by_room.has(rid):
+			any_by_room[rid] = []
+			back_by_room[rid] = []
+		any_by_room[rid].append(seg)
+		if seg.side == d.WallSegment.Side.NW or seg.side == d.WallSegment.Side.NE:
+			back_by_room[rid].append(seg)
 	const MAX_TORCHES := 32
-	for room_i in d.rooms.size():
-		var r := d.rooms[room_i]
+	const PER_ROOM := 2
+	var idx := 0
+	for rid in any_by_room:
 		if idx >= MAX_TORCHES:
 			break
-		var wall_row := r.position.y - 1
-		if wall_row < 0:
-			continue
-		for x in [r.position.x + 2, r.position.x + r.size.x - 3]:
+		var pool: Array = back_by_room[rid] if not back_by_room[rid].is_empty() else any_by_room[rid]
+		for seg in _spread_pick(pool, PER_ROOM):
 			if idx >= MAX_TORCHES:
 				break
-			if x < 0 or x >= gw or d.grid[wall_row][x] != 0:
-				continue
-			var t := PointLight2D.new()
-			t.set_script(torch_script)
-			t.seed_off = idx * 1.7
-			var light_inset := ISO_TORCH_LIGHT_INSET if d.ISO else Vector2.ZERO
-			t.light_offset = light_inset
-			# La LUZ va un poco DENTRO de la sala (fuera del occluder del muro) para
-			# que ilumine el piso; si la dejábamos en la cara, el muro bloqueaba su
-			# propia luz. El SPRITE de la antorcha se sube en torch.gd para quedar
-			# sobre la cara del muro.
-			t.position = d.to_global(d.map_to_local(Vector2i(x, wall_row))) + Vector2(0, 11) + light_inset
-			holder.add_child(t)
+			spawn_wall_torch(seg.interior_cell, seg.side)   # ancla iso correcta + registro para tuning en vivo
 			idx += 1
-
-		# Una antorcha lateral en habitaciones alternas. El lado cambia por sala
-		# para que ambas variantes aparezcan sin saturar el mapa de luces. Si el
-		# lado elegido coincide con un pasillo abierto, prueba el muro opuesto.
-		if room_i % 2 == 0 and idx < MAX_TORCHES:
-			@warning_ignore("integer_division")
-			var preferred: StringName = &"left" if int(room_i / 2) % 2 == 0 else &"right"
-			var alternate: StringName = &"right" if preferred == &"left" else &"left"
-			var side_choices: Array[StringName] = [preferred, alternate]
-			for side in side_choices:
-				var wall_x: int = r.position.x - 1 if side == &"left" else r.position.x + r.size.x
-				var inner_x: int = wall_x + 1 if side == &"left" else wall_x - 1
-				@warning_ignore("integer_division")
-				var wall_y: int = r.position.y + r.size.y / 2
-				if wall_x < 0 or wall_x >= gw or wall_y < 0 or wall_y >= gh:
-					continue
-				if d.grid[wall_y][wall_x] != 0 or d.grid[wall_y][inner_x] != 1:
-					continue
-				var side_torch := PointLight2D.new()
-				side_torch.set_script(side_torch_script)
-				side_torch.wall_side = side
-				side_torch.seed_off = idx * 1.7
-				var inward := Vector2(11, 6) if side == &"left" else Vector2(-11, 6)
-				var side_light_inset := Vector2.ZERO
-				if d.ISO:
-					side_light_inset = Vector2(
-						ISO_SIDE_TORCH_LIGHT_INSET if side == &"left" else -ISO_SIDE_TORCH_LIGHT_INSET,
-						-6
-					)
-				side_torch.light_offset = side_light_inset
-				side_torch.position = d.to_global(d.map_to_local(Vector2i(wall_x, wall_y))) + inward + side_light_inset
-				holder.add_child(side_torch)
-				idx += 1
-				break
 	LightField.mark_dirty()   # refrescar la lista de luces para el foot-light
+
+## Elige hasta `n` elementos ESPACIADOS de `arr` (índices repartidos) → antorchas separadas en el perímetro,
+## no amontonadas. Si hay `n` o menos, devuelve todos.
+func _spread_pick(arr: Array, n: int) -> Array:
+	if arr.size() <= n:
+		return arr.duplicate()
+	var out: Array = []
+	for k in n:
+		out.append(arr[int(float(k) * arr.size() / float(n))])
+	return out
 
 # ---------------------------------------------------------------------------
 # Fogatas

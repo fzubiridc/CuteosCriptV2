@@ -118,8 +118,28 @@ generate() [ISO]:                                  (dungeon.gd, orquesta)
     `_edge_key(cell, side)`. **Demo:** `_mark_subroom_demo()` (gateado por `DEBUG_SUBROOM`, TEMPORAL) crea un
     sub-cuarto en una esquina → muros+puerta emergen solos. **Divisor migrado parcialmente:** `plan_divider`
     ahora frena el crecimiento al cambiar de región (`_region_at` sobre `region_id`) → no se escapa al corredor
-    (arregla "el divisor no llega a la pared"; medido 0 escapados). PENDIENTE: puerta real en huecos "door"
-    (sprite+colisión), puertas por intención, generar sub-cuartos en procgen (sacar `DEBUG_SUBROOM`).
+    (arregla "el divisor no llega a la pared"; medido 0 escapados).
+    **Etapa 3 ✅ (2026-06-30.ter) — PUERTA REAL en las aristas "door" (4 caras):** una arista `edge_features=="door"`
+    ya no es un hueco sino una **puerta real** (sprite cerrada/abierta + colisión + nav-solid + abrir con clic
+    derecho). `_build_wall_segments` junta las aristas "door" en `_region_door_edges` (dedupe por par canónico
+    `_pair_key`) y `_place_region_doors()` (en `generate()`, tras `_place_dividers`) las materializa vía
+    **`DungeonDividers.spawn_region_door(cell, side)`** → deriva muro base (`_base_for_side`) + geometría de la
+    arista (`_wall_edge_for_side`) y reusa `_add_door` (UNA sola implementación de puerta). Puertas por las **4
+    caras**: `_ensure_door_sources` mapea cada cara a su PNG (`DOOR_ART_BY_SRC`; antes SE↔DoorNW / SW↔DoorNE era
+    un mirror hack) y `_add_door` deriva textura/keys de colisión por sufijo (`_src_suffix`). Holders de puerta de
+    región en `_region_door_holders` (liberados en `DungeonDividers.clear()`). Puertas de FACHADA (SE/SW) van en
+    la capa delantera (z+1) → `_place_region_doors` suma su holder a `_front_walls` para que `_update_wall_cutaway`
+    las transparente cuando tapan al player (las traseras NW/NE van en z-1: el player las tapa, sin cutaway).
+    **Follow-up:** colisión de puerta ABIERTA SE/SW falta en `wall_collision.json` (`open_door_se/sw`) → al abrir
+    cae al fallback "celda pasable" (Felipe puede dibujarla en la tool).
+    **Etapa 4 ✅ (2026-06-30.ter) — SUB-CUARTOS en procgen (retira el demo):** `_place_subrooms()` (en `generate()`
+    tras `assign_roles`, antes de `_build_wall_segments`) reemplaza a `_mark_subroom_demo`/`DEBUG_SUBROOM`. Por cada
+    sala grande (w,d≥6, no spawn) con prob. `SUBROOM_CHANCE=0.35` (seedeado): carva un sub-cuarto rectangular de 2-3
+    celdas en una esquina al azar, región propia (`SUBROOM_REGION_BASE=90000+ri`), frontera interior con la sala →
+    "wall" + 1 "door" en `edge_features`. Muros y puerta emergen del pipeline normal (los muros son `WallSegment` →
+    render + colisión automáticos; la puerta vía `_place_region_doors`). Guards: descarta si celda no-piso/spawn/exit
+    o sin frontera interior. `_place_dividers` saltea las salas con sub-cuarto (`_subroom_rooms`). Deuda: el nav de
+    mobs no conoce los muros de sub-cuarto (deuda histórica de nav; el player sí choca por colisión).
 - `scripts/dungeon_decor.gd` (`class_name DungeonDecor`) — ANTORCHAS (`place_torches`, `spawn_wall_torch`,
   anclaje al borde de muro iso + tuning en vivo por panel L) + FOGATAS (`place_campfires`, ~1 de cada 3
   salas, salta la de spawn, `campfire.tscn`).
@@ -438,8 +458,9 @@ global y recién después materializa. Cuatro fases:
 ## 11. PENDIENTES / deuda que SIGUE (verificado contra el código)
 - **nav AStarGrid**: el "piso-con-muro" queda caminable; el borde real lo bloquea la colisión de perímetro,
   no el nav (ver ⚠ en §1).
-- **DungeonDecor.place_torches** sigue asumiendo salas CARTESIANAS (`r.position`/`r.size` + filas/columnas)
-  → mal colocadas en salas iso (paralelogramos). `place_campfires` sí usa celda de piso real.
+- ~~**DungeonDecor.place_torches** asumía salas CARTESIANAS~~ → **ARREGLADO (2026-06-30.ter):** reescrito para
+  agrupar los `_wall_segments` iso por sala (prefiere traseros NW/NE, 2 espaciados por sala) y anclar con
+  `spawn_wall_torch` (borde iso correcto + registro para tuning en vivo). `place_campfires` ya usaba celda real.
 - **Boss nunca se oculta** (no entra al gating de visibilidad) — choca con "ocultar info" (§3). Tiene **aura propia** (`boss._glow`, PointLight2D rojizo con altura, como los mobs pero más fuerte: energy 2.4 / scale 1.3 / height 30) → se autoilumina en la oscuridad (antes se veía negro de lejos: no tenía luz propia).
 - **Gating de mobs por DISTANCIA, no LOS** (disco `mob_reveal_dist`, §3/§6).
 - **Sandbox sin tocar**: `closed_room_test` / `iso_test` / `light_test` (scenes + scripts) — bancos de prueba

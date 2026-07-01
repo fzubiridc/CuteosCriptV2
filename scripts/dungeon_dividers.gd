@@ -22,6 +22,7 @@ const WallSegment := preload("res://scripts/wall_segment.gd")
 var d: Dungeon
 var _dividers: Array = []   # {holders:Array, orient:int(0=NE/eje u,1=NW/eje v), line:float, base:Vector2}
 var _doors: Array = []      # {holder, coll, open:bool, closed_tex, open_tex, origin:Vector2}
+var _region_door_holders: Array = []   # puertas de FRONTERA DE REGIÓN (no dividers): holders para liberar en regen
 
 func _init(dungeon: Dungeon) -> void:
 	d = dungeon
@@ -33,6 +34,10 @@ func clear() -> void:
 		for h in rec["holders"]:
 			if is_instance_valid(h):
 				h.queue_free()
+	for h in _region_door_holders:
+		if is_instance_valid(h):
+			h.queue_free()
+	_region_door_holders.clear()
 	_dividers.clear()
 	_doors.clear()
 
@@ -284,12 +289,40 @@ func _nav_solid(cell: Vector2i, solid: bool) -> void:
 	if d._iso_astar != null and d._iso_astar.is_in_boundsv(cell):
 		d._iso_astar.set_point_solid(cell, solid)
 
-## Puerta en el hueco: sprite CERRADA (DoorNE/NW) + colisión + área clickeable (click → abre/cierra).
+## Sufijo de cara ("nw"/"ne"/"se"/"sw") a partir del SRC_WALL_* base → arte de puerta y keys de colisión por lado.
+func _src_suffix(base_src: int) -> String:
+	if base_src == d.SRC_WALL_NE: return "ne"
+	if base_src == d.SRC_WALL_SE: return "se"
+	if base_src == d.SRC_WALL_SW: return "sw"
+	return "nw"
+
+## Etapa 3 (regiones): puerta REAL en una arista de FRONTERA DE REGIÓN (edge_features == "door"), en
+## CUALQUIERA de las 4 caras. Deriva el muro base + la geometría de la arista del rombo (cell-local) y
+## reusa `_add_door` (sprite cerrada/abierta + colisión + nav + abrir con clic derecho). El span es el de
+## esta única celda (la puerta no forma parte de un run de muro). Devuelve el holder o null.
+func spawn_region_door(cell: Vector2i, side: int) -> Node2D:
+	var base_src: int = d._base_for_side(side)
+	var edge: PackedVector2Array = d._wall_edge_for_side(side)   # 2 vértices cell-local de la arista del rombo
+	if edge.size() < 2:
+		return null
+	var e0: Vector2 = edge[0]
+	var e1: Vector2 = edge[1]
+	var nrm: Vector2 = (e1 - e0).orthogonal().normalized() * 8.0   # solo fallback (wall_* existe en las 4 caras)
+	var pos: Vector2 = d.map_to_local(cell)
+	var span_a: Vector2 = d.to_global(pos + e0)
+	var span_b: Vector2 = d.to_global(pos + e1)
+	var dh := _add_door(cell, base_src, span_a, span_b, e0, e1, nrm)
+	if dh != null:
+		_region_door_holders.append(dh)   # se libera en clear() (no viven en _dividers)
+	return dh
+
+## Puerta en el hueco: sprite CERRADA (DoorNE/NW/SE/SW) + colisión + área clickeable (click → abre/cierra).
 func _add_door(cell: Vector2i, base_src: int, span_a: Vector2, span_b: Vector2, e0: Vector2, e1: Vector2, nrm: Vector2) -> Node2D:
+	var suf := _src_suffix(base_src)   # "nw"/"ne"/"se"/"sw" según la cara → arte y colisión por lado
 	var door_src := int(d._door_src.get(base_src, base_src))
 	var closed_tex: Texture2D = d._wall_tex.get(door_src)
 	var origin: Vector2 = d._wall_origin.get(door_src, Vector2.ZERO)
-	var open_path := "res://assets/iso/walls/variations/OpenDoorNE.png" if base_src == d.SRC_WALL_NE else "res://assets/iso/walls/variations/OpenDoorNW.png"
+	var open_path := "res://assets/iso/walls/variations/OpenDoor%s.png" % suf.to_upper()
 	var open_tex: Texture2D = load(open_path)
 	var holder := d._spawn_wall_sprite(cell, door_src, false)
 	_apply_span(holder, span_a, span_b)
@@ -297,8 +330,8 @@ func _add_door(cell: Vector2i, base_src: int, span_a: Vector2, span_b: Vector2, 
 	# REAL del muro (wall_ne/wall_nw, dibujado en wall_origin_tool); abierta swappea a open_door_ne/nw,
 	# que puede tener MÚLTIPLES polígonos (dos marcos a los costados del hueco). `colls` es la pool de
 	# CollisionPolygon2D; crece si la versión abierta necesita más slots que la cerrada.
-	var closed_key := "wall_ne" if base_src == d.SRC_WALL_NE else "wall_nw"
-	var open_key := "open_door_ne" if base_src == d.SRC_WALL_NE else "open_door_nw"
+	var closed_key := "wall_%s" % suf
+	var open_key := "open_door_%s" % suf   # SE/SW sin colisión abierta en el JSON → toggle_door cae a "disable all" (pasás)
 	var colls: Array[CollisionPolygon2D] = []
 	if d._iso_bounds != null and is_instance_valid(d._iso_bounds):
 		var fallback := PackedVector2Array([e0 + nrm, e1 + nrm, e1 - nrm, e0 - nrm])
@@ -345,6 +378,8 @@ func toggle_door(idx: int) -> void:
 	var rec: Dictionary = _doors[idx]
 	rec["open"] = not bool(rec["open"])
 	var holder = rec["holder"]
+	if is_instance_valid(holder):
+		Audio.play_at("door", holder)   # feedback posicional al abrir/cerrar (divisor y puertas de región)
 	if is_instance_valid(holder) and holder.get_child_count() > 0:
 		var spr := holder.get_child(0) as Sprite2D
 		if spr != null:

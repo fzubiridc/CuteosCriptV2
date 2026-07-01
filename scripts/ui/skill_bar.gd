@@ -213,6 +213,10 @@ func _toggle_panel() -> void:
 		_panel.visible = true
 		get_tree().paused = true
 
+## ¿El panel de asignación está abierto? (lo usa el watchdog anti-soft-lock del HUD.)
+func is_open() -> bool:
+	return is_instance_valid(_panel) and _panel.visible
+
 func _select_slot(i: int) -> void:
 	_sel_slot = i
 	for k in SLOTS:

@@ -53,6 +53,7 @@ var _prev_stats_level := -1
 var _prev_stats_coins := -2147483648
 var _prev_stats_potions := -1
 var _prev_stats_dmg := -1
+var _stuck_pause_t := 0.0   # watchdog: cuánto lleva el árbol pausado SIN panel modal visible (soft-lock)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -139,6 +140,22 @@ func _center_rel(c: Control, cx: float, cy: float) -> void:
 	c.offset_left = l - cx; c.offset_right = r - cx; c.offset_top = t - cy; c.offset_bottom = b - cy
 
 func _process(_delta: float) -> void:
+	# --- WATCHDOG anti-soft-lock (corre aunque el árbol esté pausado: HUD tiene process_mode=ALWAYS) ---
+	# Si el árbol quedó PAUSADO pero NINGÚN panel modal está visible, algo pausó sin mostrar UI → soft-lock
+	# (no se puede despausar porque el input de pausa se ignora mientras hay panel; ver _process más abajo).
+	# Es un freeze intermitente histórico "después de matar un mob". Logueamos el contexto y auto-despausamos
+	# para que no trabe el juego, y para cazar la causa real la próxima vez.
+	if get_tree().paused and not _any_modal_visible():
+		_stuck_pause_t += _delta
+		if _stuck_pause_t > 1.5:
+			var st := _pause_debug_state()
+			push_warning("[watchdog] árbol PAUSADO sin panel visible → auto-despausa. " + st)
+			print("[watchdog] pausa fantasma (soft-lock) → despauso. " + st)
+			get_tree().paused = false
+			_stuck_pause_t = 0.0
+	else:
+		_stuck_pause_t = 0.0
+
 	var p: Player = GameState.player
 	if p == null:
 		return
@@ -256,6 +273,29 @@ func _toggle_pause() -> void:
 	else:
 		pause_panel.visible = true
 		get_tree().paused = true
+
+## ¿Hay ALGÚN panel modal (que justifique la pausa) visible? El watchdog lo usa para no auto-despausar
+## una pausa legítima. Cubre TODAS las fuentes de pausa: mejora, pausa, muerte/victoria, inventario,
+## tienda, panel de habilidades. Si agregás una fuente de pausa nueva, sumala acá.
+func _any_modal_visible() -> bool:
+	if up_panel.visible or pause_panel.visible or death_panel.visible or inv_panel.visible:
+		return true
+	if _inv != null and _inv.is_open():
+		return true
+	if _shop != null and _shop.is_open():
+		return true
+	if _skills != null and _skills.is_open():
+		return true
+	return false
+
+## Volcado de estado para diagnosticar la pausa fantasma (todos los paneles en false = confirma el bug).
+func _pause_debug_state() -> String:
+	var p = GameState.player
+	return "mode=%d up=%s pause=%s death=%s inv=%s shop=%s skills=%s lvl=%d kills=%d" % [
+		GameState.mode, up_panel.visible, pause_panel.visible, death_panel.visible,
+		(_inv != null and _inv.is_open()), (_shop != null and _shop.is_open()),
+		(_skills != null and _skills.is_open()),
+		(p.level if p != null else -1), int(GameState.run.get("kills", 0))]
 
 # ---------------- Muerte / reinicio ----------------
 func _on_death() -> void:

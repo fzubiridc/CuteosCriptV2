@@ -126,6 +126,9 @@ func _corner_variants_def() -> Array:
 # 144×200 que los muros (A=DoorNW→bordes NW/SE, B=DoorNE→NE/SW) → reusa origin+occluder del borde
 # base, igual que las variaciones. Se estampa SOLO en la cara-puerta (get_door_specs); el resto, muro.
 const DOOR_ARTS := {"A": "DoorNW", "B": "DoorNE"}
+## Arte de puerta POR CARA (cada lado tiene su PNG propio). Reemplaza el viejo mapeo A/B que hacía
+## SE reusar DoorNW y SW reusar DoorNE (mirror hack de cuando solo existían 2 artes). Ahora hay 4.
+const DOOR_ART_BY_SRC := {SRC_WALL_NW: "DoorNW", SRC_WALL_NE: "DoorNE", SRC_WALL_SE: "DoorSE", SRC_WALL_SW: "DoorSW"}
 const DOOR_FIRST_ID := 200
 var _door_src: Dictionary = {}     # borde base (SRC_WALL_*) → source id del tile de puerta
 var _door_faces: Dictionary = {}   # celda de puerta → Side donde estampar la puerta
@@ -143,6 +146,7 @@ var _wall_origin: Dictionary = {}   # source → Vector2 (texture_origin)
 var _wall_variants: Dictionary = {} # base_src → Array[int] (pool de variantes, incluye el base)
 var _variant_base: Dictionary = {}  # variant_src → base_src (para layer front/back y reveal)
 var _wall_segments: Array = []   # Fase 1: lista de WallSegment (muro = lado de celda)
+var _region_door_edges: Array = []   # aristas "door" de edge_features (frontera de región): [{cell, side}] → puerta real
 const WALL_SPAN_MAX := 96
 var _wall_spans_all: Array = []
 var _wall_span_a := PackedVector2Array()
@@ -205,14 +209,14 @@ func generate() -> void:
 			_gen.gen_grid()
 		_room_of = _assign_rooms()                # cada celda de piso → su sala (rect)
 		_gen.assign_roles()                       # Fase 2: roles por BFS + spawn/exit por rol
-		if DEBUG_SUBROOM:
-			_mark_subroom_demo()   # DEMO Etapa 2: sub-cuarto por regiones+edge_features
+		_place_subrooms()   # Etapa 4: sub-cuartos (depósitos) en salas grandes → muros+puerta por regiones
 		_wall_segments = _build_wall_segments()   # Fase 2: segmentos = fuente de verdad del pintado
 		_paint_iso()
 		_build_iso_nav()
 		_build_iso_boundaries()   # colisión en el perímetro → no caminar al vacío
 		_install_wall_collisions()   # colisión por-pieza de los muros (sprites ya no tienen colisión de tile)
 		_place_dividers()         # FASE 1: divisor interno de prueba (sala grande subdividida + puerta)
+		_place_region_doors()     # Etapa 3 regiones: puertas reales en las aristas "door" de edge_features
 		_ensure_decor()
 		_decor.place_torches()     # antorchas de sala → luz + sombras proyectadas
 		_decor.place_campfires()   # fogatas cada tanto en el centro de algunas salas (no en la de spawn)
@@ -317,6 +321,8 @@ func _place_dividers() -> void:
 	for ri in _room_specs.size():
 		if ri == spawn_ri:
 			continue
+		if _subroom_rooms.has(ri):
+			continue   # esa sala ya tiene sub-cuarto (Etapa 4) → no cruzarla con un divisor
 		var spec: Dictionary = _room_specs[ri]
 		var w := int(spec["w"])
 		var dd := int(spec["d"])
@@ -467,7 +473,7 @@ func _ensure_door_sources() -> void:
 	var tex_cache := {}
 	for pair in WALL_VAR_BORDERS:
 		var base_src: int = pair[0]
-		var art: String = DOOR_ARTS[pair[1]]
+		var art: String = DOOR_ART_BY_SRC.get(base_src, DOOR_ARTS[pair[1]])
 		var vid := next_id
 		next_id += 1
 		var origin: Vector2 = _wall_origin.get(base_src, Vector2.ZERO)
@@ -1351,6 +1357,8 @@ func _build_iso_boundaries() -> void:
 ## desde acá. Loguea cuántas esquinas detecta que el sistema viejo dejaba con una sola cara.
 func _build_wall_segments() -> Array:
 	var segs: Array = []
+	_region_door_edges = []
+	var door_seen := {}   # dedupe: cada arista interior se visita desde ambas celdas
 	var gh := grid.size()
 	var gw: int = grid[0].size() if gh > 0 else 0
 	for y in gh:
@@ -1360,8 +1368,17 @@ func _build_wall_segments() -> Array:
 			var cell := Vector2i(x, y)
 			# 4 bordes de rombo: hay muro si el vecino al otro lado es vacío.
 			for side in [WallSegment.Side.NW, WallSegment.Side.NE, WallSegment.Side.SE, WallSegment.Side.SW]:
-				if _seg_is_floor(WallSegment.neighbor(cell, side), gw, gh):
-					if String(edge_features.get(_edge_key(cell, side), "")) != "wall":
+				var nb := WallSegment.neighbor(cell, side)
+				if _seg_is_floor(nb, gw, gh):
+					var feat := String(edge_features.get(_edge_key(cell, side), ""))
+					if feat != "wall":
+						# Arista interior "door" (frontera de región) → puerta REAL (no muro, no hueco).
+						# Se registra una vez por arista (clave canónica del par de celdas).
+						if feat == "door":
+							var pk := _pair_key(cell, nb)
+							if not door_seen.has(pk):
+								door_seen[pk] = true
+								_region_door_edges.append({"cell": cell, "side": side})
 						continue
 				var facade: bool = side == WallSegment.Side.SE or side == WallSegment.Side.SW
 				var seg = WallSegment.new(cell, side, 0, facade)
@@ -1376,6 +1393,33 @@ func _seg_is_floor(c: Vector2i, gw: int, gh: int) -> bool:
 ## Clave de arista (celda + lado) para edge_features (frontera de region).
 func _edge_key(cell: Vector2i, side: int) -> String:
 	return "%d_%d_%d" % [cell.x, cell.y, int(side)]
+
+## Clave CANÓNICA (orden estable) del par de celdas de una arista → dedupe de aristas "door"
+## (cada arista interior se visita desde ambas celdas).
+func _pair_key(a: Vector2i, b: Vector2i) -> String:
+	if a.x < b.x or (a.x == b.x and a.y <= b.y):
+		return "%d,%d,%d,%d" % [a.x, a.y, b.x, b.y]
+	return "%d,%d,%d,%d" % [b.x, b.y, a.x, a.y]
+
+## Etapa 3 (arquitectura de regiones): materializa una PUERTA REAL en cada arista "door" de edge_features
+## (frontera de región marcada como paso). Reusa la maquinaria de puerta de DungeonDividers (sprite
+## cerrada/abierta + colisión + nav-solid + abrir con clic derecho). Corre tras _place_dividers (comparte
+## el módulo lazy y su clear()). Sin aristas "door" (default) → no-op.
+func _place_region_doors() -> void:
+	if _region_door_edges.is_empty():
+		return
+	_ensure_dividers()
+	for e in _region_door_edges:
+		var cell: Vector2i = e["cell"]
+		var side: int = int(e["side"])
+		var h = _dividers.spawn_region_door(cell, side)
+		# Puerta de FACHADA (SE/SW): va en la capa delantera (z+1) → PUEDE tapar al player. La sumamos al
+		# índice de cutaway (`_front_walls`) para que se transparente cuando lo tapa, igual que las fachadas
+		# de muro (`_update_wall_cutaway`). Las traseras (NW/NE) van en z-1: el player las tapa, sin cutaway.
+		if h != null and (side == WallSegment.Side.SE or side == WallSegment.Side.SW):
+			if not _front_walls.has(cell):
+				_front_walls[cell] = []
+			_front_walls[cell].append(h)
 
 ## Poligono valido para colision/render: >=3 puntos y area no nula (evita el error canvas_item_add_polygon
 ## de los CollisionPolygon2D degenerados al dibujarlos con Visible Collision Shapes).
@@ -1416,45 +1460,81 @@ func _poly_valid(pts: PackedVector2Array) -> bool:
 				return false
 	return true
 
-const DEBUG_SUBROOM := true   # DEMO Etapa 2: sub-cuarto por regiones en la 1a sala grande (sacar despues)
-## DEMO Etapa 2/4: crea un SUB-CUARTO en una esquina de la primera sala grande con el modelo de REGIONES:
-## le da una sub-region propia y marca su frontera interior con la sala como aristas "wall" (+ una "door").
-## Los muros EMERGEN solos en _build_wall_segments. Prueba end-to-end de la arquitectura. Gateado por DEBUG_SUBROOM.
-func _mark_subroom_demo() -> void:
-	var ri := -1
-	for i in _room_specs.size():
-		if int(_room_specs[i]["w"]) >= 6 and int(_room_specs[i]["d"]) >= 6:
-			ri = i
-			break
-	if ri < 0:
+const PLACE_SUBROOMS := true        # Etapa 4: sub-cuartos (depósitos) en el procgen REAL (reemplaza al demo)
+const SUBROOM_REGION_BASE := 90000  # ids de región de sub-cuartos: altos → no colisionan con salas/corredores
+const SUBROOM_CHANCE := 0.35        # prob. de sub-cuarto por sala grande elegible (seedeado por piso)
+var _subroom_rooms: Dictionary = {} # índices de sala con sub-cuarto → los divisores los saltean (no cruzar)
+
+## Etapa 4 (arquitectura de regiones): genera SUB-CUARTOS (depósitos) en salas grandes durante el procgen.
+## Un sub-cuarto = una sub-región RECTANGULAR en una esquina de la sala; su frontera INTERIOR con la sala
+## se marca "wall" en `edge_features` (+ UNA arista "door") → los muros y la puerta EMERGEN solos del
+## pipeline normal (`_build_wall_segments` / `_place_region_doors`). Reemplaza al demo `_mark_subroom_demo`.
+## Seedeado por Rng (reproducible por piso). Corre tras assign_roles (spawn/exit ya definidos), antes de
+## `_build_wall_segments`. Rellena `_subroom_rooms` para que `_place_dividers` saltee esas salas.
+func _place_subrooms() -> void:
+	_subroom_rooms = {}
+	if not PLACE_SUBROOMS:
 		return
-	var spec: Dictionary = _room_specs[ri]
-	var oc: Vector2i = spec["origin"]
-	var w: int = int(spec["w"])
-	var base := map_to_local(oc)
-	var ax := Vector2(128, 64)
-	var bx := Vector2(-128, 64)
+	var ax := Vector2(128, 64)    # eje u (SE) cell-space; mismos ejes que carve_iso_room
+	var bx := Vector2(-128, 64)   # eje v (SW)
 	var sides := [WallSegment.Side.NW, WallSegment.Side.NE, WallSegment.Side.SE, WallSegment.Side.SW]
-	var subset := {}
-	for u in range(w - 3, w):
-		for v in range(0, 3):
-			var c := local_to_map(base + ax * u + bx * v)
-			subset[c] = true
+	# Sala de spawn: no meter sub-cuarto ahí (no aparecer encerrado).
+	var spawn_ri := -1
+	if spawn_cell.x >= 0:
+		for i in _gen_room_cells.size():
+			if spawn_cell in _gen_room_cells[i]:
+				spawn_ri = i
+				break
+	for ri in _room_specs.size():
+		if ri == spawn_ri:
+			continue
+		var spec: Dictionary = _room_specs[ri]
+		var w: int = int(spec["w"])
+		var dd: int = int(spec["d"])
+		if w < 6 or dd < 6:
+			continue
+		if not Rng.chance(SUBROOM_CHANCE):
+			continue
+		var sz: int = mini(Rng.range_i(2, 3), mini(w - 2, dd - 2))   # 2-3 celdas, con margen de sala
+		if sz < 2:
+			continue
+		var base := map_to_local(spec["origin"])
+		var u0: int = 0 if Rng.chance(0.5) else w - sz   # esquina al azar en (u,v)
+		var v0: int = 0 if Rng.chance(0.5) else dd - sz
+		# Recolectar las celdas del sub-cuarto (deben ser piso y no spawn/exit).
+		var subset := {}
+		var ok := true
+		for u in range(u0, u0 + sz):
+			for v in range(v0, v0 + sz):
+				var c := local_to_map(base + ax * u + bx * v)
+				if not _seg_is_floor(c, MAP_W, MAP_H) or c == spawn_cell or c == exit_cell:
+					ok = false
+					break
+				subset[c] = true
+			if not ok:
+				break
+		if not ok or subset.is_empty():
+			continue
+		# Frontera INTERIOR (aristas hacia piso de la sala, no hacia EMPTY): candidatas a muro/puerta.
+		var boundary: Array = []
+		for c in subset:
+			for s in sides:
+				var n: Vector2i = WallSegment.neighbor(c, s)
+				if not _seg_is_floor(n, MAP_W, MAP_H) or subset.has(n):
+					continue   # hacia EMPTY (ya es perímetro) o interior del sub-cuarto → no tocar
+				boundary.append({"cell": c, "side": s})
+		if boundary.is_empty():
+			continue   # sub-cuarto sin frontera interior (todo contra el perímetro) → descartar
+		# Asignar región propia + marcar la frontera: UNA puerta (al azar), el resto muros.
+		var rid: int = SUBROOM_REGION_BASE + ri
+		for c in subset:
 			if c.y >= 0 and c.y < region_id.size() and c.x >= 0 and c.x < (region_id[c.y] as Array).size():
-				region_id[c.y][c.x] = 90000 + ri
-	var door_done := false
-	for c in subset:
-		for s in sides:
-			var n: Vector2i = WallSegment.neighbor(c, s)
-			if not _seg_is_floor(n, MAP_W, MAP_H):
-				continue
-			if subset.has(n):
-				continue
-			if not door_done:
-				edge_features[_edge_key(c, s)] = "door"
-				door_done = true
-			else:
-				edge_features[_edge_key(c, s)] = "wall"
+				region_id[c.y][c.x] = rid
+		var door_idx: int = Rng.range_i(0, boundary.size() - 1)
+		for bi in boundary.size():
+			var e: Dictionary = boundary[bi]
+			edge_features[_edge_key(e["cell"], int(e["side"]))] = "door" if bi == door_idx else "wall"
+		_subroom_rooms[ri] = true
 
 ## Cada celda de piso → índice de su sala (rect de procgen). Corredores (fuera de todo rect)
 ## quedan en -1. Usamos los rects y NO flood-fill, porque el flood-fill daría UNA sola región
