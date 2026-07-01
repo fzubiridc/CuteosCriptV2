@@ -55,8 +55,8 @@ func _build() -> void:
 	dungeon._ensure_fog()
 	dungeon._fog.init_visibility()
 	dungeon.regenerated.emit()
-	# Spawn cerca de una esquina de la sala, con espacio para caminar alrededor de los sub-cuartos.
-	var c0 := dungeon.local_to_map(dungeon.map_to_local(ORIGIN) + Vector2(128, 64) * 7 + Vector2(-128, 64) * 2)
+	# Spawn en la parte SUR de la sala (detrás de la fachada S → arranca viendo el cutaway funcionar).
+	var c0 := dungeon.local_to_map(dungeon.map_to_local(ORIGIN) + Vector2(128, 64) * 7 + Vector2(-128, 64) * 11)
 	player.global_position = dungeon.to_global(dungeon.map_to_local(c0))
 	player.velocity = Vector2.ZERO
 	player.reset_physics_interpolation()
